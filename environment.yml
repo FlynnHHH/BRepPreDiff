@@ -1,0 +1,16 @@
+name: blendit
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - hatchling
+  - numpy>=1.24
+  - pyyaml>=6.0
+  - tqdm>=4.66
+  - pytest>=8.0
+  - pytorch>=2.2
+  - cpuonly
+  - pythonocc-core>=7.8

@@ -1,0 +1,80 @@
+seed: 42
+run:
+  name: baseline
+  output_dir: runs
+  log_interval: 10
+  save_every_epochs: 1
+
+data:
+  root: data
+  steps_dir: steps
+  segs_dir: segs
+  cache_dir: data/cache/features
+  cache_only: false
+  train_split: null
+  val_split: null
+  test_split: null
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  normalize_per_graph: true
+  num_workers: 0
+  cache_num_workers: 0
+  invalid_log: null
+
+brep:
+  uv_grid_size: 4
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+model:
+  hidden_dim: 128
+  num_layers: 4
+  dropout: 0.1
+  time_dim: 128
+  num_classes: 3
+
+diffusion:
+  timesteps: 1000
+  beta_start: 1.0e-4
+  beta_end: 0.02
+  noise_loss_weight: 1.0
+  recon_loss_weight: 0.5
+  categorical_loss_weight: 0.5
+  relation_loss_weight: 0.3
+  coarse_label_loss_weight: 0.2
+
+train:
+  stage: pretrain
+  device: cuda
+  epochs: 20
+  batch_size: 2
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  grad_clip_norm: 1.0
+  validate_every_epochs: 1
+  resume: null
+  pretrain_checkpoint: null
+  pretrained_encoder: null
+  class_weights: null
+  dice_loss_weight: 0.3
+  ignore_index: -100
+
+labels:
+  names: ["NonTransition", "VBF", "EBF"]
+  value_offset: 0
+  # ABC/BrepDit raw SEG mapping:
+  # 0/1/2/3/5/7 -> non-transition, 4 -> EBF, 6 -> VBF.
+  raw_to_class_map:
+    4: 2
+    6: 1
+  default_class: 0
+  # Used only for coarse auxiliary supervision during pretraining.
+  coarse_soft_targets:
+    0: [0.90, 0.05, 0.05]
+    1: [0.05, 0.80, 0.15]
+    2: [0.05, 0.15, 0.80]
