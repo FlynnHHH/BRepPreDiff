@@ -1,0 +1,12 @@
+name: blendit-infer
+channels:
+  - pytorch
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - numpy>=1.24,<3
+  - pyyaml>=6
+  - pytorch=2.5.1
+  - cpuonly
+  - pythonocc-core>=7.8,<8

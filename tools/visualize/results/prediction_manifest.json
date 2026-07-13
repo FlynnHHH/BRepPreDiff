@@ -1,0 +1,2171 @@
+{
+  "checkpoint": "runs/finetune/20260709-145728_finetune/checkpoints/best.pt",
+  "checkpoint_epoch": 5,
+  "config": "configs/finetune.yaml",
+  "input_mode": "step",
+  "split": null,
+  "split_file": null,
+  "step": [],
+  "step_dir": [
+    "/home/nvme03/hhfeng/testset_lxy/step"
+  ],
+  "step_list": [],
+  "step_root": null,
+  "seg": [],
+  "seg_dir": [
+    "/home/nvme03/hhfeng/testset_lxy/seg"
+  ],
+  "seg_list": [],
+  "seg_root": null,
+  "colors": {
+    "NonTransition": [
+      218,
+      222,
+      230
+    ],
+    "VBF": [
+      255,
+      79,
+      163
+    ],
+    "EBF": [
+      255,
+      212,
+      0
+    ]
+  },
+  "samples": [
+    {
+      "sample_id": "00005155",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00005155.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00005155.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00005155.seg",
+      "cache_path": null,
+      "input_ply": "00005155_instance_pred_rgb.ply",
+      "semantic_ply": "00005155_semantic_pred.ply",
+      "faces": 48,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 29,
+        "VBF": 3,
+        "EBF": 16
+      },
+      "class_counts": {
+        "NonTransition": 38,
+        "VBF": 3,
+        "EBF": 7
+      },
+      "mean_confidence": 0.986077606678009,
+      "ply_vertices": 821,
+      "ply_triangles": 781,
+      "skipped_faces": 0,
+      "input_ply_triangles": 781
+    },
+    {
+      "sample_id": "00010998",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00010998.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00010998.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00010998.seg",
+      "cache_path": null,
+      "input_ply": "00010998_instance_pred_rgb.ply",
+      "semantic_ply": "00010998_semantic_pred.ply",
+      "faces": 32,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 19,
+        "VBF": 4,
+        "EBF": 9
+      },
+      "class_counts": {
+        "NonTransition": 17,
+        "VBF": 4,
+        "EBF": 11
+      },
+      "mean_confidence": 0.9959330558776855,
+      "ply_vertices": 1672,
+      "ply_triangles": 2204,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2204
+    },
+    {
+      "sample_id": "00090142",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00090142.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00090142.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00090142.seg",
+      "cache_path": null,
+      "input_ply": "00090142_instance_pred_rgb.ply",
+      "semantic_ply": "00090142_semantic_pred.ply",
+      "faces": 22,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999359250068665,
+      "ply_vertices": 1416,
+      "ply_triangles": 1420,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1420
+    },
+    {
+      "sample_id": "00097858",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00097858.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00097858.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00097858.seg",
+      "cache_path": null,
+      "input_ply": "00097858_instance_pred_rgb.ply",
+      "semantic_ply": "00097858_semantic_pred.ply",
+      "faces": 37,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 37,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 37,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9995870590209961,
+      "ply_vertices": 1416,
+      "ply_triangles": 1368,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1368
+    },
+    {
+      "sample_id": "00098974",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00098974.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00098974.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00098974.seg",
+      "cache_path": null,
+      "input_ply": "00098974_instance_pred_rgb.ply",
+      "semantic_ply": "00098974_semantic_pred.ply",
+      "faces": 49,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 21,
+        "VBF": 8,
+        "EBF": 20
+      },
+      "class_counts": {
+        "NonTransition": 31,
+        "VBF": 3,
+        "EBF": 15
+      },
+      "mean_confidence": 0.9024680256843567,
+      "ply_vertices": 3465,
+      "ply_triangles": 5622,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5622
+    },
+    {
+      "sample_id": "00099872",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00099872.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00099872.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00099872.seg",
+      "cache_path": null,
+      "input_ply": "00099872_instance_pred_rgb.ply",
+      "semantic_ply": "00099872_semantic_pred.ply",
+      "faces": 30,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999366998672485,
+      "ply_vertices": 180,
+      "ply_triangles": 120,
+      "skipped_faces": 0,
+      "input_ply_triangles": 120
+    },
+    {
+      "sample_id": "00119510",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00119510.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00119510.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00119510.seg",
+      "cache_path": null,
+      "input_ply": "00119510_instance_pred_rgb.ply",
+      "semantic_ply": "00119510_semantic_pred.ply",
+      "faces": 36,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 18,
+        "VBF": 4,
+        "EBF": 14
+      },
+      "class_counts": {
+        "NonTransition": 18,
+        "VBF": 4,
+        "EBF": 14
+      },
+      "mean_confidence": 0.9933726191520691,
+      "ply_vertices": 1644,
+      "ply_triangles": 2274,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2274
+    },
+    {
+      "sample_id": "00122182",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00122182.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00122182.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00122182.seg",
+      "cache_path": null,
+      "input_ply": "00122182_instance_pred_rgb.ply",
+      "semantic_ply": "00122182_semantic_pred.ply",
+      "faces": 37,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 35,
+        "VBF": 0,
+        "EBF": 2
+      },
+      "class_counts": {
+        "NonTransition": 37,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9981029629707336,
+      "ply_vertices": 713,
+      "ply_triangles": 662,
+      "skipped_faces": 0,
+      "input_ply_triangles": 662
+    },
+    {
+      "sample_id": "00155738",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00155738.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00155738.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00155738.seg",
+      "cache_path": null,
+      "input_ply": "00155738_instance_pred_rgb.ply",
+      "semantic_ply": "00155738_semantic_pred.ply",
+      "faces": 33,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 25,
+        "VBF": 0,
+        "EBF": 8
+      },
+      "class_counts": {
+        "NonTransition": 24,
+        "VBF": 0,
+        "EBF": 9
+      },
+      "mean_confidence": 0.9927509427070618,
+      "ply_vertices": 2185,
+      "ply_triangles": 3356,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3356
+    },
+    {
+      "sample_id": "00176851",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00176851.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00176851.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00176851.seg",
+      "cache_path": null,
+      "input_ply": "00176851_instance_pred_rgb.ply",
+      "semantic_ply": "00176851_semantic_pred.ply",
+      "faces": 32,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 26,
+        "VBF": 2,
+        "EBF": 4
+      },
+      "class_counts": {
+        "NonTransition": 24,
+        "VBF": 0,
+        "EBF": 8
+      },
+      "mean_confidence": 0.9961490631103516,
+      "ply_vertices": 2782,
+      "ply_triangles": 3294,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3294
+    },
+    {
+      "sample_id": "00191174",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00191174.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00191174.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00191174.seg",
+      "cache_path": null,
+      "input_ply": "00191174_instance_pred_rgb.ply",
+      "semantic_ply": "00191174_semantic_pred.ply",
+      "faces": 46,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 46,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 46,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999496340751648,
+      "ply_vertices": 264,
+      "ply_triangles": 212,
+      "skipped_faces": 0,
+      "input_ply_triangles": 212
+    },
+    {
+      "sample_id": "00246789",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00246789.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00246789.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00246789.seg",
+      "cache_path": null,
+      "input_ply": "00246789_instance_pred_rgb.ply",
+      "semantic_ply": "00246789_semantic_pred.ply",
+      "faces": 40,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 14,
+        "VBF": 10,
+        "EBF": 16
+      },
+      "class_counts": {
+        "NonTransition": 14,
+        "VBF": 8,
+        "EBF": 18
+      },
+      "mean_confidence": 0.9968433380126953,
+      "ply_vertices": 2279,
+      "ply_triangles": 3104,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3104
+    },
+    {
+      "sample_id": "00246977",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00246977.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00246977.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00246977.seg",
+      "cache_path": null,
+      "input_ply": "00246977_instance_pred_rgb.ply",
+      "semantic_ply": "00246977_semantic_pred.ply",
+      "faces": 42,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 24,
+        "VBF": 11,
+        "EBF": 7
+      },
+      "class_counts": {
+        "NonTransition": 25,
+        "VBF": 2,
+        "EBF": 15
+      },
+      "mean_confidence": 0.9327309727668762,
+      "ply_vertices": 1652,
+      "ply_triangles": 2220,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2220
+    },
+    {
+      "sample_id": "00291550",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00291550.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00291550.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00291550.seg",
+      "cache_path": null,
+      "input_ply": "00291550_instance_pred_rgb.ply",
+      "semantic_ply": "00291550_semantic_pred.ply",
+      "faces": 42,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 42,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 42,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999547004699707,
+      "ply_vertices": 240,
+      "ply_triangles": 188,
+      "skipped_faces": 0,
+      "input_ply_triangles": 188
+    },
+    {
+      "sample_id": "00295652",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00295652.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00295652.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00295652.seg",
+      "cache_path": null,
+      "input_ply": "00295652_instance_pred_rgb.ply",
+      "semantic_ply": "00295652_semantic_pred.ply",
+      "faces": 36,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 36,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 36,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9994351267814636,
+      "ply_vertices": 1836,
+      "ply_triangles": 1812,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1812
+    },
+    {
+      "sample_id": "00297171",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00297171.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00297171.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00297171.seg",
+      "cache_path": null,
+      "input_ply": "00297171_instance_pred_rgb.ply",
+      "semantic_ply": "00297171_semantic_pred.ply",
+      "faces": 56,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 56,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 56,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999186396598816,
+      "ply_vertices": 684,
+      "ply_triangles": 596,
+      "skipped_faces": 0,
+      "input_ply_triangles": 596
+    },
+    {
+      "sample_id": "00299520",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00299520.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00299520.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00299520.seg",
+      "cache_path": null,
+      "input_ply": "00299520_instance_pred_rgb.ply",
+      "semantic_ply": "00299520_semantic_pred.ply",
+      "faces": 30,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999239444732666,
+      "ply_vertices": 6068,
+      "ply_triangles": 6092,
+      "skipped_faces": 0,
+      "input_ply_triangles": 6092
+    },
+    {
+      "sample_id": "00300033",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00300033.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00300033.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00300033.seg",
+      "cache_path": null,
+      "input_ply": "00300033_instance_pred_rgb.ply",
+      "semantic_ply": "00300033_semantic_pred.ply",
+      "faces": 31,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 14,
+        "VBF": 8,
+        "EBF": 9
+      },
+      "class_counts": {
+        "NonTransition": 16,
+        "VBF": 4,
+        "EBF": 11
+      },
+      "mean_confidence": 0.967677891254425,
+      "ply_vertices": 1449,
+      "ply_triangles": 1882,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1882
+    },
+    {
+      "sample_id": "00320339",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00320339.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00320339.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00320339.seg",
+      "cache_path": null,
+      "input_ply": "00320339_instance_pred_rgb.ply",
+      "semantic_ply": "00320339_semantic_pred.ply",
+      "faces": 34,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 14,
+        "VBF": 8,
+        "EBF": 12
+      },
+      "class_counts": {
+        "NonTransition": 14,
+        "VBF": 8,
+        "EBF": 12
+      },
+      "mean_confidence": 0.9983988404273987,
+      "ply_vertices": 1128,
+      "ply_triangles": 1380,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1380
+    },
+    {
+      "sample_id": "00321051",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00321051.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00321051.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00321051.seg",
+      "cache_path": null,
+      "input_ply": "00321051_instance_pred_rgb.ply",
+      "semantic_ply": "00321051_semantic_pred.ply",
+      "faces": 33,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 28,
+        "VBF": 4,
+        "EBF": 1
+      },
+      "class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 4
+      },
+      "mean_confidence": 0.9778613448143005,
+      "ply_vertices": 1711,
+      "ply_triangles": 2358,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2358
+    },
+    {
+      "sample_id": "00323247",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00323247.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00323247.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00323247.seg",
+      "cache_path": null,
+      "input_ply": "00323247_instance_pred_rgb.ply",
+      "semantic_ply": "00323247_semantic_pred.ply",
+      "faces": 33,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 28,
+        "VBF": 0,
+        "EBF": 5
+      },
+      "class_counts": {
+        "NonTransition": 32,
+        "VBF": 0,
+        "EBF": 1
+      },
+      "mean_confidence": 0.989696741104126,
+      "ply_vertices": 991,
+      "ply_triangles": 1022,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1022
+    },
+    {
+      "sample_id": "00328584",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00328584.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00328584.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00328584.seg",
+      "cache_path": null,
+      "input_ply": "00328584_instance_pred_rgb.ply",
+      "semantic_ply": "00328584_semantic_pred.ply",
+      "faces": 40,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 16,
+        "VBF": 8,
+        "EBF": 16
+      },
+      "class_counts": {
+        "NonTransition": 16,
+        "VBF": 8,
+        "EBF": 16
+      },
+      "mean_confidence": 0.9962990880012512,
+      "ply_vertices": 1046,
+      "ply_triangles": 1054,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1054
+    },
+    {
+      "sample_id": "00355840",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00355840.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00355840.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00355840.seg",
+      "cache_path": null,
+      "input_ply": "00355840_instance_pred_rgb.ply",
+      "semantic_ply": "00355840_semantic_pred.ply",
+      "faces": 44,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 16,
+        "VBF": 8,
+        "EBF": 20
+      },
+      "class_counts": {
+        "NonTransition": 16,
+        "VBF": 8,
+        "EBF": 20
+      },
+      "mean_confidence": 0.9972227215766907,
+      "ply_vertices": 904,
+      "ply_triangles": 1132,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1132
+    },
+    {
+      "sample_id": "00373133",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00373133.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00373133.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00373133.seg",
+      "cache_path": null,
+      "input_ply": "00373133_instance_pred_rgb.ply",
+      "semantic_ply": "00373133_semantic_pred.ply",
+      "faces": 48,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 36,
+        "VBF": 0,
+        "EBF": 12
+      },
+      "class_counts": {
+        "NonTransition": 48,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9995386600494385,
+      "ply_vertices": 2272,
+      "ply_triangles": 2196,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2196
+    },
+    {
+      "sample_id": "00373464",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00373464.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00373464.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00373464.seg",
+      "cache_path": null,
+      "input_ply": "00373464_instance_pred_rgb.ply",
+      "semantic_ply": "00373464_semantic_pred.ply",
+      "faces": 34,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 19,
+        "VBF": 4,
+        "EBF": 11
+      },
+      "class_counts": {
+        "NonTransition": 21,
+        "VBF": 4,
+        "EBF": 9
+      },
+      "mean_confidence": 0.9890547394752502,
+      "ply_vertices": 1158,
+      "ply_triangles": 1280,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1280
+    },
+    {
+      "sample_id": "00375518",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00375518.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00375518.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00375518.seg",
+      "cache_path": null,
+      "input_ply": "00375518_instance_pred_rgb.ply",
+      "semantic_ply": "00375518_semantic_pred.ply",
+      "faces": 50,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 16,
+        "VBF": 5,
+        "EBF": 29
+      },
+      "class_counts": {
+        "NonTransition": 16,
+        "VBF": 5,
+        "EBF": 29
+      },
+      "mean_confidence": 0.9939980506896973,
+      "ply_vertices": 3685,
+      "ply_triangles": 5681,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5681
+    },
+    {
+      "sample_id": "00391125",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00391125.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00391125.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00391125.seg",
+      "cache_path": null,
+      "input_ply": "00391125_instance_pred_rgb.ply",
+      "semantic_ply": "00391125_semantic_pred.ply",
+      "faces": 22,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999538064002991,
+      "ply_vertices": 120,
+      "ply_triangles": 76,
+      "skipped_faces": 0,
+      "input_ply_triangles": 76
+    },
+    {
+      "sample_id": "00393137",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00393137.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00393137.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00393137.seg",
+      "cache_path": null,
+      "input_ply": "00393137_instance_pred_rgb.ply",
+      "semantic_ply": "00393137_semantic_pred.ply",
+      "faces": 34,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 34,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 34,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9997810125350952,
+      "ply_vertices": 776,
+      "ply_triangles": 724,
+      "skipped_faces": 0,
+      "input_ply_triangles": 724
+    },
+    {
+      "sample_id": "00397644",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00397644.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00397644.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00397644.seg",
+      "cache_path": null,
+      "input_ply": "00397644_instance_pred_rgb.ply",
+      "semantic_ply": "00397644_semantic_pred.ply",
+      "faces": 29,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999382495880127,
+      "ply_vertices": 3318,
+      "ply_triangles": 3352,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3352
+    },
+    {
+      "sample_id": "00401886",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00401886.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00401886.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00401886.seg",
+      "cache_path": null,
+      "input_ply": "00401886_instance_pred_rgb.ply",
+      "semantic_ply": "00401886_semantic_pred.ply",
+      "faces": 30,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 10,
+        "VBF": 8,
+        "EBF": 12
+      },
+      "class_counts": {
+        "NonTransition": 10,
+        "VBF": 8,
+        "EBF": 12
+      },
+      "mean_confidence": 0.9977191090583801,
+      "ply_vertices": 560,
+      "ply_triangles": 648,
+      "skipped_faces": 0,
+      "input_ply_triangles": 648
+    },
+    {
+      "sample_id": "00499795",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00499795.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00499795.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00499795.seg",
+      "cache_path": null,
+      "input_ply": "00499795_instance_pred_rgb.ply",
+      "semantic_ply": "00499795_semantic_pred.ply",
+      "faces": 52,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 52,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 52,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999279379844666,
+      "ply_vertices": 240,
+      "ply_triangles": 136,
+      "skipped_faces": 0,
+      "input_ply_triangles": 136
+    },
+    {
+      "sample_id": "00563815",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00563815.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00563815.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00563815.seg",
+      "cache_path": null,
+      "input_ply": "00563815_instance_pred_rgb.ply",
+      "semantic_ply": "00563815_semantic_pred.ply",
+      "faces": 21,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 21,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 21,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9994961619377136,
+      "ply_vertices": 654,
+      "ply_triangles": 620,
+      "skipped_faces": 0,
+      "input_ply_triangles": 620
+    },
+    {
+      "sample_id": "00591524",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00591524.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00591524.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00591524.seg",
+      "cache_path": null,
+      "input_ply": "00591524_instance_pred_rgb.ply",
+      "semantic_ply": "00591524_semantic_pred.ply",
+      "faces": 22,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999117255210876,
+      "ply_vertices": 728,
+      "ply_triangles": 696,
+      "skipped_faces": 0,
+      "input_ply_triangles": 696
+    },
+    {
+      "sample_id": "00595416",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00595416.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00595416.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00595416.seg",
+      "cache_path": null,
+      "input_ply": "00595416_instance_pred_rgb.ply",
+      "semantic_ply": "00595416_semantic_pred.ply",
+      "faces": 22,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999377727508545,
+      "ply_vertices": 120,
+      "ply_triangles": 88,
+      "skipped_faces": 0,
+      "input_ply_triangles": 88
+    },
+    {
+      "sample_id": "00690731",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00690731.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00690731.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00690731.seg",
+      "cache_path": null,
+      "input_ply": "00690731_instance_pred_rgb.ply",
+      "semantic_ply": "00690731_semantic_pred.ply",
+      "faces": 26,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 26,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 26,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999472498893738,
+      "ply_vertices": 648,
+      "ply_triangles": 612,
+      "skipped_faces": 0,
+      "input_ply_triangles": 612
+    },
+    {
+      "sample_id": "00691139",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00691139.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00691139.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00691139.seg",
+      "cache_path": null,
+      "input_ply": "00691139_instance_pred_rgb.ply",
+      "semantic_ply": "00691139_semantic_pred.ply",
+      "faces": 29,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9994663000106812,
+      "ply_vertices": 1832,
+      "ply_triangles": 1798,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1798
+    },
+    {
+      "sample_id": "00693580",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00693580.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00693580.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00693580.seg",
+      "cache_path": null,
+      "input_ply": "00693580_instance_pred_rgb.ply",
+      "semantic_ply": "00693580_semantic_pred.ply",
+      "faces": 21,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 21,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 21,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999363422393799,
+      "ply_vertices": 126,
+      "ply_triangles": 84,
+      "skipped_faces": 0,
+      "input_ply_triangles": 84
+    },
+    {
+      "sample_id": "00695557",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00695557.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00695557.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00695557.seg",
+      "cache_path": null,
+      "input_ply": "00695557_instance_pred_rgb.ply",
+      "semantic_ply": "00695557_semantic_pred.ply",
+      "faces": 25,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 25,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 25,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9995169043540955,
+      "ply_vertices": 1338,
+      "ply_triangles": 1302,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1302
+    },
+    {
+      "sample_id": "00754372",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00754372.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00754372.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00754372.seg",
+      "cache_path": null,
+      "input_ply": "00754372_instance_pred_rgb.ply",
+      "semantic_ply": "00754372_semantic_pred.ply",
+      "faces": 26,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 26,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 26,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.99920654296875,
+      "ply_vertices": 1136,
+      "ply_triangles": 1104,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1104
+    },
+    {
+      "sample_id": "00780038",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00780038.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00780038.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00780038.seg",
+      "cache_path": null,
+      "input_ply": "00780038_instance_pred_rgb.ply",
+      "semantic_ply": "00780038_semantic_pred.ply",
+      "faces": 25,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 25,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 25,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9997913837432861,
+      "ply_vertices": 2188,
+      "ply_triangles": 2190,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2190
+    },
+    {
+      "sample_id": "00792424",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00792424.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00792424.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00792424.seg",
+      "cache_path": null,
+      "input_ply": "00792424_instance_pred_rgb.ply",
+      "semantic_ply": "00792424_semantic_pred.ply",
+      "faces": 29,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 29,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999066591262817,
+      "ply_vertices": 1120,
+      "ply_triangles": 1092,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1092
+    },
+    {
+      "sample_id": "00793692",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00793692.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00793692.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00793692.seg",
+      "cache_path": null,
+      "input_ply": "00793692_instance_pred_rgb.ply",
+      "semantic_ply": "00793692_semantic_pred.ply",
+      "faces": 40,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 40,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 40,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999561309814453,
+      "ply_vertices": 1340,
+      "ply_triangles": 1300,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1300
+    },
+    {
+      "sample_id": "00797701",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00797701.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00797701.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00797701.seg",
+      "cache_path": null,
+      "input_ply": "00797701_instance_pred_rgb.ply",
+      "semantic_ply": "00797701_semantic_pred.ply",
+      "faces": 38,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 38,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 38,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999473690986633,
+      "ply_vertices": 968,
+      "ply_triangles": 924,
+      "skipped_faces": 0,
+      "input_ply_triangles": 924
+    },
+    {
+      "sample_id": "00799070",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00799070.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00799070.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00799070.seg",
+      "cache_path": null,
+      "input_ply": "00799070_instance_pred_rgb.ply",
+      "semantic_ply": "00799070_semantic_pred.ply",
+      "faces": 54,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 54,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 54,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9998826384544373,
+      "ply_vertices": 680,
+      "ply_triangles": 588,
+      "skipped_faces": 0,
+      "input_ply_triangles": 588
+    },
+    {
+      "sample_id": "00892243",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00892243.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00892243.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00892243.seg",
+      "cache_path": null,
+      "input_ply": "00892243_instance_pred_rgb.ply",
+      "semantic_ply": "00892243_semantic_pred.ply",
+      "faces": 43,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 43,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 43,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999393820762634,
+      "ply_vertices": 1744,
+      "ply_triangles": 1692,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1692
+    },
+    {
+      "sample_id": "00898949",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00898949.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00898949.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00898949.seg",
+      "cache_path": null,
+      "input_ply": "00898949_instance_pred_rgb.ply",
+      "semantic_ply": "00898949_semantic_pred.ply",
+      "faces": 30,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 30,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999558925628662,
+      "ply_vertices": 144,
+      "ply_triangles": 96,
+      "skipped_faces": 0,
+      "input_ply_triangles": 96
+    },
+    {
+      "sample_id": "00913473",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00913473.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00913473.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00913473.seg",
+      "cache_path": null,
+      "input_ply": "00913473_instance_pred_rgb.ply",
+      "semantic_ply": "00913473_semantic_pred.ply",
+      "faces": 23,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 23,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 23,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999306797981262,
+      "ply_vertices": 126,
+      "ply_triangles": 80,
+      "skipped_faces": 0,
+      "input_ply_triangles": 80
+    },
+    {
+      "sample_id": "00990316",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00990316.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00990316.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00990316.seg",
+      "cache_path": null,
+      "input_ply": "00990316_instance_pred_rgb.ply",
+      "semantic_ply": "00990316_semantic_pred.ply",
+      "faces": 23,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 23,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 23,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999290704727173,
+      "ply_vertices": 126,
+      "ply_triangles": 84,
+      "skipped_faces": 0,
+      "input_ply_triangles": 84
+    },
+    {
+      "sample_id": "00993132",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00993132.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00993132.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00993132.seg",
+      "cache_path": null,
+      "input_ply": "00993132_instance_pred_rgb.ply",
+      "semantic_ply": "00993132_semantic_pred.ply",
+      "faces": 49,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 49,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 49,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999549388885498,
+      "ply_vertices": 264,
+      "ply_triangles": 188,
+      "skipped_faces": 0,
+      "input_ply_triangles": 188
+    },
+    {
+      "sample_id": "00995630",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00995630.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00995630.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00995630.seg",
+      "cache_path": null,
+      "input_ply": "00995630_instance_pred_rgb.ply",
+      "semantic_ply": "00995630_semantic_pred.ply",
+      "faces": 54,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 54,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 54,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999370574951172,
+      "ply_vertices": 1080,
+      "ply_triangles": 1008,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1008
+    },
+    {
+      "sample_id": "00995698",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00995698.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00995698.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00995698.seg",
+      "cache_path": null,
+      "input_ply": "00995698_instance_pred_rgb.ply",
+      "semantic_ply": "00995698_semantic_pred.ply",
+      "faces": 39,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 39,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 39,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.999933123588562,
+      "ply_vertices": 216,
+      "ply_triangles": 140,
+      "skipped_faces": 0,
+      "input_ply_triangles": 140
+    },
+    {
+      "sample_id": "00995924",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00995924.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00995924.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00995924.seg",
+      "cache_path": null,
+      "input_ply": "00995924_instance_pred_rgb.ply",
+      "semantic_ply": "00995924_semantic_pred.ply",
+      "faces": 27,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 27,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 27,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999217391014099,
+      "ply_vertices": 156,
+      "ply_triangles": 108,
+      "skipped_faces": 0,
+      "input_ply_triangles": 108
+    },
+    {
+      "sample_id": "00998879",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/00998879.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/00998879.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/00998879.seg",
+      "cache_path": null,
+      "input_ply": "00998879_instance_pred_rgb.ply",
+      "semantic_ply": "00998879_semantic_pred.ply",
+      "faces": 22,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "class_counts": {
+        "NonTransition": 22,
+        "VBF": 0,
+        "EBF": 0
+      },
+      "mean_confidence": 0.9999545812606812,
+      "ply_vertices": 120,
+      "ply_triangles": 76,
+      "skipped_faces": 0,
+      "input_ply_triangles": 76
+    },
+    {
+      "sample_id": "2020-C~2",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/2020-C~2.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/2020-C~2.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/2020-C~2.seg",
+      "cache_path": null,
+      "input_ply": "2020-C~2_instance_pred_rgb.ply",
+      "semantic_ply": "2020-C~2_semantic_pred.ply",
+      "faces": 80,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 70,
+        "VBF": 0,
+        "EBF": 10
+      },
+      "class_counts": {
+        "NonTransition": 76,
+        "VBF": 0,
+        "EBF": 4
+      },
+      "mean_confidence": 0.9775117635726929,
+      "ply_vertices": 1802,
+      "ply_triangles": 2076,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2076
+    },
+    {
+      "sample_id": "2020-C~3",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/2020-C~3.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/2020-C~3.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/2020-C~3.seg",
+      "cache_path": null,
+      "input_ply": "2020-C~3_instance_pred_rgb.ply",
+      "semantic_ply": "2020-C~3_semantic_pred.ply",
+      "faces": 64,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 52,
+        "VBF": 4,
+        "EBF": 8
+      },
+      "class_counts": {
+        "NonTransition": 60,
+        "VBF": 0,
+        "EBF": 4
+      },
+      "mean_confidence": 0.9632167816162109,
+      "ply_vertices": 1116,
+      "ply_triangles": 996,
+      "skipped_faces": 0,
+      "input_ply_triangles": 996
+    },
+    {
+      "sample_id": "BASE_BRACKET_with2.5mm",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/BASE_BRACKET_with2.5mm.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/BASE_BRACKET_with2.5mm.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/BASE_BRACKET_with2.5mm.seg",
+      "cache_path": null,
+      "input_ply": "BASE_BRACKET_with2.5mm_instance_pred_rgb.ply",
+      "semantic_ply": "BASE_BRACKET_with2.5mm_semantic_pred.ply",
+      "faces": 89,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 39,
+        "VBF": 7,
+        "EBF": 43
+      },
+      "class_counts": {
+        "NonTransition": 57,
+        "VBF": 1,
+        "EBF": 31
+      },
+      "mean_confidence": 0.8018214106559753,
+      "ply_vertices": 2319,
+      "ply_triangles": 3039,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3039
+    },
+    {
+      "sample_id": "BRAKET~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/BRAKET~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/BRAKET~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/BRAKET~1.seg",
+      "cache_path": null,
+      "input_ply": "BRAKET~1_instance_pred_rgb.ply",
+      "semantic_ply": "BRAKET~1_semantic_pred.ply",
+      "faces": 101,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 77,
+        "VBF": 0,
+        "EBF": 24
+      },
+      "class_counts": {
+        "NonTransition": 98,
+        "VBF": 0,
+        "EBF": 3
+      },
+      "mean_confidence": 0.9645253419876099,
+      "ply_vertices": 1398,
+      "ply_triangles": 1212,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1212
+    },
+    {
+      "sample_id": "Battery Bracket",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Battery Bracket.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Battery Bracket.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Battery Bracket.seg",
+      "cache_path": null,
+      "input_ply": "Battery_Bracket_instance_pred_rgb.ply",
+      "semantic_ply": "Battery_Bracket_semantic_pred.ply",
+      "faces": 125,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 44,
+        "VBF": 16,
+        "EBF": 65
+      },
+      "class_counts": {
+        "NonTransition": 52,
+        "VBF": 18,
+        "EBF": 55
+      },
+      "mean_confidence": 0.8857340216636658,
+      "ply_vertices": 4273,
+      "ply_triangles": 5564,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5564
+    },
+    {
+      "sample_id": "Biw_Sheet_04.1.26",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Biw_Sheet_04.1.26.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Biw_Sheet_04.1.26.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Biw_Sheet_04.1.26.seg",
+      "cache_path": null,
+      "input_ply": "Biw_Sheet_04.1.26_instance_pred_rgb.ply",
+      "semantic_ply": "Biw_Sheet_04.1.26_semantic_pred.ply",
+      "faces": 32,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 11,
+        "VBF": 6,
+        "EBF": 15
+      },
+      "class_counts": {
+        "NonTransition": 12,
+        "VBF": 2,
+        "EBF": 18
+      },
+      "mean_confidence": 0.9097012877464294,
+      "ply_vertices": 5323,
+      "ply_triangles": 8865,
+      "skipped_faces": 0,
+      "input_ply_triangles": 8865
+    },
+    {
+      "sample_id": "Bonneville Seat Bracket",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Bonneville Seat Bracket.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Bonneville Seat Bracket.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Bonneville Seat Bracket.seg",
+      "cache_path": null,
+      "input_ply": "Bonneville_Seat_Bracket_instance_pred_rgb.ply",
+      "semantic_ply": "Bonneville_Seat_Bracket_semantic_pred.ply",
+      "faces": 101,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 35,
+        "VBF": 9,
+        "EBF": 57
+      },
+      "class_counts": {
+        "NonTransition": 43,
+        "VBF": 14,
+        "EBF": 44
+      },
+      "mean_confidence": 0.9053799510002136,
+      "ply_vertices": 6022,
+      "ply_triangles": 8788,
+      "skipped_faces": 0,
+      "input_ply_triangles": 8788
+    },
+    {
+      "sample_id": "BulkHead Plug Back Box",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/BulkHead Plug Back Box.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/BulkHead Plug Back Box.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/BulkHead Plug Back Box.seg",
+      "cache_path": null,
+      "input_ply": "BulkHead_Plug_Back_Box_instance_pred_rgb.ply",
+      "semantic_ply": "BulkHead_Plug_Back_Box_semantic_pred.ply",
+      "faces": 103,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 39,
+        "VBF": 4,
+        "EBF": 60
+      },
+      "class_counts": {
+        "NonTransition": 56,
+        "VBF": 13,
+        "EBF": 34
+      },
+      "mean_confidence": 0.9176681637763977,
+      "ply_vertices": 2585,
+      "ply_triangles": 2818,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2818
+    },
+    {
+      "sample_id": "COIN_HOLDER",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/COIN_HOLDER.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/COIN_HOLDER.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/COIN_HOLDER.seg",
+      "cache_path": null,
+      "input_ply": "COIN_HOLDER_instance_pred_rgb.ply",
+      "semantic_ply": "COIN_HOLDER_semantic_pred.ply",
+      "faces": 192,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 51,
+        "VBF": 28,
+        "EBF": 113
+      },
+      "class_counts": {
+        "NonTransition": 118,
+        "VBF": 6,
+        "EBF": 68
+      },
+      "mean_confidence": 0.8469242453575134,
+      "ply_vertices": 14535,
+      "ply_triangles": 23596,
+      "skipped_faces": 0,
+      "input_ply_triangles": 23596
+    },
+    {
+      "sample_id": "COVER",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/COVER.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/COVER.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/COVER.seg",
+      "cache_path": null,
+      "input_ply": "COVER_instance_pred_rgb.ply",
+      "semantic_ply": "COVER_semantic_pred.ply",
+      "faces": 87,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 37,
+        "VBF": 16,
+        "EBF": 34
+      },
+      "class_counts": {
+        "NonTransition": 63,
+        "VBF": 3,
+        "EBF": 21
+      },
+      "mean_confidence": 0.8383364677429199,
+      "ply_vertices": 8331,
+      "ply_triangles": 13614,
+      "skipped_faces": 0,
+      "input_ply_triangles": 13614
+    },
+    {
+      "sample_id": "Ex14",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Ex14.STEP",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Ex14.STEP",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Ex14.seg",
+      "cache_path": null,
+      "input_ply": "Ex14_instance_pred_rgb.ply",
+      "semantic_ply": "Ex14_semantic_pred.ply",
+      "faces": 186,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 126,
+        "VBF": 8,
+        "EBF": 52
+      },
+      "class_counts": {
+        "NonTransition": 142,
+        "VBF": 9,
+        "EBF": 35
+      },
+      "mean_confidence": 0.9822552800178528,
+      "ply_vertices": 4583,
+      "ply_triangles": 4904,
+      "skipped_faces": 0,
+      "input_ply_triangles": 4904
+    },
+    {
+      "sample_id": "Ex14_a155c888",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Ex14.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Ex14.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Ex14.seg",
+      "cache_path": null,
+      "input_ply": "Ex14_a155c888_instance_pred_rgb.ply",
+      "semantic_ply": "Ex14_a155c888_semantic_pred.ply",
+      "faces": 186,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 126,
+        "VBF": 8,
+        "EBF": 52
+      },
+      "class_counts": {
+        "NonTransition": 142,
+        "VBF": 9,
+        "EBF": 35
+      },
+      "mean_confidence": 0.9822553396224976,
+      "ply_vertices": 4583,
+      "ply_triangles": 4904,
+      "skipped_faces": 0,
+      "input_ply_triangles": 4904
+    },
+    {
+      "sample_id": "Ex9",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Ex9.STEP",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Ex9.STEP",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Ex9.seg",
+      "cache_path": null,
+      "input_ply": "Ex9_instance_pred_rgb.ply",
+      "semantic_ply": "Ex9_semantic_pred.ply",
+      "faces": 155,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 53,
+        "VBF": 36,
+        "EBF": 66
+      },
+      "class_counts": {
+        "NonTransition": 61,
+        "VBF": 16,
+        "EBF": 78
+      },
+      "mean_confidence": 0.899604856967926,
+      "ply_vertices": 4334,
+      "ply_triangles": 5296,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5296
+    },
+    {
+      "sample_id": "Ex9_3d880b2a",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Ex9.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Ex9.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Ex9.seg",
+      "cache_path": null,
+      "input_ply": "Ex9_3d880b2a_instance_pred_rgb.ply",
+      "semantic_ply": "Ex9_3d880b2a_semantic_pred.ply",
+      "faces": 155,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 53,
+        "VBF": 36,
+        "EBF": 66
+      },
+      "class_counts": {
+        "NonTransition": 61,
+        "VBF": 16,
+        "EBF": 78
+      },
+      "mean_confidence": 0.899604856967926,
+      "ply_vertices": 4334,
+      "ply_triangles": 5296,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5296
+    },
+    {
+      "sample_id": "Exhaust Bracket C1990",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Exhaust Bracket C1990.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Exhaust Bracket C1990.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Exhaust Bracket C1990.seg",
+      "cache_path": null,
+      "input_ply": "Exhaust_Bracket_C1990_instance_pred_rgb.ply",
+      "semantic_ply": "Exhaust_Bracket_C1990_semantic_pred.ply",
+      "faces": 68,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 31,
+        "VBF": 6,
+        "EBF": 31
+      },
+      "class_counts": {
+        "NonTransition": 41,
+        "VBF": 3,
+        "EBF": 24
+      },
+      "mean_confidence": 0.9059578776359558,
+      "ply_vertices": 8244,
+      "ply_triangles": 13504,
+      "skipped_faces": 0,
+      "input_ply_triangles": 13504
+    },
+    {
+      "sample_id": "FILE~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/FILE~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/FILE~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/FILE~1.seg",
+      "cache_path": null,
+      "input_ply": "FILE~1_instance_pred_rgb.ply",
+      "semantic_ply": "FILE~1_semantic_pred.ply",
+      "faces": 55,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 30,
+        "VBF": 4,
+        "EBF": 21
+      },
+      "class_counts": {
+        "NonTransition": 32,
+        "VBF": 4,
+        "EBF": 19
+      },
+      "mean_confidence": 0.9891010522842407,
+      "ply_vertices": 2738,
+      "ply_triangles": 3804,
+      "skipped_faces": 0,
+      "input_ply_triangles": 3804
+    },
+    {
+      "sample_id": "HALFOR~3",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/HALFOR~3.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/HALFOR~3.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/HALFOR~3.seg",
+      "cache_path": null,
+      "input_ply": "HALFOR~3_instance_pred_rgb.ply",
+      "semantic_ply": "HALFOR~3_semantic_pred.ply",
+      "faces": 106,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 50,
+        "VBF": 20,
+        "EBF": 36
+      },
+      "class_counts": {
+        "NonTransition": 65,
+        "VBF": 20,
+        "EBF": 21
+      },
+      "mean_confidence": 0.935114324092865,
+      "ply_vertices": 3229,
+      "ply_triangles": 4030,
+      "skipped_faces": 0,
+      "input_ply_triangles": 4030
+    },
+    {
+      "sample_id": "Hat Bracket 3mm",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Hat Bracket 3mm.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Hat Bracket 3mm.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Hat Bracket 3mm.seg",
+      "cache_path": null,
+      "input_ply": "Hat_Bracket_3mm_instance_pred_rgb.ply",
+      "semantic_ply": "Hat_Bracket_3mm_semantic_pred.ply",
+      "faces": 90,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 34,
+        "VBF": 16,
+        "EBF": 40
+      },
+      "class_counts": {
+        "NonTransition": 46,
+        "VBF": 16,
+        "EBF": 28
+      },
+      "mean_confidence": 0.9878002405166626,
+      "ply_vertices": 3488,
+      "ply_triangles": 4680,
+      "skipped_faces": 0,
+      "input_ply_triangles": 4680
+    },
+    {
+      "sample_id": "Hinge Bracket",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Hinge Bracket.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Hinge Bracket.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Hinge Bracket.seg",
+      "cache_path": null,
+      "input_ply": "Hinge_Bracket_instance_pred_rgb.ply",
+      "semantic_ply": "Hinge_Bracket_semantic_pred.ply",
+      "faces": 111,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 53,
+        "VBF": 6,
+        "EBF": 52
+      },
+      "class_counts": {
+        "NonTransition": 63,
+        "VBF": 6,
+        "EBF": 42
+      },
+      "mean_confidence": 0.9305409789085388,
+      "ply_vertices": 6416,
+      "ply_triangles": 9374,
+      "skipped_faces": 0,
+      "input_ply_triangles": 9374
+    },
+    {
+      "sample_id": "METALB~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/METALB~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/METALB~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/METALB~1.seg",
+      "cache_path": null,
+      "input_ply": "METALB~1_instance_pred_rgb.ply",
+      "semantic_ply": "METALB~1_semantic_pred.ply",
+      "faces": 114,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 94,
+        "VBF": 0,
+        "EBF": 20
+      },
+      "class_counts": {
+        "NonTransition": 106,
+        "VBF": 0,
+        "EBF": 8
+      },
+      "mean_confidence": 0.930454671382904,
+      "ply_vertices": 1888,
+      "ply_triangles": 1756,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1756
+    },
+    {
+      "sample_id": "METAL_~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/METAL_~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/METAL_~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/METAL_~1.seg",
+      "cache_path": null,
+      "input_ply": "METAL_~1_instance_pred_rgb.ply",
+      "semantic_ply": "METAL_~1_semantic_pred.ply",
+      "faces": 109,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 82,
+        "VBF": 0,
+        "EBF": 27
+      },
+      "class_counts": {
+        "NonTransition": 103,
+        "VBF": 0,
+        "EBF": 6
+      },
+      "mean_confidence": 0.9585503935813904,
+      "ply_vertices": 1806,
+      "ply_triangles": 1616,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1616
+    },
+    {
+      "sample_id": "Master_Section",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Master_Section.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Master_Section.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Master_Section.seg",
+      "cache_path": null,
+      "input_ply": "Master_Section_instance_pred_rgb.ply",
+      "semantic_ply": "Master_Section_semantic_pred.ply",
+      "faces": 132,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 56,
+        "VBF": 24,
+        "EBF": 52
+      },
+      "class_counts": {
+        "NonTransition": 81,
+        "VBF": 11,
+        "EBF": 40
+      },
+      "mean_confidence": 0.8969666957855225,
+      "ply_vertices": 3951,
+      "ply_triangles": 5102,
+      "skipped_faces": 0,
+      "input_ply_triangles": 5102
+    },
+    {
+      "sample_id": "PART5~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/PART5~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/PART5~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/PART5~1.seg",
+      "cache_path": null,
+      "input_ply": "PART5~1_instance_pred_rgb.ply",
+      "semantic_ply": "PART5~1_semantic_pred.ply",
+      "faces": 160,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 118,
+        "VBF": 4,
+        "EBF": 38
+      },
+      "class_counts": {
+        "NonTransition": 132,
+        "VBF": 5,
+        "EBF": 23
+      },
+      "mean_confidence": 0.975014865398407,
+      "ply_vertices": 4254,
+      "ply_triangles": 4848,
+      "skipped_faces": 0,
+      "input_ply_triangles": 4848
+    },
+    {
+      "sample_id": "RODCAP~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/RODCAP~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/RODCAP~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/RODCAP~1.seg",
+      "cache_path": null,
+      "input_ply": "RODCAP~1_instance_pred_rgb.ply",
+      "semantic_ply": "RODCAP~1_semantic_pred.ply",
+      "faces": 24,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 18,
+        "VBF": 0,
+        "EBF": 6
+      },
+      "class_counts": {
+        "NonTransition": 18,
+        "VBF": 0,
+        "EBF": 6
+      },
+      "mean_confidence": 0.9912130236625671,
+      "ply_vertices": 1002,
+      "ply_triangles": 1272,
+      "skipped_faces": 0,
+      "input_ply_triangles": 1272
+    },
+    {
+      "sample_id": "SHEETM~1",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/SHEETM~1.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/SHEETM~1.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/SHEETM~1.seg",
+      "cache_path": null,
+      "input_ply": "SHEETM~1_instance_pred_rgb.ply",
+      "semantic_ply": "SHEETM~1_semantic_pred.ply",
+      "faces": 144,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 68,
+        "VBF": 12,
+        "EBF": 64
+      },
+      "class_counts": {
+        "NonTransition": 66,
+        "VBF": 12,
+        "EBF": 66
+      },
+      "mean_confidence": 0.9848040342330933,
+      "ply_vertices": 5761,
+      "ply_triangles": 7436,
+      "skipped_faces": 0,
+      "input_ply_triangles": 7436
+    },
+    {
+      "sample_id": "Support BKT",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Support BKT.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Support BKT.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Support BKT.seg",
+      "cache_path": null,
+      "input_ply": "Support_BKT_instance_pred_rgb.ply",
+      "semantic_ply": "Support_BKT_semantic_pred.ply",
+      "faces": 140,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 58,
+        "VBF": 18,
+        "EBF": 64
+      },
+      "class_counts": {
+        "NonTransition": 74,
+        "VBF": 2,
+        "EBF": 64
+      },
+      "mean_confidence": 0.8951317071914673,
+      "ply_vertices": 16003,
+      "ply_triangles": 26930,
+      "skipped_faces": 0,
+      "input_ply_triangles": 26930
+    },
+    {
+      "sample_id": "Switch_bezel_",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Switch_bezel_.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Switch_bezel_.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Switch_bezel_.seg",
+      "cache_path": null,
+      "input_ply": "Switch_bezel__instance_pred_rgb.ply",
+      "semantic_ply": "Switch_bezel__semantic_pred.ply",
+      "faces": 75,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 61,
+        "VBF": 4,
+        "EBF": 10
+      },
+      "class_counts": {
+        "NonTransition": 53,
+        "VBF": 0,
+        "EBF": 22
+      },
+      "mean_confidence": 0.8066783547401428,
+      "ply_vertices": 4420,
+      "ply_triangles": 7506,
+      "skipped_faces": 0,
+      "input_ply_triangles": 7506
+    },
+    {
+      "sample_id": "Volvo 240 Driver Front Jack Support",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/Volvo 240 Driver Front Jack Support.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/Volvo 240 Driver Front Jack Support.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/Volvo 240 Driver Front Jack Support.seg",
+      "cache_path": null,
+      "input_ply": "Volvo_240_Driver_Front_Jack_Support_instance_pred_rgb.ply",
+      "semantic_ply": "Volvo_240_Driver_Front_Jack_Support_semantic_pred.ply",
+      "faces": 126,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 50,
+        "VBF": 24,
+        "EBF": 52
+      },
+      "class_counts": {
+        "NonTransition": 78,
+        "VBF": 9,
+        "EBF": 39
+      },
+      "mean_confidence": 0.885074257850647,
+      "ply_vertices": 22729,
+      "ply_triangles": 40546,
+      "skipped_faces": 0,
+      "input_ply_triangles": 40546
+    },
+    {
+      "sample_id": "tm2",
+      "source_item": "/home/nvme03/hhfeng/testset_lxy/step/tm2.step",
+      "step_path": "/home/nvme03/hhfeng/testset_lxy/step/tm2.step",
+      "seg_path": "/home/nvme03/hhfeng/testset_lxy/seg/tm2.seg",
+      "cache_path": null,
+      "input_ply": "tm2_instance_pred_rgb.ply",
+      "semantic_ply": "tm2_semantic_pred.ply",
+      "faces": 109,
+      "gt_available": true,
+      "gt_class_counts": {
+        "NonTransition": 81,
+        "VBF": 8,
+        "EBF": 20
+      },
+      "class_counts": {
+        "NonTransition": 81,
+        "VBF": 8,
+        "EBF": 20
+      },
+      "mean_confidence": 0.9841437935829163,
+      "ply_vertices": 2046,
+      "ply_triangles": 2168,
+      "skipped_faces": 0,
+      "input_ply_triangles": 2168
+    }
+  ]
+}

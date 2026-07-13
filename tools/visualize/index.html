@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blendit EBF/VBF Viewer</title>
+  <link rel="stylesheet" href="./styles.css?v=20260709-blendit-ebf-vbf">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <h1>Blendit results</h1>
+        <p>每个样本对比 SEG GT 高亮与 EBF/VBF 预测高亮</p>
+      </div>
+      <div class="header-tools">
+        <label class="favorite-filter">
+          <input id="favoritesOnly" type="checkbox">
+          <span>只看星标</span>
+        </label>
+        <label class="search-box">
+          <span>搜索</span>
+          <input id="searchInput" type="search" placeholder="输入文件名">
+        </label>
+      </div>
+    </header>
+
+    <section id="modelGrid" class="model-grid" aria-label="Blendit results grid"></section>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="./viewer.js?v=20260709-blendit-ebf-vbf"></script>
+</body>
+</html>

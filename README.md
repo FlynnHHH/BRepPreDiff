@@ -898,6 +898,17 @@ PYTHONPATH=src python -m blendit.data.filter_split \
 `pretrain_train_clean.txt`、`finetune_train_clean.txt` 和
 `finetune_val_clean.txt`。训练时优先使用这些 clean split，避免命中缓存失败的样本。
 
+如果训练中出现 `nan` loss，先扫描 cache 是否含有 NaN/Inf：
+
+```bash
+PYTHONPATH=src python -m blendit.data.scan_cache \
+  --cache-dir data/cache/features/pretrain/first10000 \
+  --invalid-log data/cache/features/invalid/pretrain_first10000_nonfinite.jsonl
+```
+
+训练脚本也会在 batch/loss/gradient 出现非有限值时直接报错，并打印触发问题的
+`sample_ids`，避免继续保存无效 checkpoint。
+
 ## 13.6 启动 diffusion 预训练
 
 手动启动，默认 CPU：
@@ -988,7 +999,102 @@ runs/finetune/YYYYmmdd-HHMMSS_baseline/
     checkpoints/last.pt
 ```
 
-## 13.8 关键 config 参数
+## 13.8 Finetune checkpoint 推理可视化
+
+使用 finetune 后的 `last.pt` 或 `best.pt` 对 test split 推理，并把 STEP 网格
+导出为网页可直接加载的 PLY：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_baseline/checkpoints/best.pt \
+  --step /path/to/model.step \
+  --seg /path/to/model.seg \
+  --output-dir tools/visualize/results
+```
+
+也可以直接传入 STEP 列表或目录，不需要预先准备 `.npz`：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_baseline/checkpoints/best.pt \
+  --step-list /path/to/test_steps.txt \
+  --seg-list /path/to/test_segs.txt \
+  --step-root /path/to/test_step_root \
+  --seg-root /path/to/test_seg_root \
+  --output-dir tools/visualize/results
+```
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_baseline/checkpoints/best.pt \
+  --step-dir /path/to/test_steps \
+  --seg-dir /path/to/test_segs \
+  --output-dir tools/visualize/results
+```
+
+如果仍想用 split 文件，也支持旧方式：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_baseline/checkpoints/best.pt \
+  --split test \
+  --split-file data/abc_splits/<test_split>.txt \
+  --output-dir tools/visualize/results
+```
+
+输出文件：
+
+```text
+tools/visualize/results/
+    <sample>_instance_pred_rgb.ply   # SEG GT 高亮；找不到 SEG 时为灰色原始模型
+    <sample>_semantic_pred.ply       # VBF 粉色，EBF 黄色
+    prediction_manifest.json
+```
+
+然后启动网页：
+
+```bash
+cd tools/visualize
+python viewer_server.py
+```
+
+浏览器打开 `http://localhost:8061/`。`tools/visualize/run_finetune_inference.py`
+会默认把 PLY 写到网页目录下的 `results/`。
+
+## 13.9 Windows STEP 到 SEG 推理包
+
+面分类推理入口会递归扫描给定目录中的 STEP/STP，并输出原始 SEG 标签：
+
+```text
+非过渡面 = 0
+EBF       = 4
+VBF       = 6
+```
+
+在源码环境中运行：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.step_to_seg /path/to/steps \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_finetune/checkpoints/best.pt
+```
+
+默认结果写到输入目录旁的 `<输入目录名>_seg`，并保留子目录结构。构建 Windows
+分发压缩包：
+
+```bash
+python scripts/build_windows_inference_package.py \
+  --checkpoint runs/finetune/YYYYmmdd-HHMMSS_finetune/checkpoints/best.pt
+```
+
+产物为 `dist/Blendit-Windows-Inference.zip`。Windows 用户解压后先运行
+`install_env.bat`，之后用 `run_inference.bat "D:\path\to\steps"` 推理。完整说明见
+压缩包内的 `README_zh-CN.md`。
+
+## 13.10 关键 config 参数
 
 ```yaml
 brep:

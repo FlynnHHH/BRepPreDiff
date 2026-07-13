@@ -19,6 +19,9 @@ dev = [
 [project.scripts]
 blendit-cache = "blendit.data.dataset:cache_main"
 blendit-filter-split = "blendit.data.filter_split:main"
+blendit-scan-cache = "blendit.data.scan_cache:main"
+blendit-infer-visual = "blendit.inference.finetune_visualize:main"
+blendit-infer-seg = "blendit.inference.step_to_seg:main"
 blendit-pretrain = "blendit.training.pretrain:main"
 blendit-finetune = "blendit.training.finetune:main"
 blendit-smoke = "blendit.training.smoke:main"

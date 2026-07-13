@@ -72,3 +72,28 @@ def test_cache_only_val_split_can_reference_original_step_stem(tmp_path: Path):
     assert len(dataset) == 1
     assert graph.sample_id == "part"
     assert graph.num_faces == 2
+
+
+def test_cache_only_uses_split_specific_cache_dirs(tmp_path: Path):
+    train_cache = tmp_path / "cache_split" / "train"
+    val_cache = tmp_path / "cache_split" / "val"
+    _write_cache(train_cache / "train_abc123.npz")
+    _write_cache(val_cache / "val_def456.npz")
+    _write_cache(tmp_path / "cache" / "ignored_xyz789.npz")
+    split_path = tmp_path / "val_split.txt"
+    split_path.write_text("val.step\n", encoding="utf-8")
+
+    config = _cache_only_config(tmp_path, split_path)
+    config["data"]["cache_dirs"] = {
+        "train": str(train_cache),
+        "val": str(val_cache),
+    }
+    config["data"]["val_split"] = str(split_path)
+
+    train_dataset = StepSegDataset(config, split="train")
+    val_dataset = StepSegDataset(config, split="val")
+
+    assert len(train_dataset) == 1
+    assert train_dataset[0].sample_id == "train_abc123"
+    assert len(val_dataset) == 1
+    assert val_dataset[0].sample_id == "val"
