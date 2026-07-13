@@ -884,6 +884,11 @@ PYTHONPATH=src python -m blendit.data.dataset --config configs/default.yaml --sp
 data/cache/features/*.npz
 ```
 
+每个 OCC 抽取结果写入后都会立即检查 `.npz` 中的浮点数组。若发现 NaN 或 Inf，
+该文件会从正常 cache 目录移动到 `data.invalid_dir`，并记入 invalid JSONL；未配置
+`data.invalid_dir` 时默认使用 cache 目录旁的 `invalid/`。传入 `--invalid-log` 时，
+若未显式配置 `data.invalid_dir`，则使用该日志所在目录。
+
 如果缓存阶段产生 invalid jsonl，需要先过滤 split，再用于训练：
 
 ```bash
@@ -1064,6 +1069,29 @@ python viewer_server.py
 
 浏览器打开 `http://localhost:8061/`。`tools/visualize/run_finetune_inference.py`
 会默认把 PLY 写到网页目录下的 `results/`。
+
+FilletRec 的 JSON 标签是按 OCC face 顺序排列的 0/1 数组。用 Blendit 做二分类
+评估时，可将 VBF 和 EBF 都映射为过渡面 1、NonTransition 映射为 0：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/<run>/checkpoints/best.pt \
+  --split test \
+  --split-file data/filletrec/filletRec/test.txt \
+  --cache-dir data/cache/filletrec/test \
+  --output-dir tools/visualize/results \
+  --device cpu \
+  --binary-transition \
+  --sample-prefix filletrec__ \
+  --override data.root=data/filletrec/filletRec \
+  --override data.steps_dir=steps \
+  --override data.segs_dir=labels
+```
+
+`prediction_manifest.json` 会保存逐样本和整个测试集的面级 Accuracy、Precision、
+Recall、F1 以及 TP/TN/FP/FN；网页顶部显示测试集汇总指标，每个 FilletRec 样本卡片
+显示该样本的指标。
 
 ## 13.9 Windows STEP 到 SEG 推理包
 

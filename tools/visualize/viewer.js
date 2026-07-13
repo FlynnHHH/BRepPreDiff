@@ -4,11 +4,15 @@ import { PLYLoader } from "three/addons/loaders/PLYLoader.js";
 
 const MODEL_FILES = [];
 const grid = document.querySelector("#modelGrid");
+const metricsSummary = document.querySelector("#metricsSummary");
 const searchInput = document.querySelector("#searchInput");
+const datasetFilter = document.querySelector("#datasetFilter");
 const favoritesOnly = document.querySelector("#favoritesOnly");
 const loader = new PLYLoader();
 const viewers = new Map();
 let activeFiles = MODEL_FILES;
+let predictionManifest = null;
+let manifestSamples = new Map();
 let observer = null;
 const FAVORITES_KEY = "curvseg-2026-6-22-favorite-samples";
 let favorites = loadFavorites();
@@ -18,6 +22,11 @@ const PRIMITIVE_LEGEND = [
   { id: 0, en: "NonTransition", zh: "非过渡面", rgb: "218, 222, 230" },
   { id: 1, en: "VBF", zh: "VBF 点过渡面", rgb: "255, 79, 163" },
   { id: 2, en: "EBF", zh: "EBF 边过渡面", rgb: "255, 212, 0" }
+];
+
+const BINARY_LEGEND = [
+  { id: 0, en: "NonTransition", zh: "非过渡面", rgb: "218, 222, 230" },
+  { id: 1, en: "Transition", zh: "过渡面（VBF/EBF）", rgb: "255, 79, 163" }
 ];
 
 const MODEL_BASE_URL = "./results/";
@@ -438,6 +447,31 @@ function pairModels(files) {
     .sort((a, b) => a.sample.localeCompare(b.sample));
 }
 
+function formatPercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(2)}%` : "—";
+}
+
+function metricsMarkup(metrics, compact = false) {
+  if (!metrics) return "";
+  const items = [
+    ["Accuracy", metrics.accuracy],
+    ["Precision", metrics.precision],
+    ["Recall", metrics.recall],
+    ["F1", metrics.f1]
+  ];
+  return `
+    <div class="metric-grid${compact ? " compact" : ""}">
+      ${items.map(([label, value]) => `
+        <div class="metric-item">
+          <span>${label}</span>
+          <strong>${formatPercent(value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function createCard(sampleName, instanceFile, semanticFile) {
   const card = document.createElement("article");
   card.className = "model-card sample-card";
@@ -446,6 +480,10 @@ function createCard(sampleName, instanceFile, semanticFile) {
   card.dataset.semantic = semanticFile || "";
 
   const isFavorite = favorites.has(sampleName);
+  const record = manifestSamples.get(sampleName);
+  const binaryEvaluation = Boolean(record?.binary_metrics);
+  const gtTitle = binaryEvaluation ? "FilletRec GT 过渡面" : "SEG GT 高亮";
+  const predictionTitle = binaryEvaluation ? "Blendit 过渡面预测" : "EBF/VBF 预测高亮";
 
   card.innerHTML = `
     <div class="model-title">
@@ -468,16 +506,17 @@ function createCard(sampleName, instanceFile, semanticFile) {
         <span>预测对比</span>
       </div>
     </div>
+    ${record?.binary_metrics ? `<div class="sample-metrics">${metricsMarkup(record.binary_metrics, true)}</div>` : ""}
     <div class="sample-grid" role="group" aria-label="实例与语义对比">
-      <section class="viewer-panel" aria-label="SEG GT 高亮">
-        <h3>SEG GT 高亮</h3>
+      <section class="viewer-panel" aria-label="${gtTitle}">
+        <h3>${gtTitle}</h3>
         <div class="viewer-box">
           <canvas class="instance-view" aria-label="${escapeHtml(sampleName)} GT"></canvas>
           <div class="card-status sample-status instance-status">等待加载</div>
         </div>
       </section>
-      <section class="viewer-panel" aria-label="EBF/VBF 预测高亮">
-        <h3>EBF/VBF 预测高亮</h3>
+      <section class="viewer-panel" aria-label="${predictionTitle}">
+        <h3>${predictionTitle}</h3>
         <div class="viewer-box">
           <canvas class="semantic-view" aria-label="${escapeHtml(sampleName)} 语义"></canvas>
           <div class="card-status sample-status semantic-status">等待加载</div>
@@ -489,8 +528,9 @@ function createCard(sampleName, instanceFile, semanticFile) {
   return card;
 }
 
-function renderPrimitiveLegend() {
-  return PRIMITIVE_LEGEND.map((item) => `
+function renderPrimitiveLegend(sampleName) {
+  const legendItems = manifestSamples.get(sampleName)?.binary_metrics ? BINARY_LEGEND : PRIMITIVE_LEGEND;
+  return legendItems.map((item) => `
     <div class="legend-row" title="${item.id} ${item.en} ${item.zh} RGB(${item.rgb})">
       <span class="legend-swatch" style="background: rgb(${item.rgb})"></span>
       <span class="legend-id">${item.id}</span>
@@ -554,8 +594,45 @@ async function loadModelFiles() {
   } catch {
     // keep built-in MODEL_FILES if API fails
   } finally {
+    await loadPredictionManifest();
     initAfterLoad();
   }
+}
+
+async function loadPredictionManifest() {
+  try {
+    const response = await fetch(`${MODEL_BASE_URL}prediction_manifest.json`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    predictionManifest = await response.json();
+    const samples = Array.isArray(predictionManifest.samples) ? predictionManifest.samples : [];
+    manifestSamples = new Map(samples.map((sample) => [String(sample.sample_id), sample]));
+  } catch {
+    predictionManifest = null;
+    manifestSamples = new Map();
+  }
+  renderMetricsSummary();
+}
+
+function renderMetricsSummary() {
+  const metrics = predictionManifest?.metrics;
+  if (!metrics || datasetFilter.value === "original") {
+    metricsSummary.hidden = true;
+    metricsSummary.innerHTML = "";
+    return;
+  }
+  const evaluatedSamples = Number(predictionManifest.evaluated_samples ?? 0).toLocaleString();
+  const faces = Number(metrics.faces ?? 0).toLocaleString();
+  metricsSummary.innerHTML = `
+    <div class="metrics-heading">
+      <div>
+        <strong>FilletRec Test 二分类评估</strong>
+        <span>正类：过渡面（VBF 或 EBF）</span>
+      </div>
+      <span>${evaluatedSamples} 个样本 / ${faces} 个 OCC 面</span>
+    </div>
+    ${metricsMarkup(metrics)}
+  `;
+  metricsSummary.hidden = false;
 }
 
 function toggleFavorite(name, button) {
@@ -587,7 +664,7 @@ function attachSemanticLegend(card) {
   const legend = document.createElement("aside");
   legend.className = "primitive-legend";
   legend.setAttribute("aria-label", "预测类别颜色提示");
-  legend.innerHTML = renderPrimitiveLegend();
+  legend.innerHTML = renderPrimitiveLegend(card.dataset.sample);
   semanticBox.appendChild(legend);
 }
 
@@ -648,6 +725,7 @@ function closeFocusViewer() {
 
 function renderCards() {
   const keyword = searchInput.value.trim().toLowerCase();
+  const selectedDataset = datasetFilter.value;
   const files = activeFiles;
 
   viewers.forEach((viewer) => viewer.dispose());
@@ -664,6 +742,8 @@ function renderCards() {
 
   const pairs = pairModels(files);
   const matchedPairs = pairs.filter((p) => {
+    const dataset = p.sample.startsWith("filletrec__") ? "filletrec" : "original";
+    const datasetMatch = selectedDataset === "all" || selectedDataset === dataset;
     const keywordMatch = !keyword ||
       p.sample.toLowerCase().includes(keyword) ||
       p.instanceFile.toLowerCase().includes(keyword) ||
@@ -671,7 +751,7 @@ function renderCards() {
     const hasInstanceOrSemantic = p.hasInstance || p.hasSemantic;
     const isFavorite = favorites.has(p.sample);
     const favoriteMatch = !favoritesOnly.checked || isFavorite;
-    return keywordMatch && hasInstanceOrSemantic && favoriteMatch;
+    return datasetMatch && keywordMatch && hasInstanceOrSemantic && favoriteMatch;
   });
 
   if (!matchedPairs.length) {
@@ -683,11 +763,40 @@ function renderCards() {
   }
 
   const fragment = document.createDocumentFragment();
-  matchedPairs.forEach((pair) => {
-    const sampleName = pair.sample || pair.instanceFile || pair.semanticFile;
-    const card = createCard(sampleName, pair.instanceFile, pair.semanticFile);
-    attachSemanticLegend(card);
-    fragment.appendChild(card);
+  const groups = [
+    {
+      key: "original",
+      title: "原 Test Set",
+      description: "Blendit 原测试集三分类结果",
+      pairs: matchedPairs.filter((pair) => !pair.sample.startsWith("filletrec__"))
+    },
+    {
+      key: "filletrec",
+      title: "FilletRec Test Set",
+      description: "VBF/EBF 合并为过渡面的二分类结果",
+      pairs: matchedPairs.filter((pair) => pair.sample.startsWith("filletrec__"))
+    }
+  ];
+
+  groups.forEach((group) => {
+    if (!group.pairs.length) return;
+    const heading = document.createElement("header");
+    heading.className = `dataset-heading ${group.key}`;
+    heading.innerHTML = `
+      <div>
+        <h2>${group.title}</h2>
+        <p>${group.description}</p>
+      </div>
+      <span>${group.pairs.length.toLocaleString()} 个样本</span>
+    `;
+    fragment.appendChild(heading);
+
+    group.pairs.forEach((pair) => {
+      const sampleName = pair.sample || pair.instanceFile || pair.semanticFile;
+      const card = createCard(sampleName, pair.instanceFile, pair.semanticFile);
+      attachSemanticLegend(card);
+      fragment.appendChild(card);
+    });
   });
   grid.appendChild(fragment);
 
@@ -736,6 +845,10 @@ function observeCards() {
 }
 
 searchInput.addEventListener("input", renderCards);
+datasetFilter.addEventListener("change", () => {
+  renderMetricsSummary();
+  renderCards();
+});
 favoritesOnly.addEventListener("change", renderCards);
 window.addEventListener("resize", () => {
   viewers.forEach((viewer) => viewer.resize());

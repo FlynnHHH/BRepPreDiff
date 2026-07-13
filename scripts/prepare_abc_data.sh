@@ -170,6 +170,7 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --split train \
   --workers "${PRETRAIN_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/pretrain_train_invalid.jsonl" \
+  --override "data.invalid_dir=${INVALID_DIR}" \
   --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${PRETRAIN_STEPS_DIR}" \
   --override "data.segs_dir=${PRETRAIN_SEGS_DIR}" \
@@ -192,6 +193,7 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --split train \
   --workers "${FINETUNE_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/finetune_train_invalid.jsonl" \
+  --override "data.invalid_dir=${INVALID_DIR}" \
   --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.segs_dir=${FINETUNE_FLAT_DIR}" \
@@ -213,6 +215,7 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --split val \
   --workers "${FINETUNE_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/finetune_val_invalid.jsonl" \
+  --override "data.invalid_dir=${INVALID_DIR}" \
   --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.segs_dir=${FINETUNE_FLAT_DIR}" \

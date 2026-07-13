@@ -52,3 +52,23 @@ python viewer_server.py
 ```
 
 浏览器打开 `http://localhost:8061/`。
+
+## FilletRec 二分类测试
+
+FilletRec JSON 标签按 OCC face 顺序存放，0 表示非过渡面，1 表示过渡面。加入
+`--binary-transition` 后，Blendit 的 VBF/EBF 都映射为 1，并在 manifest 和网页中
+显示面级 Accuracy、Precision、Recall、F1：
+
+```bash
+PYTHONPATH=../../src python run_finetune_inference.py \
+  --config ../../configs/finetune.yaml \
+  --checkpoint ../../runs/finetune/<run>/checkpoints/best.pt \
+  --split test \
+  --split-file ../../data/filletrec/filletRec/test.txt \
+  --cache-dir ../../data/cache/filletrec/test \
+  --binary-transition \
+  --sample-prefix filletrec__ \
+  --override data.root=../../data/filletrec/filletRec \
+  --override data.steps_dir=steps \
+  --override data.segs_dir=labels
+```

@@ -29,6 +29,14 @@ CLASS_NAMES = {
     1: "VBF",
     2: "EBF",
 }
+BINARY_CLASS_COLORS: dict[int, tuple[int, int, int]] = {
+    0: CLASS_COLORS[0],
+    1: CLASS_COLORS[1],
+}
+BINARY_CLASS_NAMES = {
+    0: "NonTransition",
+    1: "Transition",
+}
 INPUT_COLOR = (218, 222, 230)
 
 
@@ -101,6 +109,21 @@ def _deduplicate_sample_ids(samples: list[InferenceSample]) -> list[InferenceSam
     return deduplicated
 
 
+def _prefix_sample_ids(samples: list[InferenceSample], prefix: str) -> list[InferenceSample]:
+    if not prefix:
+        return samples
+    return [
+        InferenceSample(
+            sample_id=f"{prefix}{sample.sample_id}",
+            source_item=sample.source_item,
+            step_path=sample.step_path,
+            seg_path=sample.seg_path,
+            cache_path=sample.cache_path,
+        )
+        for sample in samples
+    ]
+
+
 def _safe_output_stem(sample_id: str) -> str:
     return sample_id.replace("\\", "__").replace("/", "__").replace(" ", "_")
 
@@ -125,7 +148,9 @@ def _resolve_split_seg_path(segs_dir: Path, steps_dir: Path, step_path: Path) ->
     rel = step_path.relative_to(steps_dir)
     candidates = [
         segs_dir / rel.with_suffix(".seg"),
+        segs_dir / rel.with_suffix(".json"),
         segs_dir / f"{step_path.stem}.seg",
+        segs_dir / f"{step_path.stem}.json",
     ]
     for candidate in candidates:
         if candidate.exists() and candidate.is_file():
@@ -387,7 +412,13 @@ def _build_direct_step_samples(
             seg_dir = seg_base / seg_dir
         if not seg_dir.exists() or not seg_dir.is_dir():
             raise NotADirectoryError(f"SEG directory does not exist: {seg_dir}")
-        seg_dir_paths.extend(sorted(path for path in seg_dir.rglob("*.seg") if path.is_file()))
+        seg_dir_paths.extend(
+            sorted(
+                path
+                for path in seg_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".seg", ".json"}
+            )
+        )
 
     paired_seg_paths: list[Path | None]
     if explicit_seg_paths and len(explicit_seg_paths) == len(step_paths):
@@ -656,6 +687,59 @@ def _class_counts(prediction: np.ndarray) -> dict[str, int]:
     return counts
 
 
+def _binary_transition_classes(classes: np.ndarray) -> np.ndarray:
+    values = np.asarray(classes, dtype=np.int64)
+    invalid = np.setdiff1d(np.unique(values), np.asarray([0, 1, 2], dtype=np.int64))
+    if invalid.size:
+        raise ValueError(f"Expected Blendit class ids 0/1/2, got {invalid.tolist()}")
+    return (values != 0).astype(np.int64)
+
+
+def _binary_class_counts(prediction: np.ndarray) -> dict[str, int]:
+    return {
+        name: int((prediction == class_id).sum())
+        for class_id, name in BINARY_CLASS_NAMES.items()
+    }
+
+
+def _metrics_from_confusion(*, true_positive: int, true_negative: int, false_positive: int, false_negative: int) -> dict[str, Any]:
+    total = true_positive + true_negative + false_positive + false_negative
+    accuracy = (true_positive + true_negative) / total if total else 0.0
+    precision_denominator = true_positive + false_positive
+    recall_denominator = true_positive + false_negative
+    precision = true_positive / precision_denominator if precision_denominator else 0.0
+    recall = true_positive / recall_denominator if recall_denominator else 0.0
+    f1 = 2.0 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "accuracy": float(accuracy),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "true_positive": int(true_positive),
+        "true_negative": int(true_negative),
+        "false_positive": int(false_positive),
+        "false_negative": int(false_negative),
+        "faces": int(total),
+    }
+
+
+def _binary_classification_metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, Any]:
+    prediction = np.asarray(prediction, dtype=np.int64)
+    target = np.asarray(target, dtype=np.int64)
+    if prediction.shape != target.shape:
+        raise ValueError(f"Binary metric shape mismatch: prediction={prediction.shape}, target={target.shape}")
+    for name, values in (("prediction", prediction), ("target", target)):
+        invalid = np.setdiff1d(np.unique(values), np.asarray([0, 1], dtype=np.int64))
+        if invalid.size:
+            raise ValueError(f"Binary {name} contains values other than 0/1: {invalid.tolist()}")
+    return _metrics_from_confusion(
+        true_positive=int(np.logical_and(prediction == 1, target == 1).sum()),
+        true_negative=int(np.logical_and(prediction == 0, target == 0).sum()),
+        false_positive=int(np.logical_and(prediction == 1, target == 0).sum()),
+        false_negative=int(np.logical_and(prediction == 0, target == 1).sum()),
+    )
+
+
 def _read_seg_classes(config: dict[str, Any], seg_path: Path, num_faces: int) -> np.ndarray:
     labels_cfg = config.get("labels", {})
     train_cfg = config.get("train", {})
@@ -686,6 +770,28 @@ def _read_seg_classes(config: dict[str, Any], seg_path: Path, num_faces: int) ->
     )
 
 
+def _read_filletrec_json_classes(label_path: Path, num_faces: int) -> np.ndarray:
+    payload = json.loads(label_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError(f"FilletRec label must be a JSON list: {label_path}")
+    labels = np.asarray(payload, dtype=np.int64)
+    if labels.ndim != 1 or int(labels.shape[0]) != num_faces:
+        raise ValueError(
+            f"FilletRec label count mismatch for {label_path}: "
+            f"got shape {labels.shape}, but inference graph has {num_faces} faces."
+        )
+    invalid = np.setdiff1d(np.unique(labels), np.asarray([0, 1], dtype=np.int64))
+    if invalid.size:
+        raise ValueError(f"FilletRec label contains values other than 0/1: {invalid.tolist()}")
+    return labels
+
+
+def _read_ground_truth_classes(config: dict[str, Any], label_path: Path, num_faces: int) -> np.ndarray:
+    if label_path.suffix.lower() == ".json":
+        return _read_filletrec_json_classes(label_path, num_faces)
+    return _read_seg_classes(config, label_path, num_faces)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a finetuned Blendit segmentation model and export EBF/VBF highlighted PLY files for the viewer."
@@ -711,6 +817,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-existing", action="store_true", help="Skip samples whose semantic PLY already exists.")
     parser.add_argument("--no-write-cache", action="store_true", help="Do not write extracted missing feature cache.")
     parser.add_argument("--no-input-ply", action="store_true", help="Only write *_semantic_pred.ply.")
+    parser.add_argument(
+        "--binary-transition",
+        action="store_true",
+        help="Map Blendit VBF/EBF predictions to transition=1 and evaluate binary GT labels.",
+    )
+    parser.add_argument("--sample-prefix", default="", help="Prefix output sample ids, e.g. filletrec__.")
     parser.add_argument("--linear-deflection", type=float, default=0.08)
     parser.add_argument("--angular-deflection", type=float, default=0.5)
     parser.add_argument("--override", action="append", default=[], help="Override config, e.g. data.test_split=...")
@@ -748,6 +860,7 @@ def main() -> None:
         )
     if args.limit is not None:
         samples = samples[: max(0, int(args.limit))]
+    samples = _prefix_sample_ids(samples, args.sample_prefix)
     if not samples:
         raise ValueError("No samples to infer.")
 
@@ -789,12 +902,24 @@ def main() -> None:
         "seg_dir": args.seg_dir,
         "seg_list": args.seg_list,
         "seg_root": args.seg_root,
+        "sample_prefix": args.sample_prefix,
+        "task": "binary_transition" if args.binary_transition else "three_class_transition",
+        "positive_class": "Transition (VBF or EBF)" if args.binary_transition else None,
         "colors": {
             "NonTransition": INPUT_COLOR,
-            "VBF": CLASS_COLORS[1],
-            "EBF": CLASS_COLORS[2],
+            **(
+                {"Transition": BINARY_CLASS_COLORS[1]}
+                if args.binary_transition
+                else {"VBF": CLASS_COLORS[1], "EBF": CLASS_COLORS[2]}
+            ),
         },
         "samples": [],
+    }
+    aggregate_confusion = {
+        "true_positive": 0,
+        "true_negative": 0,
+        "false_positive": 0,
+        "false_negative": 0,
     }
 
     with torch.no_grad():
@@ -812,6 +937,7 @@ def main() -> None:
                 start = int(graph_ptr[batch_index])
                 end = int(graph_ptr[batch_index + 1])
                 sample_pred = pred[start:end].astype(np.int64)
+                display_pred = _binary_transition_classes(sample_pred) if args.binary_transition else sample_pred
                 sample_conf = confidence[start:end]
                 stem = _safe_output_stem(sample_id)
                 input_ply = output_dir / f"{stem}_instance_pred_rgb.ply"
@@ -821,29 +947,40 @@ def main() -> None:
                     continue
 
                 input_stats = None
-                gt_classes = None
+                raw_gt_classes = (
+                    _read_ground_truth_classes(config, sample.seg_path, int(sample_pred.shape[0]))
+                    if sample.seg_path is not None
+                    else None
+                )
+                gt_classes = (
+                    _binary_transition_classes(raw_gt_classes)
+                    if args.binary_transition and raw_gt_classes is not None
+                    else raw_gt_classes
+                )
+                color_map = BINARY_CLASS_COLORS if args.binary_transition else CLASS_COLORS
                 if not args.no_input_ply:
-                    gt_classes = (
-                        _read_seg_classes(config, sample.seg_path, int(sample_pred.shape[0]))
-                        if sample.seg_path is not None
-                        else np.zeros_like(sample_pred)
-                    )
                     input_stats = write_step_prediction_ply(
                         sample.step_path,
                         input_ply,
-                        gt_classes,
-                        color_map=CLASS_COLORS,
+                        gt_classes if gt_classes is not None else np.zeros_like(display_pred),
+                        color_map=color_map,
                         linear_deflection=float(args.linear_deflection),
                         angular_deflection=float(args.angular_deflection),
                     )
                 semantic_stats = write_step_prediction_ply(
                     sample.step_path,
                     semantic_ply,
-                    sample_pred,
-                    color_map=CLASS_COLORS,
+                    display_pred,
+                    color_map=color_map,
                     linear_deflection=float(args.linear_deflection),
                     angular_deflection=float(args.angular_deflection),
                 )
+
+                binary_metrics = None
+                if args.binary_transition and gt_classes is not None:
+                    binary_metrics = _binary_classification_metrics(display_pred, gt_classes)
+                    for key in aggregate_confusion:
+                        aggregate_confusion[key] += int(binary_metrics[key])
 
                 record = {
                     "sample_id": sample_id,
@@ -855,8 +992,18 @@ def main() -> None:
                     "semantic_ply": semantic_ply.name,
                     "faces": int(sample_pred.shape[0]),
                     "gt_available": sample.seg_path is not None,
-                    "gt_class_counts": _class_counts(gt_classes) if gt_classes is not None else None,
-                    "class_counts": _class_counts(sample_pred),
+                    "gt_class_counts": (
+                        _binary_class_counts(gt_classes)
+                        if args.binary_transition and gt_classes is not None
+                        else _class_counts(gt_classes) if gt_classes is not None else None
+                    ),
+                    "class_counts": (
+                        _binary_class_counts(display_pred)
+                        if args.binary_transition
+                        else _class_counts(display_pred)
+                    ),
+                    "model_three_class_counts": _class_counts(sample_pred) if args.binary_transition else None,
+                    "binary_metrics": binary_metrics,
                     "mean_confidence": float(np.mean(sample_conf)) if sample_conf.size else 0.0,
                     "ply_vertices": semantic_stats.vertices,
                     "ply_triangles": semantic_stats.faces,
@@ -865,6 +1012,12 @@ def main() -> None:
                 if input_stats is not None:
                     record["input_ply_triangles"] = input_stats.faces
                 manifest["samples"].append(record)
+
+    if args.binary_transition:
+        manifest["metrics"] = _metrics_from_confusion(**aggregate_confusion)
+        manifest["evaluated_samples"] = sum(
+            record["binary_metrics"] is not None for record in manifest["samples"]
+        )
 
     manifest_path = output_dir / "prediction_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

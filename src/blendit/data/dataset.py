@@ -4,10 +4,13 @@ import argparse
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 import traceback
+
+import numpy as np
 
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -51,17 +54,57 @@ class CacheFailure:
 _WORKER_CONFIG: dict[str, Any] | None = None
 _WORKER_LABELS_REQUIRED = True
 _WORKER_STRICT_LABEL_COUNT = True
+_WORKER_INVALID_DIR: Path | None = None
 
 
-def _init_cache_worker(config: dict[str, Any], labels_required: bool, strict_label_count: bool) -> None:
-    global _WORKER_CONFIG, _WORKER_LABELS_REQUIRED, _WORKER_STRICT_LABEL_COUNT
+class NonFiniteCacheError(ValueError):
+    """Raised after an OCC cache containing NaN/Inf is moved aside."""
+
+
+def _nonfinite_npz_problems(path: Path) -> list[str]:
+    problems: list[str] = []
+    with np.load(path, allow_pickle=False) as data:
+        for key in data.files:
+            array = data[key]
+            if not np.issubdtype(array.dtype, np.inexact):
+                continue
+            finite = np.isfinite(array)
+            if not finite.all():
+                bad_count = int(array.size - int(finite.sum()))
+                problems.append(f"{key}: {bad_count} non-finite values")
+    return problems
+
+
+def _save_occ_cache(cache_path: Path, arrays: dict[str, np.ndarray], invalid_dir: Path) -> None:
+    save_graph_npz(cache_path, arrays)
+    problems = _nonfinite_npz_problems(cache_path)
+    if not problems:
+        return
+
+    invalid_dir.mkdir(parents=True, exist_ok=True)
+    invalid_path = invalid_dir / cache_path.name
+    if invalid_path != cache_path:
+        os.replace(cache_path, invalid_path)
+    raise NonFiniteCacheError(
+        f"OCC cache contains NaN/Inf ({'; '.join(problems)}); moved to {invalid_path}"
+    )
+
+
+def _init_cache_worker(
+    config: dict[str, Any],
+    labels_required: bool,
+    strict_label_count: bool,
+    invalid_dir: Path,
+) -> None:
+    global _WORKER_CONFIG, _WORKER_LABELS_REQUIRED, _WORKER_STRICT_LABEL_COUNT, _WORKER_INVALID_DIR
     _WORKER_CONFIG = config
     _WORKER_LABELS_REQUIRED = labels_required
     _WORKER_STRICT_LABEL_COUNT = strict_label_count
+    _WORKER_INVALID_DIR = invalid_dir
 
 
 def _extract_sample_to_cache_worker(sample: StepSegSample) -> str | CacheFailure:
-    if _WORKER_CONFIG is None:
+    if _WORKER_CONFIG is None or _WORKER_INVALID_DIR is None:
         raise RuntimeError("Cache worker was not initialized.")
 
     try:
@@ -74,7 +117,7 @@ def _extract_sample_to_cache_worker(sample: StepSegSample) -> str | CacheFailure
             labels_required=_WORKER_LABELS_REQUIRED,
             strict_label_count=_WORKER_STRICT_LABEL_COUNT,
         )
-        save_graph_npz(sample.cache_path, arrays)
+        _save_occ_cache(sample.cache_path, arrays, _WORKER_INVALID_DIR)
         return sample.sample_id
     except Exception as exc:
         return _cache_failure(sample, exc)
@@ -197,6 +240,16 @@ def _configured_cache_dir(data_cfg: dict[str, Any], split: str) -> Path:
     return Path(data_cfg["cache_dir"])
 
 
+def _configured_invalid_dir(data_cfg: dict[str, Any], cache_dir: Path) -> Path:
+    configured = data_cfg.get("invalid_dir")
+    if configured:
+        return Path(configured)
+    invalid_log = data_cfg.get("invalid_log")
+    if invalid_log:
+        return Path(invalid_log).parent
+    return cache_dir.parent / "invalid"
+
+
 class StepSegDataset(Dataset):
     def __init__(self, config: dict, split: str = "train") -> None:
         self.config = config
@@ -205,6 +258,7 @@ class StepSegDataset(Dataset):
         self.steps_dir = root / data_cfg["steps_dir"]
         self.segs_dir = root / data_cfg["segs_dir"]
         self.cache_dir = _configured_cache_dir(data_cfg, split)
+        self.invalid_dir = _configured_invalid_dir(data_cfg, self.cache_dir)
         self.labels_required = bool(data_cfg.get("labels_required", True))
         self.overwrite_cache = bool(data_cfg.get("overwrite_cache", False))
         self.cache_only = bool(data_cfg.get("cache_only", False))
@@ -271,7 +325,7 @@ class StepSegDataset(Dataset):
             labels_required=self.labels_required,
             strict_label_count=self.strict_label_count,
         )
-        save_graph_npz(sample.cache_path, arrays)
+        _save_occ_cache(sample.cache_path, arrays, self.invalid_dir)
 
     def _invalid_log_path(self, invalid_log: str | Path | None) -> Path:
         if invalid_log:
@@ -329,7 +383,7 @@ class StepSegDataset(Dataset):
         with ProcessPoolExecutor(
             max_workers=num_workers,
             initializer=_init_cache_worker,
-            initargs=(self.config, self.labels_required, self.strict_label_count),
+            initargs=(self.config, self.labels_required, self.strict_label_count, self.invalid_dir),
         ) as executor:
             for _ in range(min(max_pending, len(samples))):
                 submit_next(executor)
@@ -356,6 +410,8 @@ class StepSegDataset(Dataset):
         *,
         invalid_log: str | Path | None = None,
     ) -> list[CacheFailure]:
+        if invalid_log and not self.config.get("data", {}).get("invalid_dir"):
+            self.invalid_dir = Path(invalid_log).parent
         if self.cache_only:
             print(f"cache {self.split}: cache_only=true, using {len(self.samples)} existing npz files")
             return []

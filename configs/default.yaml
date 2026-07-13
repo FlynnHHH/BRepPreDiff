@@ -22,6 +22,7 @@ data:
   num_workers: 0
   cache_num_workers: 0
   invalid_log: null
+  invalid_dir: null
 
 brep:
   uv_grid_size: 4
