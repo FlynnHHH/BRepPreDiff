@@ -1,6 +1,6 @@
 seed: 42
 run:
-  name: finetune
+  name: finetune_diffloss
   output_dir: runs
   log_interval: 10
   save_every_epochs: 1
@@ -14,8 +14,7 @@ data:
     train: data/cache/features/finetune_split/train
     val: data/cache/features/finetune_split/val
   cache_only: true
-  # With cache_only=true, train split is ignored and all .npz files under cache_dirs.train are used.
-  train_split: null
+  train_split: data/abc_splits/finetune_train.txt
   val_split: data/abc_splits/finetune_val.txt
   test_split: null
   step_extensions: [".step", ".stp", ".STEP", ".STP"]
@@ -41,8 +40,28 @@ model:
   dropout: 0.1
   time_dim: 128
   num_classes: 3
-  finetune_head: mlp
+  finetune_head: diffusion
 
+# Per-face Diffusion Loss. The clean target is 2 * one_hot(label) - 1.
+label_diffusion:
+  target_encoding: bipolar_one_hot
+  train_timesteps: 1000
+  noise_schedule: cosine
+  prediction_type: epsilon
+  head_width: 128
+  head_depth: 3
+  head_dropout: 0.0
+  noise_samples_per_token: 4
+  sampling_method: ddim
+  sampling_steps: 25
+  ddim_eta: 0.0
+  sampling_temperature: 1.0
+  clip_x_start: true
+  inference_samples: 1
+  score_temperature: 1.0
+  seed: 42
+
+# Retained for compatibility with diffusion pretraining checkpoints.
 diffusion:
   timesteps: 1000
   beta_start: 1.0e-4
@@ -64,11 +83,12 @@ train:
   validate_every_epochs: 1
   # best.pt is selected by validation Macro-F1 (higher is better).
   resume: null
-  # Override this when initializing finetune from a pretrain checkpoint:
+  # Supply a concrete pretraining checkpoint at launch, for example:
   # --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
-  pretrain_checkpoint: null
+  pretrain_checkpoint: runs/pretrain/20260709-143638_baseline/checkpoints/last.pt
   pretrained_encoder: null
-  class_weights: null
+  # Sqrt inverse-frequency weights for the current 84.9% / 3.3% / 11.8% split.
+  class_weights: [0.34, 1.74, 0.92]
   dice_loss_weight: 0.3
   ignore_index: -100
 

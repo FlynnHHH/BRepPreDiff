@@ -15,7 +15,7 @@ from tqdm import tqdm
 from blendit.brep.occ_extractor import OccBRepExtractor, _occ_imports, _parse_label_map, _remap_labels
 from blendit.config import apply_overrides, feature_dims, load_config
 from blendit.data.graph import BRepGraph, collate_graphs, load_graph_npz, normalize_graph_features, save_graph_npz
-from blendit.models import SegmentationModel
+from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint, resolve_device
 
 
@@ -880,7 +880,7 @@ def main() -> None:
 
     device = resolve_device(config)
     face_dim, edge_dim = feature_dims(config)
-    model = SegmentationModel(config, face_dim, edge_dim).to(device)
+    model = build_segmentation_model(config, face_dim, edge_dim).to(device)
     checkpoint_epoch = load_checkpoint(args.checkpoint, model=model, optimizer=None, device=device)
     model.eval()
 
@@ -926,8 +926,7 @@ def main() -> None:
         iterator = tqdm(dataloader, desc=f"infer {args.split}")
         for batch in iterator:
             batch = batch.to(device)
-            logits = model(batch)
-            probs = torch.softmax(logits, dim=-1)
+            probs = predict_segmentation_probabilities(model, batch, config)
             pred = probs.argmax(dim=-1).detach().cpu().numpy()
             confidence = probs.max(dim=-1).values.detach().cpu().numpy()
             graph_ptr = batch.graph_ptr.detach().cpu().numpy()

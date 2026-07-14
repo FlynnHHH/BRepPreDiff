@@ -6,7 +6,14 @@ import torch
 
 from blendit.config import apply_overrides, feature_dims, load_config
 from blendit.data.graph import BRepGraph, collate_graphs
-from blendit.models import DiffusionPretrainModel, DiffusionSchedule, SegmentationModel
+from blendit.models import (
+    DiffusionPretrainModel,
+    DiffusionSchedule,
+    DiffusionSegmentationModel,
+    build_segmentation_model,
+    compute_label_diffusion_loss,
+    prepare_label_diffusion_training_batch,
+)
 from blendit.models.diffusion import compute_pretrain_loss
 from blendit.models.segmentation import compute_segmentation_loss
 from blendit.utils import seed_everything
@@ -68,9 +75,14 @@ def main() -> None:
     )
     pretrain_loss.backward()
 
-    seg_model = SegmentationModel(config, face_dim, edge_dim).to(device)
-    logits = seg_model(batch)
-    seg_loss, seg_metrics = compute_segmentation_loss(logits, batch, config)
+    seg_model = build_segmentation_model(config, face_dim, edge_dim).to(device)
+    if isinstance(seg_model, DiffusionSegmentationModel):
+        prepared = prepare_label_diffusion_training_batch(seg_model, batch, config)
+        noise_prediction = seg_model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
+        seg_loss, seg_metrics = compute_label_diffusion_loss(noise_prediction, prepared, seg_model)
+    else:
+        logits = seg_model(batch)
+        seg_loss, seg_metrics = compute_segmentation_loss(logits, batch, config)
     seg_loss.backward()
 
     print("pretrain", pretrain_metrics)

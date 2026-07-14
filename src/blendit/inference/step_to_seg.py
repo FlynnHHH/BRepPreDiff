@@ -19,7 +19,7 @@ import torch
 from blendit.brep.occ_extractor import OccBRepExtractor
 from blendit.config import apply_overrides, feature_dims, load_config
 from blendit.data.graph import BRepGraph, collate_graphs, graph_from_arrays, normalize_graph_features
-from blendit.models import SegmentationModel
+from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint
 
 
@@ -220,14 +220,15 @@ def _checkpoint_sha256(path: Path) -> str:
 
 
 def _predict_batch(
-    model: SegmentationModel,
+    model: torch.nn.Module,
     device: torch.device,
+    config: dict[str, Any],
     jobs: Sequence[StepJob],
     graphs: Sequence[BRepGraph],
 ) -> list[dict[str, Any]]:
     batch = collate_graphs(list(graphs)).to(device)
     with torch.inference_mode():
-        probabilities = torch.softmax(model(batch), dim=-1)
+        probabilities = predict_segmentation_probabilities(model, batch, config)
     predictions = probabilities.argmax(dim=-1).cpu().numpy().astype(np.int64)
     confidences = probabilities.max(dim=-1).values.cpu().numpy()
     graph_ptr = batch.graph_ptr.cpu().numpy()
@@ -269,7 +270,7 @@ def run_inference(args: argparse.Namespace) -> int:
     config = _load_inference_config(checkpoint_path, args.config, args.override)
     device = _resolve_device(args.device)
     face_dim, edge_dim = feature_dims(config)
-    model = SegmentationModel(config, face_dim, edge_dim).to(device)
+    model = build_segmentation_model(config, face_dim, edge_dim).to(device)
     checkpoint_epoch = load_checkpoint(checkpoint_path, model=model, optimizer=None, device=device)
     model.eval()
     extractor = OccBRepExtractor(config)
@@ -295,7 +296,7 @@ def run_inference(args: argparse.Namespace) -> int:
         if not pending_jobs:
             return
         try:
-            records = _predict_batch(model, device, pending_jobs, pending_graphs)
+            records = _predict_batch(model, device, config, pending_jobs, pending_graphs)
             manifest["samples"].extend(records)
             for record in records:
                 print(f"[OK] {record['relative_path']} -> {record['seg_path']} ({record['faces']} faces)")
@@ -318,7 +319,7 @@ def run_inference(args: argparse.Namespace) -> int:
                 # from producing outputs.
                 for one_job, one_graph in zip(pending_jobs, pending_graphs):
                     try:
-                        records = _predict_batch(model, device, [one_job], [one_graph])
+                        records = _predict_batch(model, device, config, [one_job], [one_graph])
                         manifest["samples"].extend(records)
                         record = records[0]
                         print(f"[OK] {record['relative_path']} -> {record['seg_path']} ({record['faces']} faces)")

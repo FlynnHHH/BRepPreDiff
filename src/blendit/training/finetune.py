@@ -3,11 +3,22 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+import torch.distributed as dist
 from tqdm import tqdm
 
 from blendit.config import feature_dims
 from blendit.data import build_dataloader
-from blendit.models import SegmentationModel, compute_segmentation_loss
+from blendit.models import (
+    DiffusionSegmentationModel,
+    build_segmentation_model,
+    compute_label_diffusion_loss,
+    compute_segmentation_loss,
+    predict_segmentation_probabilities,
+    prepare_label_diffusion_training_batch,
+    segmentation_confusion_matrix,
+    segmentation_metrics_from_confusion_matrix,
+    segmentation_metrics_from_probabilities,
+)
 from blendit.training.common import (
     MetricAverager,
     class_weights_from_config,
@@ -29,6 +40,7 @@ from blendit.training.common import (
     resolve_device,
     save_checkpoint,
     setup_distributed,
+    unwrap_model,
 )
 
 
@@ -44,6 +56,12 @@ def run_epoch(
 ) -> dict[str, float]:
     model.train(train)
     meter = MetricAverager()
+    num_classes = int(config["model"]["num_classes"])
+    validation_confusion = (
+        None
+        if train
+        else torch.zeros((num_classes, num_classes), dtype=torch.int64, device=device)
+    )
     show_progress = distributed is None or distributed.is_main_process
     iterator = tqdm(
         dataloader,
@@ -55,8 +73,32 @@ def run_epoch(
         batch = batch.to(device)
         check_finite_batch(batch)
         with torch.set_grad_enabled(train):
-            logits = model(batch)
-            loss, metrics = compute_segmentation_loss(logits, batch, config, class_weights)
+            target_model = unwrap_model(model)
+            if isinstance(target_model, DiffusionSegmentationModel):
+                prepared = prepare_label_diffusion_training_batch(target_model, batch, config)
+                noise_prediction = model(
+                    batch,
+                    prepared.x_t,
+                    prepared.timesteps,
+                    prepared.face_indices,
+                )
+                loss, metrics = compute_label_diffusion_loss(
+                    noise_prediction,
+                    prepared,
+                    target_model,
+                    class_weights,
+                )
+                if not train:
+                    probabilities = predict_segmentation_probabilities(target_model, batch, config)
+                    metrics.update(segmentation_metrics_from_probabilities(probabilities, batch, config))
+            else:
+                logits = model(batch)
+                loss, metrics = compute_segmentation_loss(logits, batch, config, class_weights)
+                if not train:
+                    probabilities = logits.softmax(dim=-1)
+                    metrics.update(segmentation_metrics_from_probabilities(probabilities, batch, config))
+            if validation_confusion is not None:
+                validation_confusion.add_(segmentation_confusion_matrix(probabilities, batch, config))
             check_finite_loss(loss, metrics, batch.sample_ids)
             if train:
                 optimizer.zero_grad(set_to_none=True)
@@ -68,7 +110,12 @@ def run_epoch(
         meter.update(metrics)
         if show_progress:
             iterator.set_postfix(total=f"{metrics['total']:.4f}", acc=f"{metrics['acc']:.3f}")
-    return meter.compute(distributed=distributed, device=device)
+    epoch_metrics = meter.compute(distributed=distributed, device=device)
+    if validation_confusion is not None:
+        if distributed is not None and distributed.enabled:
+            dist.all_reduce(validation_confusion, op=dist.ReduceOp.SUM)
+        epoch_metrics.update(segmentation_metrics_from_confusion_matrix(validation_confusion))
+    return epoch_metrics
 
 
 def main() -> None:
@@ -100,8 +147,9 @@ def main() -> None:
         else:
             logger.info("validation disabled: data.val_split is not set")
 
-        logger.info("building segmentation model")
-        model = SegmentationModel(config, face_dim, edge_dim).to(device)
+        head_type = str(config.get("model", {}).get("finetune_head", "mlp"))
+        logger.info("building segmentation model head=%s", head_type)
+        model = build_segmentation_model(config, face_dim, edge_dim).to(device)
         logger.info("model parameters=%d", count_parameters(model))
         resume = config["train"].get("resume")
         pretrain_checkpoint = config["train"].get("pretrain_checkpoint")
@@ -148,7 +196,8 @@ def main() -> None:
             start_epoch = load_checkpoint(resume, model=model, optimizer=optimizer, device=device)
             logger.info("resumed checkpoint=%s epoch=%d", resume, start_epoch)
 
-        best_val = float("inf")
+        best_f1 = float("-inf")
+        logger.info("best checkpoint selection metric=validation macro-F1 mode=max")
         epochs = int(config["train"]["epochs"])
         logger.info("training plan: start_epoch=%d target_epoch=%d total_epochs_to_run=%d", start_epoch, epochs, max(0, epochs - start_epoch))
         if start_epoch >= epochs:
@@ -202,8 +251,9 @@ def main() -> None:
                     distributed=distributed,
                 )
                 logger.info("epoch=%d split=val %s", epoch, format_metrics(val_metrics))
-                if val_metrics.get("total", float("inf")) < best_val:
-                    best_val = val_metrics["total"]
+                selection_value = val_metrics.get("f1", float("-inf"))
+                if selection_value > best_f1:
+                    best_f1 = selection_value
                     if distributed.is_main_process:
                         path = run_dir / "checkpoints" / "best.pt"
                         save_checkpoint(

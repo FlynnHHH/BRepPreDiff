@@ -1,6 +1,7 @@
 name: blendit
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - defaults
 dependencies:
@@ -11,6 +12,6 @@ dependencies:
   - pyyaml>=6.0
   - tqdm>=4.66
   - pytest>=8.0
-  - pytorch>=2.2
-  - cpuonly
+  - pytorch=2.5.1
+  - pytorch-cuda=12.4
   - pythonocc-core>=7.8

@@ -994,6 +994,24 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONPATH=src torchrun --standalone --nproc_per_no
 权重，并在类别数匹配时把 `coarse_label_head.*` 初始化到 finetune 的
 `seg_head.*`。旧入口 `train.pretrained_encoder` 仍可用，但只加载 encoder。
 
+### 13.7.1 使用 Diffusion Loss 标签头微调
+
+`configs/finetune_diffloss.yaml` 将每个 face 标签编码为
+`2 * one_hot(label) - 1`，以预训练 encoder 的逐 face 输出为条件，训练一个
+预测 epsilon 的小型 AdaLN MLP。启动时通过 override 指定预训练 checkpoint：
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 PYTHONPATH=src torchrun --standalone --nproc_per_node=4 \
+  -m blendit.training.finetune \
+  --config configs/finetune_diffloss.yaml \
+  --override train.pretrain_checkpoint=runs/pretrain/YYYYmmdd-HHMMSS_baseline/checkpoints/last.pt
+```
+
+该模式只从 pretrain checkpoint 加载 `encoder.*`；Diffusion Loss 标签头随机
+初始化。验证和推理默认使用 25 步确定性 DDIM。原来的 MLP 分类头仍可通过
+`model.finetune_head=mlp` 使用。两种标签头的 `best.pt` 都按验证集全局
+Macro-F1 最大值保存，而不是按 loss 或 accuracy 保存。
+
 输出目录：
 
 ```text
