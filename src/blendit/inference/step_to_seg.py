@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 from blendit.brep.occ_extractor import OccBRepExtractor
-from blendit.config import apply_overrides, feature_dims, load_config
+from blendit.config import apply_overrides, feature_dims, load_experiment_config
 from blendit.data.graph import BRepGraph, collate_graphs, graph_from_arrays, normalize_graph_features
 from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint
@@ -139,10 +139,11 @@ def _torch_load(path: Path, device: torch.device | str = "cpu") -> Any:
 def _load_inference_config(
     checkpoint_path: Path,
     config_path: str | Path | None,
+    data_config_path: str | Path | None,
     overrides: Sequence[str],
 ) -> dict[str, Any]:
     if config_path is not None:
-        config = load_config(config_path)
+        config = load_experiment_config(config_path, data_config_path, list(overrides))
     else:
         checkpoint = _torch_load(checkpoint_path)
         config = checkpoint.get("config") if isinstance(checkpoint, dict) else None
@@ -150,7 +151,7 @@ def _load_inference_config(
             raise ValueError(
                 "The checkpoint has no embedded config. Supply the training config with --config."
             )
-    config = apply_overrides(config, list(overrides))
+        config = apply_overrides(config, list(overrides))
     config.setdefault("data", {})["labels_required"] = False
     config["data"]["strict_label_count"] = False
     return config
@@ -194,7 +195,7 @@ def _extract_graph(extractor: OccBRepExtractor, config: dict[str, Any], job: Ste
             strict_label_count=False,
         )
     graph = graph_from_arrays(arrays, job.relative_path.with_suffix("").as_posix())
-    if bool(config.get("data", {}).get("normalize_per_graph", True)):
+    if bool(config.get("train", {}).get("normalize_per_graph", True)):
         graph = normalize_graph_features(graph)
     return graph
 
@@ -267,7 +268,12 @@ def run_inference(args: argparse.Namespace) -> int:
     if not checkpoint_path.is_file():
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint_path}")
 
-    config = _load_inference_config(checkpoint_path, args.config, args.override)
+    config = _load_inference_config(
+        checkpoint_path,
+        args.config,
+        args.data_config,
+        args.override,
+    )
     device = _resolve_device(args.device)
     face_dim, edge_dim = feature_dims(config)
     model = build_segmentation_model(config, face_dim, edge_dim).to(device)
@@ -397,6 +403,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("input_path", help="A STEP/STP file or a directory containing STEP/STP files.")
     parser.add_argument("--checkpoint", required=True, help="Finetuned Blendit checkpoint.")
     parser.add_argument("--config", default=None, help="Optional YAML config. By default the checkpoint config is used.")
+    parser.add_argument(
+        "--data-config",
+        default=None,
+        help="Prepare-data YAML used when --config points to a training-only YAML.",
+    )
     parser.add_argument("--output-dir", default=None, help="Output directory. Defaults to <input>_seg.")
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, or a device such as cuda:0.")
     parser.add_argument("--batch-size", type=int, default=1, help="Number of models per inference batch.")

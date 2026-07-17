@@ -1,0 +1,31 @@
+data:
+  steps_dir: data/filletrec/filletRec/steps
+  segs_dir: data/filletrec/filletRec/labels
+  cache_dir: data/cache/filletrec
+  cache_dirs:
+    train: data/cache/filletrec/train
+    val: data/cache/filletrec/val
+    test: data/cache/filletrec/test
+  train_split: data/filletrec/filletRec/train.txt
+  val_split: data/filletrec/filletRec/val.txt
+  test_split: data/filletrec/filletRec/test.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 8
+  invalid_log: null
+
+brep:
+  uv_grid_size: 4
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map: null
+  default_class: null
+  ignore_index: -100

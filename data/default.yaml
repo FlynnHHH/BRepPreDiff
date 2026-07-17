@@ -1,0 +1,34 @@
+data:
+  steps_dir: data/raw/steps
+  segs_dir: data/raw/segs
+  cache_dir: data/cache/features
+  train_split: data/splits/train.txt
+  val_split: data/splits/val.txt
+  test_split: data/splits/test.txt
+  split_seed: 42
+  split_ratios:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 0
+  invalid_log: null
+
+brep:
+  uv_grid_size: 4
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map:
+    4: 2
+    6: 1
+  default_class: 0
+  ignore_index: -100

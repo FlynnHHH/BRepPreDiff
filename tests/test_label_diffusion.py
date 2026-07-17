@@ -9,9 +9,9 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 
 
 def _small_diffusion_config():
-    from blendit.config import load_config
+    from blendit.config import load_experiment_config
 
-    config = load_config("configs/finetune_diffloss.yaml")
+    config = load_experiment_config("configs/finetune_diffloss.yaml")
     config["model"]["hidden_dim"] = 32
     config["model"]["num_layers"] = 2
     config["label_diffusion"]["head_width"] = 32
@@ -94,7 +94,7 @@ def test_label_diffusion_ignores_unlabelled_faces():
     config = _small_diffusion_config()
     face_dim, edge_dim = feature_dims(config)
     graph = synthetic_graph("ignored", 4, face_dim, edge_dim, 3)
-    graph.labels[1] = int(config["train"]["ignore_index"])
+    graph.labels[1] = int(config["labels"]["ignore_index"])
     batch = collate_graphs([graph])
     model = build_segmentation_model(config, face_dim, edge_dim)
     assert isinstance(model, DiffusionSegmentationModel)
@@ -102,3 +102,67 @@ def test_label_diffusion_ignores_unlabelled_faces():
     prepared = prepare_label_diffusion_training_batch(model, batch, config)
     assert prepared.labels.numel() == 3 * int(config["label_diffusion"]["noise_samples_per_token"])
     assert not (prepared.face_indices == 1).any()
+
+
+@pytest.mark.parametrize(
+    ("prediction_type", "output_multiplier", "metric_names"),
+    [
+        ("epsilon", 1, {"epsilon_mse"}),
+        ("x_start", 1, {"x_start_mse"}),
+        ("x_start_epsilon", 2, {"x_start_mse", "epsilon_mse"}),
+    ],
+)
+def test_label_diffusion_prediction_types_forward_backward_and_sample(
+    prediction_type,
+    output_multiplier,
+    metric_names,
+):
+    import torch
+
+    from blendit.config import feature_dims
+    from blendit.data.graph import collate_graphs
+    from blendit.models import (
+        DiffusionSegmentationModel,
+        build_segmentation_model,
+        compute_label_diffusion_loss,
+        predict_segmentation_probabilities,
+        prepare_label_diffusion_training_batch,
+    )
+    from blendit.training.smoke import synthetic_graph
+
+    config = _small_diffusion_config()
+    config["label_diffusion"]["prediction_type"] = prediction_type
+    face_dim, edge_dim = feature_dims(config)
+    batch = collate_graphs([synthetic_graph(prediction_type, 4, face_dim, edge_dim, 3)])
+    model = build_segmentation_model(config, face_dim, edge_dim)
+    assert isinstance(model, DiffusionSegmentationModel)
+
+    prepared = prepare_label_diffusion_training_batch(model, batch, config)
+    prediction = model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
+    assert prediction.shape == (prepared.x_t.shape[0], prepared.x_t.shape[1] * output_multiplier)
+    loss, metrics = compute_label_diffusion_loss(prediction, prepared, model)
+    assert torch.isfinite(loss)
+    assert metric_names.issubset(metrics)
+    loss.backward()
+    assert model.diffusion_head.output_projection.weight.grad is not None
+
+    model.eval()
+    with torch.inference_mode():
+        probabilities = predict_segmentation_probabilities(model, batch, config)
+    assert probabilities.shape == (4, 3)
+    assert torch.allclose(probabilities.sum(dim=-1), torch.ones(4), atol=1.0e-6)
+
+
+def test_label_diffusion_prediction_conversions_are_inverse():
+    import torch
+
+    from blendit.models import LabelDiffusionSchedule
+
+    schedule = LabelDiffusionSchedule(20)
+    x_start = torch.randn(7, 3)
+    timesteps = torch.arange(7, dtype=torch.long)
+    x_t, epsilon = schedule.q_sample(x_start, timesteps)
+    reconstructed_x_start = schedule.predict_x_start(x_t, timesteps, epsilon)
+    reconstructed_epsilon = schedule.predict_epsilon(x_t, timesteps, x_start)
+    assert torch.allclose(reconstructed_x_start, x_start, atol=1.0e-5)
+    assert torch.allclose(reconstructed_epsilon, epsilon, atol=1.0e-5)

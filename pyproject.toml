@@ -3,11 +3,22 @@ name = "blendit"
 version = "0.1.0"
 description = "B-Rep diffusion pretraining and face segmentation for blend face recognition."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.9,<3.13"
+keywords = ["b-rep", "cad", "diffusion", "face-segmentation", "pytorch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "numpy>=1.24",
     "pyyaml>=6.0",
-    "torch>=2.2",
+    "torch>=1.12",
     "tqdm>=4.66",
 ]
 
@@ -17,9 +28,10 @@ dev = [
 ]
 
 [project.scripts]
-blendit-cache = "blendit.data.dataset:cache_main"
-blendit-filter-split = "blendit.data.filter_split:main"
-blendit-scan-cache = "blendit.data.scan_cache:main"
+blendit-cache = "blendit.data.load_data:cache_main"
+blendit-prepare-data = "blendit.data.load_data:main"
+blendit-filter-split = "blendit.data.load_data:filter_split_main"
+blendit-scan-cache = "blendit.data.load_data:scan_cache_main"
 blendit-infer-visual = "blendit.inference.finetune_visualize:main"
 blendit-infer-seg = "blendit.inference.step_to_seg:main"
 blendit-pretrain = "blendit.training.pretrain:main"

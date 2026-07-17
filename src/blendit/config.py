@@ -25,6 +25,28 @@ def load_config(path: str | Path) -> dict[str, Any]:
     return cfg
 
 
+def load_experiment_config(
+    training_path: str | Path,
+    data_path: str | Path | None = None,
+    overrides: list[str] | None = None,
+) -> dict[str, Any]:
+    """Merge a training-only config with its prepare-data config."""
+    training_config_path = Path(training_path)
+    training_config = load_config(training_config_path)
+    configured_data_path = data_path or training_config.get("data_config")
+    if not configured_data_path:
+        raise ValueError(
+            f"Training config {training_path} must set data_config or be used with --data-config."
+        )
+    data_config_path = Path(configured_data_path)
+    if data_path is None and not data_config_path.is_absolute():
+        data_config_path = training_config_path.parent / data_config_path
+    data_config = load_config(data_config_path)
+    config = deep_update(data_config, training_config)
+    config["data_config"] = str(data_config_path)
+    return apply_overrides(config, overrides)
+
+
 def save_config(config: dict[str, Any], path: str | Path) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

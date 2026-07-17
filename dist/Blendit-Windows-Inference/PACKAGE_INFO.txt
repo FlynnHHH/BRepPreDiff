@@ -1,4 +1,0 @@
-package=Blendit-Windows-Inference
-source_checkpoint=runs/finetune/20260709-145728_finetune/checkpoints/best.pt
-checkpoint_sha256=f89c6f4b375cd9d28a96d1abceeb7948900be67f8620a5206de6a310c26d261e
-seg_labels=NonTransition:0,VBF:6,EBF:4

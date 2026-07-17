@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import argparse
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 import hashlib
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -16,7 +14,6 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from blendit.config import apply_overrides, load_config
 from blendit.data.graph import (
     BRepGraph,
     collate_graphs,
@@ -54,57 +51,51 @@ class CacheFailure:
 _WORKER_CONFIG: dict[str, Any] | None = None
 _WORKER_LABELS_REQUIRED = True
 _WORKER_STRICT_LABEL_COUNT = True
-_WORKER_INVALID_DIR: Path | None = None
 
 
 class NonFiniteCacheError(ValueError):
-    """Raised after an OCC cache containing NaN/Inf is moved aside."""
+    """Raised when an OCC extraction contains NaN/Inf and is not cached."""
 
 
-def _nonfinite_npz_problems(path: Path) -> list[str]:
+def _nonfinite_array_problems(arrays: dict[str, np.ndarray]) -> list[str]:
     problems: list[str] = []
-    with np.load(path, allow_pickle=False) as data:
-        for key in data.files:
-            array = data[key]
-            if not np.issubdtype(array.dtype, np.inexact):
-                continue
-            finite = np.isfinite(array)
-            if not finite.all():
-                bad_count = int(array.size - int(finite.sum()))
-                problems.append(f"{key}: {bad_count} non-finite values")
+    for key, value in arrays.items():
+        array = np.asarray(value)
+        if not np.issubdtype(array.dtype, np.inexact):
+            continue
+        finite = np.isfinite(array)
+        if not finite.all():
+            bad_count = int(array.size - int(finite.sum()))
+            problems.append(f"{key}: {bad_count} non-finite values")
     return problems
 
 
-def _save_occ_cache(cache_path: Path, arrays: dict[str, np.ndarray], invalid_dir: Path) -> None:
+def _save_occ_cache(cache_path: Path, arrays: dict[str, np.ndarray]) -> None:
+    problems = _nonfinite_array_problems(arrays)
+    if problems:
+        # An overwrite must not leave the previous cache in place after the new
+        # extraction has been classified as invalid.
+        if cache_path.exists():
+            cache_path.unlink()
+        raise NonFiniteCacheError(
+            f"OCC extraction contains NaN/Inf ({'; '.join(problems)}); cache discarded"
+        )
     save_graph_npz(cache_path, arrays)
-    problems = _nonfinite_npz_problems(cache_path)
-    if not problems:
-        return
-
-    invalid_dir.mkdir(parents=True, exist_ok=True)
-    invalid_path = invalid_dir / cache_path.name
-    if invalid_path != cache_path:
-        os.replace(cache_path, invalid_path)
-    raise NonFiniteCacheError(
-        f"OCC cache contains NaN/Inf ({'; '.join(problems)}); moved to {invalid_path}"
-    )
 
 
 def _init_cache_worker(
     config: dict[str, Any],
     labels_required: bool,
     strict_label_count: bool,
-    invalid_dir: Path,
 ) -> None:
-    global _WORKER_CONFIG, _WORKER_LABELS_REQUIRED, _WORKER_STRICT_LABEL_COUNT, _WORKER_INVALID_DIR
+    global _WORKER_CONFIG, _WORKER_LABELS_REQUIRED, _WORKER_STRICT_LABEL_COUNT
     _WORKER_CONFIG = config
     _WORKER_LABELS_REQUIRED = labels_required
     _WORKER_STRICT_LABEL_COUNT = strict_label_count
-    _WORKER_INVALID_DIR = invalid_dir
 
 
 def _extract_sample_to_cache_worker(sample: StepSegSample) -> str | CacheFailure:
-    if _WORKER_CONFIG is None or _WORKER_INVALID_DIR is None:
+    if _WORKER_CONFIG is None:
         raise RuntimeError("Cache worker was not initialized.")
 
     try:
@@ -117,7 +108,7 @@ def _extract_sample_to_cache_worker(sample: StepSegSample) -> str | CacheFailure
             labels_required=_WORKER_LABELS_REQUIRED,
             strict_label_count=_WORKER_STRICT_LABEL_COUNT,
         )
-        _save_occ_cache(sample.cache_path, arrays, _WORKER_INVALID_DIR)
+        _save_occ_cache(sample.cache_path, arrays)
         return sample.sample_id
     except Exception as exc:
         return _cache_failure(sample, exc)
@@ -209,6 +200,25 @@ def _resolve_split_cache(cache_dir: Path, item: str) -> Path:
     raise FileNotFoundError(f"Split item {item!r} was not found as a cache file under {cache_dir}.")
 
 
+def _resolve_split_cache_for_item(
+    cache_dir: Path,
+    steps_dir: Path,
+    item: str,
+    extensions: Iterable[str],
+) -> Path:
+    try:
+        step_path = _resolve_split_step(steps_dir, item, extensions)
+    except FileNotFoundError:
+        return _resolve_split_cache(cache_dir, item)
+
+    expected = _cache_path(cache_dir, steps_dir, step_path)
+    if expected.exists() and expected.is_file():
+        return expected
+    raise FileNotFoundError(
+        f"Cache for split item {item!r} was not found at the expected path {expected}."
+    )
+
+
 def _cache_sample_id(item: str, cache_path: Path, step_extensions: Iterable[str]) -> str:
     path = Path(item)
     extensions = {ext.lower() for ext in step_extensions}
@@ -225,7 +235,9 @@ def _match_seg(segs_dir: Path, steps_dir: Path, step_path: Path) -> Path | None:
     rel = step_path.relative_to(steps_dir)
     candidates = [
         segs_dir / rel.with_suffix(".seg"),
+        segs_dir / rel.with_suffix(".json"),
         segs_dir / f"{step_path.stem}.seg",
+        segs_dir / f"{step_path.stem}.json",
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -240,29 +252,19 @@ def _configured_cache_dir(data_cfg: dict[str, Any], split: str) -> Path:
     return Path(data_cfg["cache_dir"])
 
 
-def _configured_invalid_dir(data_cfg: dict[str, Any], cache_dir: Path) -> Path:
-    configured = data_cfg.get("invalid_dir")
-    if configured:
-        return Path(configured)
-    invalid_log = data_cfg.get("invalid_log")
-    if invalid_log:
-        return Path(invalid_log).parent
-    return cache_dir.parent / "invalid"
-
-
 class StepSegDataset(Dataset):
-    def __init__(self, config: dict, split: str = "train") -> None:
+    def __init__(self, config: dict, split: str = "train", *, source_mode: bool = False) -> None:
         self.config = config
         data_cfg = config["data"]
-        root = Path(data_cfg["root"])
-        self.steps_dir = root / data_cfg["steps_dir"]
-        self.segs_dir = root / data_cfg["segs_dir"]
+        self.steps_dir = Path(data_cfg["steps_dir"])
+        self.segs_dir = Path(data_cfg["segs_dir"])
         self.cache_dir = _configured_cache_dir(data_cfg, split)
-        self.invalid_dir = _configured_invalid_dir(data_cfg, self.cache_dir)
         self.labels_required = bool(data_cfg.get("labels_required", True))
         self.overwrite_cache = bool(data_cfg.get("overwrite_cache", False))
-        self.cache_only = bool(data_cfg.get("cache_only", False))
-        self.normalize_per_graph = bool(data_cfg.get("normalize_per_graph", True))
+        self.source_mode = bool(source_mode)
+        self.normalize_per_graph = bool(
+            config.get("train", {}).get("normalize_per_graph", True)
+        )
         self.strict_label_count = bool(data_cfg.get("strict_label_count", True))
         self.split = split
 
@@ -271,8 +273,8 @@ class StepSegDataset(Dataset):
         split_items = _read_split(Path(split_path) if split_path else None)
         extensions = data_cfg.get("step_extensions", [".step", ".stp"])
 
-        if self.cache_only:
-            if split == "train" or split_items is None:
+        if not self.source_mode:
+            if split_items is None:
                 cache_files = _iter_cache_files(self.cache_dir)
                 samples = [
                     CachedSample(sample_id=cache_path.stem, cache_path=cache_path)
@@ -281,7 +283,12 @@ class StepSegDataset(Dataset):
             else:
                 samples = []
                 for item in split_items:
-                    cache_path = _resolve_split_cache(self.cache_dir, item)
+                    cache_path = _resolve_split_cache_for_item(
+                        self.cache_dir,
+                        self.steps_dir,
+                        item,
+                        extensions,
+                    )
                     samples.append(
                         CachedSample(
                             sample_id=_cache_sample_id(item, cache_path, extensions),
@@ -300,7 +307,7 @@ class StepSegDataset(Dataset):
         for step_path in step_files:
             seg_path = _match_seg(self.segs_dir, self.steps_dir, step_path)
             if seg_path is None and self.labels_required:
-                raise FileNotFoundError(f"Missing SEG file for {step_path}.")
+                raise FileNotFoundError(f"Missing SEG/JSON label file for {step_path}.")
             rel_id = step_path.relative_to(self.steps_dir).with_suffix("").as_posix()
             samples.append(
                 StepSegSample(
@@ -325,7 +332,7 @@ class StepSegDataset(Dataset):
             labels_required=self.labels_required,
             strict_label_count=self.strict_label_count,
         )
-        _save_occ_cache(sample.cache_path, arrays, self.invalid_dir)
+        _save_occ_cache(sample.cache_path, arrays)
 
     def _invalid_log_path(self, invalid_log: str | Path | None) -> Path:
         if invalid_log:
@@ -347,7 +354,7 @@ class StepSegDataset(Dataset):
 
     def __getitem__(self, index: int) -> BRepGraph:
         sample = self.samples[index]
-        if self.cache_only:
+        if not self.source_mode:
             graph = load_graph_npz(sample.cache_path, sample.sample_id)
             if self.normalize_per_graph:
                 graph = normalize_graph_features(graph)
@@ -383,7 +390,7 @@ class StepSegDataset(Dataset):
         with ProcessPoolExecutor(
             max_workers=num_workers,
             initializer=_init_cache_worker,
-            initargs=(self.config, self.labels_required, self.strict_label_count, self.invalid_dir),
+            initargs=(self.config, self.labels_required, self.strict_label_count),
         ) as executor:
             for _ in range(min(max_pending, len(samples))):
                 submit_next(executor)
@@ -410,11 +417,8 @@ class StepSegDataset(Dataset):
         *,
         invalid_log: str | Path | None = None,
     ) -> list[CacheFailure]:
-        if invalid_log and not self.config.get("data", {}).get("invalid_dir"):
-            self.invalid_dir = Path(invalid_log).parent
-        if self.cache_only:
-            print(f"cache {self.split}: cache_only=true, using {len(self.samples)} existing npz files")
-            return []
+        if not self.source_mode:
+            raise RuntimeError("build_cache requires StepSegDataset(..., source_mode=True).")
 
         total_samples = len(self.samples)
         samples = [
@@ -453,8 +457,7 @@ def build_dataloader(config: dict, split: str, shuffle: bool, distributed: bool 
             f"No samples found for split={split!r}. "
             f"Check data.{split_key}={data_cfg.get(split_key)!r}, "
             f"data.cache_dir={data_cfg.get('cache_dir')!r}, "
-            f"data.cache_dirs={data_cfg.get('cache_dirs')!r}, "
-            f"and data.cache_only={data_cfg.get('cache_only', False)!r}."
+            f"and data.cache_dirs={data_cfg.get('cache_dirs')!r}."
         )
     sampler = DistributedSampler(dataset, shuffle=shuffle) if distributed else None
     return DataLoader(
@@ -462,35 +465,7 @@ def build_dataloader(config: dict, split: str, shuffle: bool, distributed: bool 
         batch_size=int(config["train"]["batch_size"]),
         shuffle=shuffle if sampler is None else False,
         sampler=sampler,
-        num_workers=int(config["data"].get("num_workers", 0)),
+        num_workers=int(config["train"].get("num_workers", 0)),
         collate_fn=collate_graphs,
         pin_memory=False,
     )
-
-
-def cache_main() -> None:
-    parser = argparse.ArgumentParser(description="Extract and cache B-Rep graph features.")
-    parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--split", default="train", choices=["train", "val", "test"])
-    parser.add_argument("--workers", type=int, default=None, help="Number of parallel cache workers.")
-    parser.add_argument("--invalid-log", default=None, help="JSONL file for failed cache samples.")
-    parser.add_argument(
-        "--overwrite-cache",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Overwrite existing cache files. Default follows data.overwrite_cache.",
-    )
-    parser.add_argument("--override", action="append", default=[])
-    args = parser.parse_args()
-
-    config = apply_overrides(load_config(args.config), args.override)
-    if args.overwrite_cache is not None:
-        config.setdefault("data", {})["overwrite_cache"] = args.overwrite_cache
-    dataset = StepSegDataset(config, split=args.split)
-    failures = dataset.build_cache(num_workers=args.workers, invalid_log=args.invalid_log)
-    if failures:
-        print(f"cache completed with {len(failures)} invalid samples; see {dataset._invalid_log_path(args.invalid_log)}")
-
-
-if __name__ == "__main__":
-    cache_main()

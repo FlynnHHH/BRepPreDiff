@@ -1,0 +1,32 @@
+data:
+  steps_dir: data/raw/finetune/steps
+  segs_dir: data/raw/finetune/segs
+  cache_dir: data/cache/features/finetune
+  cache_dirs:
+    train: data/cache/features/finetune/train
+    val: data/cache/features/finetune/val
+  train_split: data/blendit/finetune_train.txt
+  val_split: data/blendit/finetune_val.txt
+  test_split: data/blendit/finetune_test.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: true
+  cache_num_workers: 8
+  invalid_log: null
+
+brep:
+  uv_grid_size: 4
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map:
+    4: 2
+    6: 1
+  default_class: 0
+  ignore_index: -100

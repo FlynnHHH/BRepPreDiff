@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from blendit.config import feature_dims
 from blendit.data import build_dataloader
+from blendit.data.load_data import split_has_items
 from blendit.models import DiffusionPretrainModel, DiffusionSchedule, compute_pretrain_loss
 from blendit.training.common import (
     MetricAverager,
@@ -14,6 +15,7 @@ from blendit.training.common import (
     check_finite_loss,
     cleanup_distributed,
     count_parameters,
+    fail_fast_on_distributed_cuda_oom,
     format_metrics,
     log_checkpoint_saved,
     log_config_summary,
@@ -22,6 +24,7 @@ from blendit.training.common import (
     load_checkpoint,
     maybe_wrap_ddp,
     parse_train_args,
+    prepare_training_data,
     prepare_run,
     resolve_device,
     save_checkpoint,
@@ -49,6 +52,8 @@ def run_epoch(
         disable=not show_progress,
     )
     for batch in iterator:
+        if train:
+            optimizer.zero_grad(set_to_none=True)
         batch = batch.to(device)
         check_finite_batch(batch)
         num_graphs = int(batch.graph_ptr.numel() - 1)
@@ -74,7 +79,6 @@ def run_epoch(
             )
             check_finite_loss(loss, metrics, batch.sample_ids)
             if train:
-                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 grad_clip = float(config["train"].get("grad_clip_norm", 0.0) or 0.0)
                 if grad_clip > 0:
@@ -90,7 +94,10 @@ def main() -> None:
     args = parse_train_args("Diffusion pretraining for B-Rep graph encoder.")
     config = load_train_config(args, stage="pretrain")
     distributed = setup_distributed(config)
+    logger = None
+    run_dir = None
     try:
+        config = prepare_training_data(config, distributed)
         config, run_dir, logger = prepare_run(args, stage="pretrain", config=config, distributed=distributed)
         device = resolve_device(config, distributed)
         logger.info(
@@ -108,12 +115,12 @@ def main() -> None:
         train_loader = build_dataloader(config, split="train", shuffle=True, distributed=distributed.enabled)
         log_dataloader_summary(logger, "train", train_loader, distributed)
         val_loader = None
-        if config["data"].get("val_split"):
+        if split_has_items(config, "val"):
             logger.info("building val dataloader")
             val_loader = build_dataloader(config, split="val", shuffle=False, distributed=distributed.enabled)
             log_dataloader_summary(logger, "val", val_loader, distributed)
         else:
-            logger.info("validation disabled: data.val_split is not set")
+            logger.info("validation disabled: data.val_split is not set or is empty")
 
         logger.info("building pretrain model")
         model = DiffusionPretrainModel(config, face_dim, edge_dim).to(device)
@@ -238,6 +245,19 @@ def main() -> None:
             )
             log_checkpoint_saved(logger, path, epochs)
         logger.info("finished pretraining")
+    except RuntimeError as exc:
+        failure_log = (
+            run_dir / "logs" / f"pretrain.oom.rank{distributed.rank}.log"
+            if run_dir is not None
+            else None
+        )
+        fail_fast_on_distributed_cuda_oom(
+            exc,
+            distributed,
+            logger,
+            failure_log=failure_log,
+        )
+        raise
     finally:
         cleanup_distributed(distributed)
 

@@ -10,7 +10,7 @@ from torch import nn
 
 from blendit.data.graph import GraphBatch
 from blendit.models.encoder import BRepGraphEncoder, MLP
-from blendit.models.label_diffusion import (
+from blendit.models.diffusion import (
     ConditionalDenoisingMLP,
     LabelDiffusionSchedule,
     bipolar_one_hot,
@@ -55,8 +55,17 @@ class DiffusionSegmentationModel(nn.Module):
         diffusion_cfg = config["label_diffusion"]
         if str(diffusion_cfg.get("target_encoding", "bipolar_one_hot")) != "bipolar_one_hot":
             raise ValueError("label_diffusion.target_encoding must be 'bipolar_one_hot'.")
-        if str(diffusion_cfg.get("prediction_type", "epsilon")) != "epsilon":
-            raise ValueError("label_diffusion.prediction_type must be 'epsilon'.")
+        self.prediction_type = str(diffusion_cfg.get("prediction_type", "epsilon"))
+        self.x_start_loss_weight = float(diffusion_cfg.get("x_start_loss_weight", 1.0))
+        self.epsilon_loss_weight = float(diffusion_cfg.get("epsilon_loss_weight", 1.0))
+        if self.x_start_loss_weight < 0.0 or self.epsilon_loss_weight < 0.0:
+            raise ValueError("Label diffusion loss weights must be non-negative.")
+        supported_prediction_types = {"epsilon", "x_start", "x_start_epsilon"}
+        if self.prediction_type not in supported_prediction_types:
+            raise ValueError(
+                "label_diffusion.prediction_type must be one of "
+                f"{sorted(supported_prediction_types)}, got {self.prediction_type!r}."
+            )
         if str(diffusion_cfg.get("sampling_method", "ddim")) != "ddim":
             raise ValueError("label_diffusion.sampling_method must be 'ddim'.")
         hidden_dim = int(model_cfg["hidden_dim"])
@@ -77,6 +86,7 @@ class DiffusionSegmentationModel(nn.Module):
             width=int(diffusion_cfg.get("head_width", hidden_dim)),
             depth=int(diffusion_cfg.get("head_depth", 3)),
             dropout=float(diffusion_cfg.get("head_dropout", 0.0)),
+            out_channels=self.num_classes * (2 if self.prediction_type == "x_start_epsilon" else 1),
         )
         self.schedule = LabelDiffusionSchedule(
             int(diffusion_cfg.get("train_timesteps", 1000)),
@@ -126,6 +136,7 @@ class DiffusionSegmentationModel(nn.Module):
             eta=eta,
             temperature=temperature,
             clip_x_start=clip_x_start,
+            prediction_type=self.prediction_type,
             generator=generator,
         )
 
@@ -160,7 +171,7 @@ def prepare_label_diffusion_training_batch(
 ) -> LabelDiffusionTrainingBatch:
     if batch.labels is None:
         raise ValueError("Fine-tuning requires face labels.")
-    ignore_index = int(config["train"].get("ignore_index", -100))
+    ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
     valid_indices = torch.nonzero(batch.labels != ignore_index, as_tuple=False).flatten()
     if valid_indices.numel() == 0:
         raise ValueError("Fine-tuning batch does not contain any valid face labels.")
@@ -188,33 +199,54 @@ def prepare_label_diffusion_training_batch(
 
 
 def compute_label_diffusion_loss(
-    noise_prediction: torch.Tensor,
+    prediction: torch.Tensor,
     prepared: LabelDiffusionTrainingBatch,
     model: DiffusionSegmentationModel,
     class_weights: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict[str, float]]:
-    per_face_mse = (noise_prediction - prepared.noise).square().mean(dim=-1)
+    prediction_type = model.prediction_type
+    x_start_prediction, epsilon_prediction = model.schedule.model_predictions(
+        prepared.x_t,
+        prepared.timesteps,
+        prediction,
+        prediction_type,
+    )
+
+    component_losses: dict[str, torch.Tensor] = {}
+    if prediction_type in {"x_start", "x_start_epsilon"}:
+        component_losses["x_start_mse"] = (x_start_prediction - prepared.x_start).square().mean(dim=-1)
+    if prediction_type in {"epsilon", "x_start_epsilon"}:
+        component_losses["epsilon_mse"] = (epsilon_prediction - prepared.noise).square().mean(dim=-1)
+
+    component_weights = {
+        "x_start_mse": model.x_start_loss_weight,
+        "epsilon_mse": model.epsilon_loss_weight,
+    }
+    active_weight = sum(component_weights[name] for name in component_losses)
+    if active_weight <= 0.0:
+        raise ValueError("Active label diffusion loss weights must sum to a positive value.")
+    per_face_loss = sum(
+        component_weights[name] * values for name, values in component_losses.items()
+    ) / active_weight
     if class_weights is None:
-        loss = per_face_mse.mean()
+        loss = per_face_loss.mean()
     else:
         face_weights = class_weights[prepared.labels]
-        loss = (per_face_mse * face_weights).sum() / face_weights.sum().clamp_min(1.0e-8)
+        loss = (per_face_loss * face_weights).sum() / face_weights.sum().clamp_min(1.0e-8)
 
     with torch.no_grad():
-        x_start_prediction = model.schedule.predict_x_start(
-            prepared.x_t,
-            prepared.timesteps,
-            noise_prediction,
-        )
         predictions = x_start_prediction.argmax(dim=-1)
         accuracy = (predictions == prepared.labels).float().mean()
         dsc = dice_loss(x_start_prediction, prepared.labels, model.num_classes, ignore_index=-100)
-    return loss, {
+    metrics = {
         "diffusion_mse": float(loss.detach().cpu()),
         "dice": float(dsc.detach().cpu()),
         "acc": float(accuracy.detach().cpu()),
         "total": float(loss.detach().cpu()),
     }
+    for name, values in component_losses.items():
+        metrics[name] = float(values.mean().detach().cpu())
+    return loss, metrics
 
 
 def _stable_initial_noise(
@@ -298,7 +330,7 @@ def segmentation_metrics_from_probabilities(
 ) -> dict[str, float]:
     if batch.labels is None:
         raise ValueError("Fine-tuning requires face labels.")
-    ignore_index = int(config["train"].get("ignore_index", -100))
+    ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
     num_classes = int(config["model"]["num_classes"])
     valid = batch.labels != ignore_index
     if not valid.any():
@@ -323,7 +355,7 @@ def segmentation_confusion_matrix(
 ) -> torch.Tensor:
     if batch.labels is None:
         raise ValueError("Fine-tuning requires face labels.")
-    ignore_index = int(config["train"].get("ignore_index", -100))
+    ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
     num_classes = int(config["model"]["num_classes"])
     valid = batch.labels != ignore_index
     if not valid.any():
@@ -350,12 +382,21 @@ def segmentation_metrics_from_confusion_matrix(confusion: torch.Tensor) -> dict[
     precision = true_positive / predicted.clamp_min(1.0)
     recall = true_positive / support.clamp_min(1.0)
     f1 = 2.0 * precision * recall / (precision + recall).clamp_min(1.0e-15)
-    return {
+    metrics = {
         "acc": float((true_positive.sum() / total).detach().cpu()),
         # `f1` is the unweighted mean over all configured segmentation classes.
         "f1": float(f1.mean().detach().cpu()),
         "weighted_f1": float(((f1 * support).sum() / total).detach().cpu()),
     }
+    if confusion.shape[0] == 2:
+        metrics.update(
+            {
+                "precision": float(precision[1].detach().cpu()),
+                "recall": float(recall[1].detach().cpu()),
+                "positive_f1": float(f1[1].detach().cpu()),
+            }
+        )
+    return metrics
 
 
 def compute_segmentation_loss(
@@ -366,7 +407,7 @@ def compute_segmentation_loss(
 ) -> tuple[torch.Tensor, dict[str, float]]:
     if batch.labels is None:
         raise ValueError("Fine-tuning requires face labels.")
-    ignore_index = int(config["train"].get("ignore_index", -100))
+    ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
     num_classes = int(config["model"]["num_classes"])
     ce = F.cross_entropy(logits, batch.labels, weight=class_weights, ignore_index=ignore_index)
     dsc = dice_loss(logits, batch.labels, num_classes, ignore_index)

@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Blendit EBF/VBF Viewer</title>
-  <link rel="stylesheet" href="./styles.css?v=20260713-dataset-groups">
+  <link rel="stylesheet" href="./styles.css?v=1">
 </head>
 <body>
   <main class="page">
     <header class="page-header">
       <div>
         <h1>Blendit results</h1>
-        <p>分区查看原 Test Set 与 FilletRec Test Set 的 GT/预测对比</p>
+        <p>在同一页面分区查看 Blendit 与 FilletRec 的 GT/预测对比</p>
       </div>
       <div class="header-tools">
         <label class="dataset-filter">
@@ -20,6 +20,8 @@
             <option value="all">全部</option>
             <option value="original">原 Test Set</option>
             <option value="filletrec">FilletRec Test Set</option>
+            <option value="filletrec-model-filletrec-testset">filletrec on filletrec testset</option>
+            <option value="filletrec-ourtestset">filletrec on ourtestset</option>
           </select>
         </label>
         <label class="favorite-filter">
@@ -46,6 +48,6 @@
       }
     }
   </script>
-  <script type="module" src="./viewer.js?v=20260713-dataset-groups"></script>
+  <script type="module" src="./viewer.js?v=1"></script>
 </body>
 </html>

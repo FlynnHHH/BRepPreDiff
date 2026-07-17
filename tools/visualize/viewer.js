@@ -11,8 +11,9 @@ const favoritesOnly = document.querySelector("#favoritesOnly");
 const loader = new PLYLoader();
 const viewers = new Map();
 let activeFiles = MODEL_FILES;
-let predictionManifest = null;
+let predictionManifests = new Map();
 let manifestSamples = new Map();
+let predictionManifestsSignature = null;
 let observer = null;
 const FAVORITES_KEY = "curvseg-2026-6-22-favorite-samples";
 let favorites = loadFavorites();
@@ -32,6 +33,44 @@ const BINARY_LEGEND = [
 const MODEL_BASE_URL = "./results/";
 const INSTANCE_SUFFIX = "_instance_pred_rgb.ply";
 const SEMANTIC_SUFFIX = "_semantic_pred.ply";
+const PREDICTION_MANIFEST_SOURCES = [
+  {
+    key: "original",
+    filename: "original_testset_manifest.json",
+    metricsTitle: "Blendit on original Test Set",
+    modelName: "Blendit",
+    visualizationNumClasses: 2,
+    gtTitle: "Original Test Set GT 过渡面",
+    predictionTitle: "Blendit 过渡面预测"
+  },
+  {
+    key: "filletrec",
+    filename: "prediction_manifest.json",
+    metricsTitle: "Blendit on FilletRec Test Set",
+    modelName: "Blendit",
+    visualizationNumClasses: 2,
+    gtTitle: "FilletRec GT 过渡面",
+    predictionTitle: "Blendit 过渡面预测"
+  },
+  {
+    key: "filletrec-model-filletrec-testset",
+    filename: "filletrec_on_filletrec_manifest.json",
+    metricsTitle: "filletrec on filletrec testset",
+    modelName: "FilletRec",
+    visualizationNumClasses: 2,
+    gtTitle: "FilletRec GT 过渡面",
+    predictionTitle: "FilletRec 过渡面预测"
+  },
+  {
+    key: "filletrec-ourtestset",
+    filename: "filletrec_ourtestset_manifest.json",
+    metricsTitle: "filletrec on ourtestset",
+    modelName: "FilletRec",
+    visualizationNumClasses: 2,
+    gtTitle: "ourtestset GT 过渡面",
+    predictionTitle: "FilletRec 过渡面预测"
+  }
+];
 
 function safeName(name) {
   return encodeURIComponent(name);
@@ -447,9 +486,9 @@ function pairModels(files) {
     .sort((a, b) => a.sample.localeCompare(b.sample));
 }
 
-function formatPercent(value) {
+function formatPercent(value, digits = 2) {
   const number = Number(value);
-  return Number.isFinite(number) ? `${(number * 100).toFixed(2)}%` : "—";
+  return Number.isFinite(number) ? `${(number * 100).toFixed(digits)}%` : "—";
 }
 
 function metricsMarkup(metrics, compact = false) {
@@ -465,7 +504,7 @@ function metricsMarkup(metrics, compact = false) {
       ${items.map(([label, value]) => `
         <div class="metric-item">
           <span>${label}</span>
-          <strong>${formatPercent(value)}</strong>
+          <strong>${formatPercent(value, compact ? 2 : 4)}</strong>
         </div>
       `).join("")}
     </div>
@@ -481,13 +520,13 @@ function createCard(sampleName, instanceFile, semanticFile) {
 
   const isFavorite = favorites.has(sampleName);
   const record = manifestSamples.get(sampleName);
-  const binaryEvaluation = Boolean(record?.binary_metrics);
-  const gtTitle = binaryEvaluation ? "FilletRec GT 过渡面" : "SEG GT 高亮";
-  const predictionTitle = binaryEvaluation ? "Blendit 过渡面预测" : "EBF/VBF 预测高亮";
+  const displayName = record?.display_name || sampleName;
+  const gtTitle = record?._gtTitle || "SEG GT 高亮";
+  const predictionTitle = record?._predictionTitle || "EBF/VBF 预测高亮";
 
   card.innerHTML = `
     <div class="model-title">
-      <strong title="${escapeHtml(sampleName)}">${escapeHtml(sampleName)}</strong>
+      <strong title="${escapeHtml(sampleName)}">${escapeHtml(displayName)}</strong>
       <div class="model-actions">
         <label class="overlay-toggle" title="显示黄色顶点">
           <input class="toggle-points" type="checkbox">
@@ -529,7 +568,9 @@ function createCard(sampleName, instanceFile, semanticFile) {
 }
 
 function renderPrimitiveLegend(sampleName) {
-  const legendItems = manifestSamples.get(sampleName)?.binary_metrics ? BINARY_LEGEND : PRIMITIVE_LEGEND;
+  const legendItems = manifestSamples.get(sampleName)?._visualizationNumClasses === 2
+    ? BINARY_LEGEND
+    : PRIMITIVE_LEGEND;
   return legendItems.map((item) => `
     <div class="legend-row" title="${item.id} ${item.en} ${item.zh} RGB(${item.rgb})">
       <span class="legend-swatch" style="background: rgb(${item.rgb})"></span>
@@ -594,45 +635,106 @@ async function loadModelFiles() {
   } catch {
     // keep built-in MODEL_FILES if API fails
   } finally {
-    await loadPredictionManifest();
+    await loadPredictionManifests();
     initAfterLoad();
   }
 }
 
-async function loadPredictionManifest() {
-  try {
-    const response = await fetch(`${MODEL_BASE_URL}prediction_manifest.json`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    predictionManifest = await response.json();
-    const samples = Array.isArray(predictionManifest.samples) ? predictionManifest.samples : [];
-    manifestSamples = new Map(samples.map((sample) => [String(sample.sample_id), sample]));
-  } catch {
-    predictionManifest = null;
-    manifestSamples = new Map();
-  }
+async function loadPredictionManifests() {
+  const previousSignature = predictionManifestsSignature;
+  const loaded = await Promise.all(PREDICTION_MANIFEST_SOURCES.map(async (source) => {
+    try {
+      const response = await fetch(
+        `${MODEL_BASE_URL}${source.filename}?_=${Date.now()}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return { source, manifest: await response.json() };
+    } catch {
+      return null;
+    }
+  }));
+
+  predictionManifests = new Map();
+  manifestSamples = new Map();
+  loaded.filter(Boolean).forEach(({ source, manifest }) => {
+    predictionManifests.set(source.key, { source, manifest });
+    const samples = Array.isArray(manifest.samples) ? manifest.samples : [];
+    samples.forEach((sample) => {
+      manifestSamples.set(String(sample.sample_id), {
+        ...sample,
+        _datasetKey: source.key,
+        _modelName: source.modelName,
+        _visualizationNumClasses: source.visualizationNumClasses,
+        _gtTitle: source.gtTitle,
+        _predictionTitle: source.predictionTitle
+      });
+    });
+  });
+  predictionManifestsSignature = JSON.stringify(
+    loaded.filter(Boolean).map(({ source, manifest }) => ({
+      key: source.key,
+      checkpoint: manifest.checkpoint,
+      checkpointEpoch: manifest.checkpoint_epoch,
+      metrics: manifest.metrics
+    }))
+  );
   renderMetricsSummary();
+  return previousSignature !== null && previousSignature !== predictionManifestsSignature;
+}
+
+async function refreshPredictionManifests() {
+  const changed = await loadPredictionManifests();
+  if (changed) renderCards();
 }
 
 function renderMetricsSummary() {
-  const metrics = predictionManifest?.metrics;
-  if (!metrics || datasetFilter.value === "original") {
+  const selectedDataset = datasetFilter.value;
+  const visibleKeys = selectedDataset === "all"
+    ? PREDICTION_MANIFEST_SOURCES.map((source) => source.key)
+    : [selectedDataset];
+  const entries = visibleKeys
+    .map((key) => predictionManifests.get(key))
+    .filter((entry) => entry?.manifest?.metrics);
+  if (!entries.length) {
     metricsSummary.hidden = true;
     metricsSummary.innerHTML = "";
     return;
   }
-  const evaluatedSamples = Number(predictionManifest.evaluated_samples ?? 0).toLocaleString();
-  const faces = Number(metrics.faces ?? 0).toLocaleString();
-  metricsSummary.innerHTML = `
-    <div class="metrics-heading">
-      <div>
-        <strong>FilletRec Test 二分类评估</strong>
-        <span>正类：过渡面（VBF 或 EBF）</span>
-      </div>
-      <span>${evaluatedSamples} 个样本 / ${faces} 个 OCC 面</span>
-    </div>
-    ${metricsMarkup(metrics)}
-  `;
+  metricsSummary.classList.toggle("multi-experiment", entries.length > 1);
+  metricsSummary.innerHTML = entries.map(({ source, manifest }) => {
+    const metrics = manifest.metrics;
+    const evaluatedSamples = Number(manifest.evaluated_samples ?? 0).toLocaleString();
+    const faces = Number(metrics.faces ?? 0).toLocaleString();
+    const checkpoint = String(manifest.checkpoint ?? "unknown");
+    const checkpointName = checkpoint.split("/").slice(-4, -2).join(" / ") || checkpoint;
+    const checkpointEpoch = Number(manifest.checkpoint_epoch ?? 0);
+    return `
+      <section class="metrics-experiment ${source.key}">
+        <div class="metrics-heading">
+          <div>
+            <strong>${escapeHtml(source.metricsTitle)}</strong>
+            <span>正类：过渡面 · ${escapeHtml(checkpointName)} · epoch ${checkpointEpoch}</span>
+          </div>
+          <span>${evaluatedSamples} 个样本 / ${faces} 个 OCC 面</span>
+        </div>
+        ${metricsMarkup(metrics)}
+      </section>
+    `;
+  }).join("");
   metricsSummary.hidden = false;
+}
+
+function datasetForSample(sampleName) {
+  const manifestDataset = manifestSamples.get(sampleName)?._datasetKey;
+  if (manifestDataset) return manifestDataset;
+  if (sampleName.startsWith("filletrec_model__")) {
+    return "filletrec-model-filletrec-testset";
+  }
+  if (sampleName.startsWith("filletrec__")) return "filletrec";
+  // Once the original-test manifest is available, omit stale duplicate PLYs
+  // left by earlier path-deduplication runs (Ex9/Ex14 hash suffixes).
+  return predictionManifests.has("original") ? "untracked" : "original";
 }
 
 function toggleFavorite(name, button) {
@@ -742,7 +844,7 @@ function renderCards() {
 
   const pairs = pairModels(files);
   const matchedPairs = pairs.filter((p) => {
-    const dataset = p.sample.startsWith("filletrec__") ? "filletrec" : "original";
+    const dataset = datasetForSample(p.sample);
     const datasetMatch = selectedDataset === "all" || selectedDataset === dataset;
     const keywordMatch = !keyword ||
       p.sample.toLowerCase().includes(keyword) ||
@@ -767,14 +869,28 @@ function renderCards() {
     {
       key: "original",
       title: "原 Test Set",
-      description: "Blendit 原测试集三分类结果",
-      pairs: matchedPairs.filter((pair) => !pair.sample.startsWith("filletrec__"))
+      description: "与 FilletRec Test Set 相同 checkpoint 的二分类过渡面结果",
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "original")
     },
     {
       key: "filletrec",
       title: "FilletRec Test Set",
       description: "VBF/EBF 合并为过渡面的二分类结果",
-      pairs: matchedPairs.filter((pair) => pair.sample.startsWith("filletrec__"))
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "filletrec")
+    },
+    {
+      key: "filletrec-model-filletrec-testset",
+      title: "filletrec on filletrec testset",
+      description: "FilletRec 在 FilletRec 官方 test split 上的二分类结果",
+      pairs: matchedPairs.filter(
+        (pair) => datasetForSample(pair.sample) === "filletrec-model-filletrec-testset"
+      )
+    },
+    {
+      key: "filletrec-ourtestset",
+      title: "filletrec on ourtestset",
+      description: "FilletRec 在 ourtestset 上的二分类过渡面预测结果",
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "filletrec-ourtestset")
     }
   ];
 
@@ -862,4 +978,6 @@ function initAfterLoad() {
   renderCards();
 }
 
-void loadModelFiles();
+void loadModelFiles().then(() => {
+  window.setInterval(() => void refreshPredictionManifests(), 10_000);
+});

@@ -1,5 +1,11 @@
-from .diffusion import DiffusionPretrainModel, DiffusionSchedule, compute_pretrain_loss
-from .label_diffusion import ConditionalDenoisingMLP, LabelDiffusionSchedule, bipolar_one_hot
+from .diffusion import (
+    ConditionalDenoisingMLP,
+    DiffusionPretrainModel,
+    DiffusionSchedule,
+    LabelDiffusionSchedule,
+    bipolar_one_hot,
+    compute_pretrain_loss,
+)
 from .segmentation import (
     DiffusionSegmentationModel,
     SegmentationModel,

@@ -62,13 +62,24 @@ FilletRec JSON 标签按 OCC face 顺序存放，0 表示非过渡面，1 表示
 ```bash
 PYTHONPATH=../../src python run_finetune_inference.py \
   --config ../../configs/finetune.yaml \
+  --data-config ../../data/filletrec.yaml \
   --checkpoint ../../runs/finetune/<run>/checkpoints/best.pt \
   --split test \
   --split-file ../../data/filletrec/filletRec/test.txt \
   --cache-dir ../../data/cache/filletrec/test \
   --binary-transition \
-  --sample-prefix filletrec__ \
-  --override data.root=../../data/filletrec/filletRec \
-  --override data.steps_dir=steps \
-  --override data.segs_dir=labels
+  --sample-prefix filletrec__
+```
+
+原生二分类微调结果使用 `configs/finetune_filletrec_diffloss.yaml`。此时
+`--binary-transition` 会直接保留模型的 0/1 预测，不再执行 VBF/EBF 合并：
+
+```bash
+cd ../..
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune_filletrec_diffloss.yaml \
+  --checkpoint runs/finetune/<run>/checkpoints/best.pt \
+  --split test --cache-dir data/cache/filletrec/test \
+  --output-dir tools/visualize/results \
+  --binary-transition --sample-prefix filletrec__
 ```

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import argparse
+from datetime import timedelta
 import logging
 import os
+import sys
+import time
+import traceback
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,8 +16,11 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
-from blendit.config import apply_overrides, feature_dims, load_config, save_config
+from blendit.config import feature_dims, load_experiment_config, save_config
 from blendit.utils import create_run_dir, make_logger, seed_everything
+
+
+DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS = 120.0
 
 
 @dataclass(frozen=True)
@@ -34,6 +42,14 @@ class WeightLoadResult:
     missing_keys: list[str]
     unexpected_keys: list[str]
     skipped_keys: list[str]
+
+
+@dataclass(frozen=True)
+class EncoderFreezeResult:
+    mode: str
+    frozen_layers: int
+    trainable_parameters: int
+    frozen_parameters: int
 
 
 class MetricAverager:
@@ -73,14 +89,35 @@ class MetricAverager:
 def parse_train_args(description: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--config", default="configs/default.yaml")
+    parser.add_argument(
+        "--data-config",
+        default=None,
+        help="Prepare-data YAML. Defaults to data_config in the training YAML.",
+    )
     parser.add_argument("--override", action="append", default=[], help="Override config, e.g. train.epochs=5")
     return parser.parse_args()
 
 
 def load_train_config(args: argparse.Namespace, stage: str) -> dict[str, Any]:
-    config = apply_overrides(load_config(args.config), args.override)
+    config = load_experiment_config(
+        args.config,
+        getattr(args, "data_config", None),
+        args.override,
+    )
     config["train"]["stage"] = stage
     return config
+
+
+def distributed_timeout(config: dict[str, Any]) -> timedelta:
+    seconds = float(
+        config.get("train", {}).get(
+            "distributed_timeout_seconds",
+            DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS,
+        )
+    )
+    if seconds <= 0:
+        raise ValueError(f"train.distributed_timeout_seconds must be positive, got {seconds}")
+    return timedelta(seconds=seconds)
 
 
 def setup_distributed(config: dict[str, Any]) -> DistributedContext:
@@ -93,6 +130,12 @@ def setup_distributed(config: dict[str, Any]) -> DistributedContext:
     use_cuda = requested.startswith("cuda") and torch.cuda.is_available()
     backend = "nccl" if use_cuda else "gloo"
 
+    if backend == "nccl" and not any(
+        name in os.environ
+        for name in ("NCCL_ASYNC_ERROR_HANDLING", "NCCL_BLOCKING_WAIT")
+    ):
+        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1"
+
     if use_cuda:
         device_count = torch.cuda.device_count()
         if local_rank >= device_count:
@@ -100,7 +143,7 @@ def setup_distributed(config: dict[str, Any]) -> DistributedContext:
         torch.cuda.set_device(local_rank)
 
     if not dist.is_initialized():
-        dist.init_process_group(backend=backend)
+        dist.init_process_group(backend=backend, timeout=distributed_timeout(config))
 
     return DistributedContext(
         enabled=True,
@@ -111,9 +154,114 @@ def setup_distributed(config: dict[str, Any]) -> DistributedContext:
     )
 
 
+def prepare_training_data(
+    config: dict[str, Any],
+    distributed: DistributedContext | None = None,
+) -> dict[str, Any]:
+    distributed = distributed or DistributedContext()
+    from blendit.data.load_data import prepare_data
+
+    if not distributed.enabled:
+        result = prepare_data(config)
+        print(
+            "data preparation complete: "
+            f"generated_splits={len(result.generated_splits)} "
+            f"built_cache_files={result.built_cache_files} "
+            f"removed_invalid_caches={len(result.removed_invalid_caches)}"
+        )
+        return result.config
+
+    token: list[str | None] = [uuid.uuid4().hex if distributed.is_main_process else None]
+    dist.broadcast_object_list(token, src=0)
+    if token[0] is None:
+        raise RuntimeError("Failed to establish distributed data preparation coordination.")
+
+    cache_dir = Path(config["data"]["cache_dir"])
+    marker = cache_dir.parent / ".blendit_coord" / f"prepare_{token[0]}.ready"
+    prepared: list[dict[str, Any] | None] = [None]
+    if distributed.is_main_process:
+        result = prepare_data(config)
+        prepared[0] = result.config
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("ready\n", encoding="utf-8")
+        print(
+            "data preparation complete: "
+            f"generated_splits={len(result.generated_splits)} "
+            f"built_cache_files={result.built_cache_files} "
+            f"removed_invalid_caches={len(result.removed_invalid_caches)}"
+        )
+    else:
+        print(f"rank {distributed.rank}: waiting for rank 0 data preparation")
+        while not marker.is_file():
+            time.sleep(1.0)
+
+    # This collective starts only after preparation has completed, so a long
+    # cache build cannot consume the process group's collective timeout.
+    dist.broadcast_object_list(prepared, src=0)
+    if distributed.is_main_process:
+        marker.unlink(missing_ok=True)
+    if prepared[0] is None:
+        raise RuntimeError("Failed to receive the prepared data configuration.")
+    return prepared[0]
+
+
 def cleanup_distributed(distributed: DistributedContext) -> None:
     if distributed.enabled and dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
+
+
+def is_cuda_out_of_memory(exc: BaseException) -> bool:
+    oom_type = getattr(torch.cuda, "OutOfMemoryError", None)
+    if oom_type is not None and isinstance(exc, oom_type):
+        return True
+    if not isinstance(exc, RuntimeError):
+        return False
+    message = str(exc).lower()
+    return "out of memory" in message and ("cuda" in message or "cudnn" in message)
+
+
+def fail_fast_on_distributed_cuda_oom(
+    exc: BaseException,
+    distributed: DistributedContext,
+    logger: Any | None = None,
+    failure_log: str | Path | None = None,
+) -> None:
+    if not distributed.enabled or not is_cuda_out_of_memory(exc):
+        return
+
+    message = (
+        "CUDA out of memory on "
+        f"rank={distributed.rank} local_rank={distributed.local_rank}; "
+        "exiting immediately so the launcher can terminate the remaining ranks"
+    )
+    try:
+        if logger is not None:
+            logger.critical(
+                message,
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+        if failure_log is not None:
+            failure_path = Path(failure_log)
+            try:
+                failure_path.parent.mkdir(parents=True, exist_ok=True)
+                with failure_path.open("a", encoding="utf-8") as stream:
+                    print(message, file=stream)
+                    traceback.print_exception(type(exc), exc, exc.__traceback__, file=stream)
+                    stream.flush()
+            except OSError as log_exc:
+                print(
+                    f"failed to write CUDA OOM log {failure_path}: {log_exc}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        print(message, file=sys.stderr, flush=True)
+        traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
+        sys.stderr.flush()
+    finally:
+        # Avoid destroy_process_group(): after one rank OOMs, peers may already
+        # be blocked in a different NCCL collective. A non-zero hard exit lets
+        # torchrun observe the failure and terminate all other local ranks.
+        os._exit(1)
 
 
 def _null_logger(name: str) -> logging.Logger:
@@ -167,10 +315,25 @@ def prepare_run(
     return config, run_dir, logger
 
 
-def resolve_device(config: dict[str, Any], distributed: DistributedContext | None = None) -> torch.device:
+def resolve_device(
+    config: dict[str, Any],
+    distributed: DistributedContext | None = None,
+    *,
+    enforce_cuda_requirement: bool = True,
+) -> torch.device:
     distributed = distributed or DistributedContext()
-    requested = str(config["train"].get("device", "cpu"))
+    train_cfg = config["train"]
+    requested = str(train_cfg.get("device", "cpu"))
+    require_cuda = bool(train_cfg.get("require_cuda", False)) and enforce_cuda_requirement
+    if require_cuda and not requested.startswith("cuda"):
+        raise ValueError(
+            "train.require_cuda=true requires train.device to be 'cuda' or 'cuda:<index>'."
+        )
     if requested.startswith("cuda") and not torch.cuda.is_available():
+        if require_cuda:
+            raise RuntimeError(
+                "CUDA is required by train.require_cuda=true, but torch.cuda.is_available() is false."
+            )
         return torch.device("cpu")
     if distributed.enabled and requested.startswith("cuda"):
         return torch.device(f"cuda:{distributed.local_rank}")
@@ -294,20 +457,6 @@ def _load_mapped_weights(
     )
 
 
-def load_pretrained_encoder(
-    path: str | Path,
-    *,
-    model: torch.nn.Module,
-    device: torch.device | str = "cpu",
-) -> WeightLoadResult:
-    return _load_mapped_weights(
-        path,
-        model=model,
-        device=device,
-        key_mappings=(("encoder.", "encoder."),),
-    )
-
-
 def load_pretrain_checkpoint_for_finetune(
     path: str | Path,
     *,
@@ -332,6 +481,90 @@ def class_weights_from_config(config: dict[str, Any], device: torch.device) -> t
     return torch.tensor([float(x) for x in weights], dtype=torch.float32, device=device)
 
 
+def configure_encoder_finetuning(
+    model: torch.nn.Module,
+    config: dict[str, Any],
+) -> EncoderFreezeResult:
+    """Apply the configured encoder freeze strategy before optimizer creation."""
+    target_model = unwrap_model(model)
+    encoder = getattr(target_model, "encoder", None)
+    if encoder is None:
+        raise ValueError(f"Model {type(target_model).__name__} does not expose an encoder.")
+
+    mode = str(config.get("train", {}).get("encoder_freeze_mode", "none")).lower()
+    if mode not in {"none", "all", "partial"}:
+        raise ValueError(
+            "train.encoder_freeze_mode must be one of ['all', 'none', 'partial'], "
+            f"got {mode!r}."
+        )
+
+    for parameter in encoder.parameters():
+        parameter.requires_grad_(True)
+
+    frozen_layers = 0
+    if mode == "all":
+        for parameter in encoder.parameters():
+            parameter.requires_grad_(False)
+        frozen_layers = len(encoder.layers)
+    elif mode == "partial":
+        frozen_layers = int(config.get("train", {}).get("encoder_frozen_layers", 0))
+        if not 0 < frozen_layers < len(encoder.layers):
+            raise ValueError(
+                "Partial encoder freezing requires 0 < train.encoder_frozen_layers "
+                f"< model.num_layers ({len(encoder.layers)}), got {frozen_layers}."
+            )
+        stem_names = (
+            "face_cont_proj",
+            "surface_emb",
+            "edge_cont_proj",
+            "edge_type_emb",
+            "edge_relation_emb",
+            "input_norm",
+            "edge_norm",
+        )
+        for name in stem_names:
+            for parameter in getattr(encoder, name).parameters():
+                parameter.requires_grad_(False)
+        for layer in encoder.layers[:frozen_layers]:
+            for parameter in layer.parameters():
+                parameter.requires_grad_(False)
+
+    trainable_parameters = sum(parameter.numel() for parameter in target_model.parameters() if parameter.requires_grad)
+    frozen_parameters = sum(parameter.numel() for parameter in target_model.parameters() if not parameter.requires_grad)
+    return EncoderFreezeResult(
+        mode=mode,
+        frozen_layers=frozen_layers,
+        trainable_parameters=trainable_parameters,
+        frozen_parameters=frozen_parameters,
+    )
+
+
+def set_frozen_encoder_eval(model: torch.nn.Module, config: dict[str, Any]) -> None:
+    """Keep dropout in frozen encoder components disabled during fine-tuning."""
+    target_model = unwrap_model(model)
+    encoder = getattr(target_model, "encoder", None)
+    if encoder is None:
+        return
+    mode = str(config.get("train", {}).get("encoder_freeze_mode", "none")).lower()
+    if mode == "all":
+        encoder.eval()
+    elif mode == "partial":
+        frozen_layers = int(config.get("train", {}).get("encoder_frozen_layers", 0))
+        stem_names = (
+            "face_cont_proj",
+            "surface_emb",
+            "edge_cont_proj",
+            "edge_type_emb",
+            "edge_relation_emb",
+            "input_norm",
+            "edge_norm",
+        )
+        for name in stem_names:
+            getattr(encoder, name).eval()
+        for layer in encoder.layers[:frozen_layers]:
+            layer.eval()
+
+
 def format_metrics(metrics: dict[str, float]) -> str:
     return " ".join(f"{key}={value:.5f}" for key, value in sorted(metrics.items()))
 
@@ -343,24 +576,39 @@ def count_parameters(model: torch.nn.Module) -> int:
 def log_config_summary(logger: Any, config: dict[str, Any]) -> None:
     data_cfg = config["data"]
     train_cfg = config["train"]
+    model_cfg = config["model"]
+    label_diffusion_cfg = config.get("label_diffusion", {})
     logger.info(
-        "config data.cache_only=%s data.cache_dir=%s data.cache_dirs=%s "
-        "data.train_split=%s data.val_split=%s",
-        data_cfg.get("cache_only", False),
+        "config data.cache_dir=%s data.cache_dirs=%s "
+        "data.train_split=%s data.val_split=%s data.test_split=%s",
         data_cfg.get("cache_dir"),
         data_cfg.get("cache_dirs"),
         data_cfg.get("train_split"),
         data_cfg.get("val_split"),
+        data_cfg.get("test_split"),
     )
     logger.info(
         "config train.epochs=%s train.batch_size=%s train.lr=%s train.weight_decay=%s "
-        "train.resume=%s train.num_workers=%s",
+        "train.resume=%s train.num_workers=%s train.require_cuda=%s "
+        "train.distributed_timeout_seconds=%s",
         train_cfg.get("epochs"),
         train_cfg.get("batch_size"),
         train_cfg.get("lr"),
         train_cfg.get("weight_decay"),
         train_cfg.get("resume"),
-        data_cfg.get("num_workers", 0),
+        train_cfg.get("num_workers", 0),
+        train_cfg.get("require_cuda", False),
+        train_cfg.get("distributed_timeout_seconds", DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS),
+    )
+    logger.info(
+        "config model.finetune_head=%s model.use_coarse_label_head=%s "
+        "label_diffusion.prediction_type=%s train.encoder_freeze_mode=%s "
+        "train.encoder_frozen_layers=%s",
+        model_cfg.get("finetune_head", "n/a"),
+        model_cfg.get("use_coarse_label_head", True),
+        label_diffusion_cfg.get("prediction_type", "n/a"),
+        train_cfg.get("encoder_freeze_mode", "none"),
+        train_cfg.get("encoder_frozen_layers", 0),
     )
 
 
