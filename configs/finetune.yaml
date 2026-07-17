@@ -1,85 +1,36 @@
 seed: 42
+data_config: ../data/finetune.yaml
+
 run:
   name: finetune
   output_dir: runs
   log_interval: 10
   save_every_epochs: 1
 
-data:
-  root: data
-  steps_dir: steps
-  segs_dir: segs
-  cache_dir: data/cache/features/finetune
-  cache_dirs:
-    train: data/cache/features/finetune_split/train
-    val: data/cache/features/finetune_split/val
-  cache_only: true
-  # With cache_only=true, train split is ignored and all .npz files under cache_dirs.train are used.
-  train_split: null
-  val_split: data/abc_splits/finetune_val.txt
-  test_split: null
-  step_extensions: [".step", ".stp", ".STEP", ".STP"]
-  labels_required: true
-  strict_label_count: true
-  overwrite_cache: false
-  normalize_per_graph: true
-  num_workers: 8
-  cache_num_workers: 0
-  invalid_log: null
-
-brep:
-  uv_grid_size: 4
-  occ_precision: 1.0e-6
-  smooth_angle_degrees: 5.0
-  surface_type_vocab: 32
-  edge_type_vocab: 32
-  relation_type_vocab: 4
-
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
-  time_dim: 128
   num_classes: 3
   finetune_head: mlp
 
-diffusion:
-  timesteps: 1000
-  beta_start: 1.0e-4
-  beta_end: 0.02
-  noise_loss_weight: 1.0
-  recon_loss_weight: 0.5
-  categorical_loss_weight: 0.5
-  relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.2
-
 train:
-  stage: finetune
   device: cuda
-  epochs: 30
-  batch_size: 8
+  epochs: 100
+  batch_size: 1024
+  num_workers: 8
+  normalize_per_graph: true
   lr: 3.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
+  distributed_timeout_seconds: 120
   validate_every_epochs: 1
   # best.pt is selected by validation Macro-F1 (higher is better).
   resume: null
   # Override this when initializing finetune from a pretrain checkpoint:
   # --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
   pretrain_checkpoint: null
-  pretrained_encoder: null
+  encoder_freeze_mode: none
+  encoder_frozen_layers: 2
   class_weights: null
   dice_loss_weight: 0.3
-  ignore_index: -100
-
-labels:
-  names: ["NonTransition", "VBF", "EBF"]
-  value_offset: 0
-  raw_to_class_map:
-    4: 2
-    6: 1
-  default_class: 0
-  coarse_soft_targets:
-    0: [0.90, 0.05, 0.05]
-    1: [0.05, 0.80, 0.15]
-    2: [0.05, 0.15, 0.80]

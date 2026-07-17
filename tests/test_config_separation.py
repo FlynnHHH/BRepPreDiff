@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+from blendit.config import load_config, load_experiment_config
+
+
+DATA_CONFIGS = (
+    "data/default.yaml",
+    "data/pretrain.yaml",
+    "data/finetune.yaml",
+    "data/filletrec.yaml",
+)
+TRAINING_CONFIGS = (
+    "configs/default.yaml",
+    "configs/pretrain.yaml",
+    "configs/pretrain_no_coarse.yaml",
+    "configs/finetune.yaml",
+    "configs/finetune_diffloss.yaml",
+    "configs/finetune_filletrec_diffloss.yaml",
+)
+
+
+def test_data_configs_contain_only_prepare_data_sections():
+    for path in DATA_CONFIGS:
+        assert set(load_config(path)) <= {"data", "brep", "labels"}, path
+
+
+def test_training_configs_reference_data_without_embedding_prepare_sections():
+    for path in TRAINING_CONFIGS:
+        config = load_config(path)
+        assert "data_config" in config, path
+        assert "data" not in config, path
+        assert "brep" not in config, path
+        assert "raw_to_class_map" not in config.get("labels", {}), path
+
+
+def test_experiment_config_resolves_relative_data_config_and_applies_overrides(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    config_dir = tmp_path / "configs"
+    data_dir.mkdir()
+    config_dir.mkdir()
+    data_path = data_dir / "prepare.yaml"
+    training_path = config_dir / "train.yaml"
+    data_path.write_text(
+        yaml.safe_dump({"data": {"cache_dir": "cache"}, "brep": {"uv_grid_size": 4}}),
+        encoding="utf-8",
+    )
+    training_path.write_text(
+        yaml.safe_dump({"data_config": "../data/prepare.yaml", "train": {"epochs": 2}}),
+        encoding="utf-8",
+    )
+
+    config = load_experiment_config(training_path, overrides=["train.epochs=3"])
+
+    assert config["data"]["cache_dir"] == "cache"
+    assert config["brep"]["uv_grid_size"] == 4
+    assert config["train"]["epochs"] == 3
+    assert Path(config["data_config"]) == config_dir / "../data/prepare.yaml"

@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from blendit.config import feature_dims
 from blendit.data import build_dataloader
+from blendit.data.load_data import split_has_items
 from blendit.models import (
     DiffusionSegmentationModel,
     build_segmentation_model,
@@ -25,7 +26,9 @@ from blendit.training.common import (
     check_finite_batch,
     check_finite_loss,
     cleanup_distributed,
+    configure_encoder_finetuning,
     count_parameters,
+    fail_fast_on_distributed_cuda_oom,
     format_metrics,
     log_checkpoint_saved,
     log_config_summary,
@@ -33,12 +36,13 @@ from blendit.training.common import (
     load_train_config,
     load_checkpoint,
     load_pretrain_checkpoint_for_finetune,
-    load_pretrained_encoder,
     maybe_wrap_ddp,
     parse_train_args,
+    prepare_training_data,
     prepare_run,
     resolve_device,
     save_checkpoint,
+    set_frozen_encoder_eval,
     setup_distributed,
     unwrap_model,
 )
@@ -55,6 +59,8 @@ def run_epoch(
     distributed,
 ) -> dict[str, float]:
     model.train(train)
+    if train:
+        set_frozen_encoder_eval(model, config)
     meter = MetricAverager()
     num_classes = int(config["model"]["num_classes"])
     validation_confusion = (
@@ -62,7 +68,9 @@ def run_epoch(
         if train
         else torch.zeros((num_classes, num_classes), dtype=torch.int64, device=device)
     )
-    show_progress = distributed is None or distributed.is_main_process
+    show_progress = (distributed is None or distributed.is_main_process) and bool(
+        config.get("run", {}).get("show_progress", True)
+    )
     iterator = tqdm(
         dataloader,
         desc="train" if train else "val",
@@ -70,20 +78,22 @@ def run_epoch(
         disable=not show_progress,
     )
     for batch in iterator:
+        if train:
+            optimizer.zero_grad(set_to_none=True)
         batch = batch.to(device)
         check_finite_batch(batch)
         with torch.set_grad_enabled(train):
             target_model = unwrap_model(model)
             if isinstance(target_model, DiffusionSegmentationModel):
                 prepared = prepare_label_diffusion_training_batch(target_model, batch, config)
-                noise_prediction = model(
+                prediction = model(
                     batch,
                     prepared.x_t,
                     prepared.timesteps,
                     prepared.face_indices,
                 )
                 loss, metrics = compute_label_diffusion_loss(
-                    noise_prediction,
+                    prediction,
                     prepared,
                     target_model,
                     class_weights,
@@ -101,7 +111,6 @@ def run_epoch(
                 validation_confusion.add_(segmentation_confusion_matrix(probabilities, batch, config))
             check_finite_loss(loss, metrics, batch.sample_ids)
             if train:
-                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 grad_clip = float(config["train"].get("grad_clip_norm", 0.0) or 0.0)
                 if grad_clip > 0:
@@ -122,7 +131,10 @@ def main() -> None:
     args = parse_train_args("Fine-tune B-Rep encoder for face segmentation.")
     config = load_train_config(args, stage="finetune")
     distributed = setup_distributed(config)
+    logger = None
+    run_dir = None
     try:
+        config = prepare_training_data(config, distributed)
         config, run_dir, logger = prepare_run(args, stage="finetune", config=config, distributed=distributed)
         device = resolve_device(config, distributed)
         logger.info(
@@ -140,12 +152,12 @@ def main() -> None:
         train_loader = build_dataloader(config, split="train", shuffle=True, distributed=distributed.enabled)
         log_dataloader_summary(logger, "train", train_loader, distributed)
         val_loader = None
-        if config["data"].get("val_split"):
+        if split_has_items(config, "val"):
             logger.info("building val dataloader")
             val_loader = build_dataloader(config, split="val", shuffle=False, distributed=distributed.enabled)
             log_dataloader_summary(logger, "val", val_loader, distributed)
         else:
-            logger.info("validation disabled: data.val_split is not set")
+            logger.info("validation disabled: data.val_split is not set or is empty")
 
         head_type = str(config.get("model", {}).get("finetune_head", "mlp"))
         logger.info("building segmentation model head=%s", head_type)
@@ -153,10 +165,7 @@ def main() -> None:
         logger.info("model parameters=%d", count_parameters(model))
         resume = config["train"].get("resume")
         pretrain_checkpoint = config["train"].get("pretrain_checkpoint")
-        pretrained = config["train"].get("pretrained_encoder")
-        if pretrain_checkpoint and pretrained:
-            raise ValueError("Set only one of train.pretrain_checkpoint and train.pretrained_encoder.")
-        if resume and (pretrain_checkpoint or pretrained):
+        if resume and pretrain_checkpoint:
             logger.info("train.resume is set; skipping pretrain initialization")
         elif pretrain_checkpoint:
             logger.info("loading pretrain checkpoint for finetune=%s", pretrain_checkpoint)
@@ -167,22 +176,25 @@ def main() -> None:
                 len(load_info.loaded_keys),
                 len(load_info.skipped_keys),
             )
-        elif pretrained:
-            logger.info("loading pretrained encoder=%s", pretrained)
-            load_info = load_pretrained_encoder(pretrained, model=model, device=device)
-            logger.info(
-                "loaded pretrained encoder=%s tensors=%d skipped=%d",
-                pretrained,
-                len(load_info.loaded_keys),
-                len(load_info.skipped_keys),
-            )
         else:
             logger.info("no pretrained initialization configured")
 
+        freeze_result = configure_encoder_finetuning(model, config)
+        logger.info(
+            "encoder freeze mode=%s frozen_layers=%d trainable_parameters=%d frozen_parameters=%d",
+            freeze_result.mode,
+            freeze_result.frozen_layers,
+            freeze_result.trainable_parameters,
+            freeze_result.frozen_parameters,
+        )
+
         model = maybe_wrap_ddp(model, distributed)
         logger.info("model ddp_wrapped=%s", distributed.enabled)
+        trainable_parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+        if not trainable_parameters:
+            raise ValueError("Fine-tuning configuration does not leave any trainable parameters.")
         optimizer = torch.optim.AdamW(
-            model.parameters(),
+            trainable_parameters,
             lr=float(config["train"]["lr"]),
             weight_decay=float(config["train"]["weight_decay"]),
         )
@@ -196,8 +208,9 @@ def main() -> None:
             start_epoch = load_checkpoint(resume, model=model, optimizer=optimizer, device=device)
             logger.info("resumed checkpoint=%s epoch=%d", resume, start_epoch)
 
-        best_f1 = float("-inf")
-        logger.info("best checkpoint selection metric=validation macro-F1 mode=max")
+        best_selection_value = float("-inf")
+        selection_metric = str(config["train"].get("selection_metric", "f1"))
+        logger.info("best checkpoint selection metric=validation %s mode=max", selection_metric)
         epochs = int(config["train"]["epochs"])
         logger.info("training plan: start_epoch=%d target_epoch=%d total_epochs_to_run=%d", start_epoch, epochs, max(0, epochs - start_epoch))
         if start_epoch >= epochs:
@@ -251,9 +264,14 @@ def main() -> None:
                     distributed=distributed,
                 )
                 logger.info("epoch=%d split=val %s", epoch, format_metrics(val_metrics))
-                selection_value = val_metrics.get("f1", float("-inf"))
-                if selection_value > best_f1:
-                    best_f1 = selection_value
+                if selection_metric not in val_metrics:
+                    raise KeyError(
+                        f"Validation metric {selection_metric!r} is unavailable; "
+                        f"available metrics={sorted(val_metrics)}"
+                    )
+                selection_value = val_metrics[selection_metric]
+                if selection_value > best_selection_value:
+                    best_selection_value = selection_value
                     if distributed.is_main_process:
                         path = run_dir / "checkpoints" / "best.pt"
                         save_checkpoint(
@@ -291,6 +309,19 @@ def main() -> None:
             )
             log_checkpoint_saved(logger, path, epochs)
         logger.info("finished fine-tuning")
+    except RuntimeError as exc:
+        failure_log = (
+            run_dir / "logs" / f"finetune.oom.rank{distributed.rank}.log"
+            if run_dir is not None
+            else None
+        )
+        fail_fast_on_distributed_cuda_oom(
+            exc,
+            distributed,
+            logger,
+            failure_log=failure_log,
+        )
+        raise
     finally:
         cleanup_distributed(distributed)
 

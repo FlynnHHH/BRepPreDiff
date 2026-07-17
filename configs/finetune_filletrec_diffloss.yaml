@@ -1,27 +1,28 @@
 seed: 42
-data_config: ../data/finetune.yaml
+data_config: ../data/filletrec.yaml
 
 run:
-  name: finetune_diffloss
+  name: filletrec_diffloss
   output_dir: runs
   log_interval: 10
-  save_every_epochs: 1
+  save_every_epochs: 5
+  show_progress: false
 
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
-  num_classes: 3
+  num_classes: 2
   finetune_head: diffusion
 
-# Per-face Diffusion Loss. The clean target is 2 * one_hot(label) - 1.
+# Best DiffLoss target found by the completed local ablation suite.
 label_diffusion:
   target_encoding: bipolar_one_hot
   train_timesteps: 1000
   noise_schedule: cosine
-  prediction_type: epsilon
+  prediction_type: x_start_epsilon
   x_start_loss_weight: 1.0
-  epsilon_loss_weight: 1.0
+  epsilon_loss_weight: 0.5
   head_width: 128
   head_depth: 3
   head_dropout: 0.0
@@ -37,22 +38,20 @@ label_diffusion:
 
 train:
   device: cuda
-  epochs: 100
-  batch_size: 1024
-  num_workers: 8
+  epochs: 30
+  batch_size: 32
+  # Keep DataLoader in-process; the managed runtime blocks worker IPC sockets.
+  num_workers: 0
   normalize_per_graph: true
   lr: 3.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
-  # best.pt is selected by validation Macro-F1 (higher is better).
+  selection_metric: positive_f1
   resume: null
-  # Supply a concrete pretraining checkpoint at launch, for example:
-  # --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
   pretrain_checkpoint: null
   encoder_freeze_mode: none
   encoder_frozen_layers: 2
-  # Sqrt inverse-frequency weights for the current 84.9% / 3.3% / 11.8% split.
   class_weights: null
   dice_loss_weight: 0.3

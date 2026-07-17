@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from blendit.brep.occ_extractor import OccBRepExtractor, _occ_imports, _parse_label_map, _remap_labels
-from blendit.config import apply_overrides, feature_dims, load_config
+from blendit.config import feature_dims, load_experiment_config
 from blendit.data.graph import BRepGraph, collate_graphs, load_graph_npz, normalize_graph_features, save_graph_npz
 from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint, resolve_device
@@ -317,9 +317,8 @@ def _build_samples(
     if not split_path.exists():
         raise FileNotFoundError(f"Split file does not exist: {split_path}")
 
-    root = Path(data_cfg["root"])
-    steps_dir = root / data_cfg["steps_dir"]
-    segs_dir = root / data_cfg["segs_dir"]
+    steps_dir = Path(data_cfg["steps_dir"])
+    segs_dir = Path(data_cfg["segs_dir"])
     extensions = data_cfg.get("step_extensions", [".step", ".stp"])
     cache_dirs = _configured_cache_dirs(data_cfg, split, cache_dir)
     cache_index = _build_cache_index(cache_dirs)
@@ -474,7 +473,9 @@ class FinetuneInferenceDataset(Dataset):
         self.config = config
         self.samples = samples
         self.write_cache = write_cache
-        self.normalize_per_graph = bool(config["data"].get("normalize_per_graph", True))
+        self.normalize_per_graph = bool(
+            config.get("train", {}).get("normalize_per_graph", True)
+        )
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -687,11 +688,18 @@ def _class_counts(prediction: np.ndarray) -> dict[str, int]:
     return counts
 
 
-def _binary_transition_classes(classes: np.ndarray) -> np.ndarray:
+def _binary_transition_classes(classes: np.ndarray, *, source_num_classes: int = 3) -> np.ndarray:
     values = np.asarray(classes, dtype=np.int64)
-    invalid = np.setdiff1d(np.unique(values), np.asarray([0, 1, 2], dtype=np.int64))
+    if source_num_classes not in {2, 3}:
+        raise ValueError(f"Binary transition display expects a 2- or 3-class model, got {source_num_classes}")
+    valid_classes = np.arange(source_num_classes, dtype=np.int64)
+    invalid = np.setdiff1d(np.unique(values), valid_classes)
     if invalid.size:
-        raise ValueError(f"Expected Blendit class ids 0/1/2, got {invalid.tolist()}")
+        raise ValueError(
+            f"Expected class ids 0..{source_num_classes - 1}, got {invalid.tolist()}"
+        )
+    if source_num_classes == 2:
+        return values.copy()
     return (values != 0).astype(np.int64)
 
 
@@ -742,8 +750,7 @@ def _binary_classification_metrics(prediction: np.ndarray, target: np.ndarray) -
 
 def _read_seg_classes(config: dict[str, Any], seg_path: Path, num_faces: int) -> np.ndarray:
     labels_cfg = config.get("labels", {})
-    train_cfg = config.get("train", {})
-    ignore_index = int(train_cfg.get("ignore_index", -100))
+    ignore_index = int(labels_cfg.get("ignore_index", -100))
     label_offset = int(labels_cfg.get("value_offset", 0))
     label_map = _parse_label_map(labels_cfg.get("raw_to_class_map"))
     default_class = labels_cfg.get("default_class", None)
@@ -797,6 +804,11 @@ def _parse_args() -> argparse.Namespace:
         description="Run a finetuned Blendit segmentation model and export EBF/VBF highlighted PLY files for the viewer."
     )
     parser.add_argument("--config", default="configs/finetune.yaml")
+    parser.add_argument(
+        "--data-config",
+        default=None,
+        help="Prepare-data YAML. Defaults to data_config in the training YAML.",
+    )
     parser.add_argument("--checkpoint", required=True, help="Finetune checkpoint, e.g. runs/finetune/.../checkpoints/last.pt")
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--split-file", default=None, help="Override data.<split>_split.")
@@ -820,7 +832,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--binary-transition",
         action="store_true",
-        help="Map Blendit VBF/EBF predictions to transition=1 and evaluate binary GT labels.",
+        help=(
+            "Evaluate binary transition GT labels. Three-class model predictions map VBF/EBF "
+            "to transition=1; native two-class predictions are used directly."
+        ),
     )
     parser.add_argument("--sample-prefix", default="", help="Prefix output sample ids, e.g. filletrec__.")
     parser.add_argument("--linear-deflection", type=float, default=0.08)
@@ -831,7 +846,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    config = apply_overrides(load_config(args.config), args.override)
+    config = load_experiment_config(args.config, args.data_config, args.override)
     config["data"]["labels_required"] = False
     config["data"]["strict_label_count"] = False
     if args.device:
@@ -878,11 +893,14 @@ def main() -> None:
         collate_fn=collate_graphs,
     )
 
-    device = resolve_device(config)
+    # train.require_cuda is a training safety contract; visualization may still
+    # be run on CPU when pythonocc and CUDA are provided by different envs.
+    device = resolve_device(config, enforce_cuda_requirement=False)
     face_dim, edge_dim = feature_dims(config)
     model = build_segmentation_model(config, face_dim, edge_dim).to(device)
     checkpoint_epoch = load_checkpoint(args.checkpoint, model=model, optimizer=None, device=device)
     model.eval()
+    model_num_classes = int(config["model"]["num_classes"])
 
     print(f"checkpoint={args.checkpoint} epoch={checkpoint_epoch}")
     print(f"device={device} samples={len(samples)} batch_size={batch_size} output_dir={output_dir}")
@@ -904,7 +922,12 @@ def main() -> None:
         "seg_root": args.seg_root,
         "sample_prefix": args.sample_prefix,
         "task": "binary_transition" if args.binary_transition else "three_class_transition",
-        "positive_class": "Transition (VBF or EBF)" if args.binary_transition else None,
+        "positive_class": (
+            "Transition" if args.binary_transition and model_num_classes == 2
+            else "Transition (VBF or EBF)" if args.binary_transition
+            else None
+        ),
+        "model_num_classes": model_num_classes,
         "colors": {
             "NonTransition": INPUT_COLOR,
             **(
@@ -923,7 +946,11 @@ def main() -> None:
     }
 
     with torch.no_grad():
-        iterator = tqdm(dataloader, desc=f"infer {args.split}")
+        iterator = tqdm(
+            dataloader,
+            desc=f"infer {args.split}",
+            disable=not bool(config.get("run", {}).get("show_progress", True)),
+        )
         for batch in iterator:
             batch = batch.to(device)
             probs = predict_segmentation_probabilities(model, batch, config)
@@ -936,7 +963,11 @@ def main() -> None:
                 start = int(graph_ptr[batch_index])
                 end = int(graph_ptr[batch_index + 1])
                 sample_pred = pred[start:end].astype(np.int64)
-                display_pred = _binary_transition_classes(sample_pred) if args.binary_transition else sample_pred
+                display_pred = (
+                    _binary_transition_classes(sample_pred, source_num_classes=model_num_classes)
+                    if args.binary_transition
+                    else sample_pred
+                )
                 sample_conf = confidence[start:end]
                 stem = _safe_output_stem(sample_id)
                 input_ply = output_dir / f"{stem}_instance_pred_rgb.ply"
@@ -1001,7 +1032,11 @@ def main() -> None:
                         if args.binary_transition
                         else _class_counts(display_pred)
                     ),
-                    "model_three_class_counts": _class_counts(sample_pred) if args.binary_transition else None,
+                    "model_three_class_counts": (
+                        _class_counts(sample_pred)
+                        if args.binary_transition and model_num_classes == 3
+                        else None
+                    ),
                     "binary_metrics": binary_metrics,
                     "mean_confidence": float(np.mean(sample_conf)) if sample_conf.size else 0.0,
                     "ply_vertices": semantic_stats.vertices,

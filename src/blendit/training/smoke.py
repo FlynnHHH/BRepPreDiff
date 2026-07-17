@@ -4,7 +4,7 @@ import argparse
 
 import torch
 
-from blendit.config import apply_overrides, feature_dims, load_config
+from blendit.config import feature_dims, load_experiment_config
 from blendit.data.graph import BRepGraph, collate_graphs
 from blendit.models import (
     DiffusionPretrainModel,
@@ -39,9 +39,10 @@ def synthetic_graph(sample_id: str, num_faces: int, face_dim: int, edge_dim: int
 def main() -> None:
     parser = argparse.ArgumentParser(description="CPU smoke test without STEP/OCC data.")
     parser.add_argument("--config", default="configs/default.yaml")
+    parser.add_argument("--data-config", default=None)
     parser.add_argument("--override", action="append", default=[])
     args = parser.parse_args()
-    config = apply_overrides(load_config(args.config), args.override)
+    config = load_experiment_config(args.config, args.data_config, args.override)
     seed_everything(int(config.get("seed", 42)))
 
     device = torch.device("cpu")
@@ -78,8 +79,8 @@ def main() -> None:
     seg_model = build_segmentation_model(config, face_dim, edge_dim).to(device)
     if isinstance(seg_model, DiffusionSegmentationModel):
         prepared = prepare_label_diffusion_training_batch(seg_model, batch, config)
-        noise_prediction = seg_model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
-        seg_loss, seg_metrics = compute_label_diffusion_loss(noise_prediction, prepared, seg_model)
+        prediction = seg_model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
+        seg_loss, seg_metrics = compute_label_diffusion_loss(prediction, prepared, seg_model)
     else:
         logits = seg_model(batch)
         seg_loss, seg_metrics = compute_segmentation_loss(logits, batch, config)

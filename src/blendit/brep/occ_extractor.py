@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 import math
 from pathlib import Path
 from types import SimpleNamespace
@@ -142,7 +143,7 @@ class OccBRepExtractor:
         self.smooth_angle = math.radians(float(brep_cfg.get("smooth_angle_degrees", 5.0)))
         self.surface_vocab = int(brep_cfg.get("surface_type_vocab", 32))
         self.edge_vocab = int(brep_cfg.get("edge_type_vocab", 32))
-        self.ignore_index = int(config["train"].get("ignore_index", -100))
+        self.ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
         labels_cfg = config.get("labels", {})
         self.label_offset = int(labels_cfg.get("value_offset", 0))
         self.label_map = _parse_label_map(labels_cfg.get("raw_to_class_map"))
@@ -365,17 +366,24 @@ class OccBRepExtractor:
                 raise FileNotFoundError("SEG labels are required but no SEG path was provided.")
             return None
 
+        label_path = Path(seg_path)
         labels: list[int] = []
-        with Path(seg_path).open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                labels.append(int(line.split()[0]) - self.label_offset)
+        if label_path.suffix.lower() == ".json":
+            payload = json.loads(label_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, list):
+                raise ValueError(f"JSON label must be a list: {label_path}")
+            labels = [int(value) - self.label_offset for value in payload]
+        else:
+            with label_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    labels.append(int(line.split()[0]) - self.label_offset)
 
         if strict_label_count and len(labels) != num_faces:
             raise ValueError(
-                f"SEG label count mismatch for {seg_path}: got {len(labels)} labels, "
+                f"Label count mismatch for {seg_path}: got {len(labels)} labels, "
                 f"but OCC parsed {num_faces} faces."
             )
 
@@ -412,8 +420,17 @@ class OccBRepExtractor:
             if hasattr(shape_list, "Extent") and hasattr(shape_list, "Value"):
                 for idx in range(1, int(shape_list.Extent()) + 1):
                     yield shape_list.Value(idx)
-            else:
+                return
+            # pythonocc 7.4 exposes TopTools_ListOfShape through an explicit
+            # iterator rather than Python's iteration protocol.
+            try:
+                from OCC.Core.TopTools import TopTools_ListIteratorOfListOfShape
+            except ImportError:
                 raise
+            iterator = TopTools_ListIteratorOfListOfShape(shape_list)
+            while iterator.More():
+                yield iterator.Value()
+                iterator.Next()
 
     @staticmethod
     def _bounded_category(value: int, vocab_size: int) -> int:

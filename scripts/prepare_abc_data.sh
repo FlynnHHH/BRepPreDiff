@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="${PROJECT_DIR:-/home/nvme03/hhfeng/Blendit}"
-ABC_ROOT="${ABC_ROOT:-/home/nvme03/hhfeng/ABCdataset}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ABC_ROOT="${ABC_ROOT:-${PROJECT_DIR}/data/raw/ABCdataset}"
 
 STEP_NAMES_JSON="${STEP_NAMES_JSON:-${PROJECT_DIR}/step_names.json}"
 SAMPLED_NAMES_JSON="${SAMPLED_NAMES_JSON:-${PROJECT_DIR}/step_sampled_30000_names.json}"
 
-PRETRAIN_STEPS_DIR="${PRETRAIN_STEPS_DIR:-step}"
-PRETRAIN_SEGS_DIR="${PRETRAIN_SEGS_DIR:-seg}"
-FINETUNE_FLAT_DIR="${FINETUNE_FLAT_DIR:-all_flat}"
+PRETRAIN_STEPS_DIR="${PRETRAIN_STEPS_DIR:-${ABC_ROOT}/step}"
+PRETRAIN_SEGS_DIR="${PRETRAIN_SEGS_DIR:-${ABC_ROOT}/seg}"
+FINETUNE_FLAT_DIR="${FINETUNE_FLAT_DIR:-${ABC_ROOT}/all_flat}"
 
 SPLIT_DIR="${SPLIT_DIR:-${PROJECT_DIR}/data/abc_splits}"
 CACHE_ROOT="${CACHE_ROOT:-${PROJECT_DIR}/data/cache/abc_features}"
@@ -17,7 +18,7 @@ PRETRAIN_CACHE_DIR="${PRETRAIN_CACHE_DIR:-${CACHE_ROOT}/pretrain}"
 FINETUNE_CACHE_DIR="${FINETUNE_CACHE_DIR:-${CACHE_ROOT}/finetune}"
 INVALID_DIR="${INVALID_DIR:-${CACHE_ROOT}/invalid}"
 
-CONFIG_PATH="${CONFIG_PATH:-${PROJECT_DIR}/configs/default.yaml}"
+CONFIG_PATH="${CONFIG_PATH:-${PROJECT_DIR}/data/default.yaml}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 RUN_CACHE="${RUN_CACHE:-1}"
 OVERWRITE_CACHE="${OVERWRITE_CACHE:-false}"
@@ -165,13 +166,11 @@ fi
 echo "Cache overwrite: ${OVERWRITE_CACHE}"
 
 echo "[2/3] Building pretrain cache in ${PRETRAIN_CACHE_DIR}"
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split train \
   --workers "${PRETRAIN_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/pretrain_train_invalid.jsonl" \
-  --override "data.invalid_dir=${INVALID_DIR}" \
-  --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${PRETRAIN_STEPS_DIR}" \
   --override "data.segs_dir=${PRETRAIN_SEGS_DIR}" \
   --override "data.cache_dir=${PRETRAIN_CACHE_DIR}" \
@@ -181,20 +180,18 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --override "data.labels_required=false" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.filter_split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
   --split "${PRETRAIN_TRAIN_SPLIT}" \
   --invalid-log "${INVALID_DIR}/pretrain_train_invalid.jsonl" \
   --output "${PRETRAIN_TRAIN_CLEAN_SPLIT}" \
   --removed-output "${SPLIT_DIR}/pretrain_train_invalid_removed.txt"
 
 echo "[3/3] Building finetune cache in ${FINETUNE_CACHE_DIR}"
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split train \
   --workers "${FINETUNE_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/finetune_train_invalid.jsonl" \
-  --override "data.invalid_dir=${INVALID_DIR}" \
-  --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.segs_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.cache_dir=${FINETUNE_CACHE_DIR}" \
@@ -204,19 +201,17 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --override "data.labels_required=true" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.filter_split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
   --split "${FINETUNE_TRAIN_SPLIT}" \
   --invalid-log "${INVALID_DIR}/finetune_train_invalid.jsonl" \
   --output "${FINETUNE_TRAIN_CLEAN_SPLIT}" \
   --removed-output "${SPLIT_DIR}/finetune_train_invalid_removed.txt"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split val \
   --workers "${FINETUNE_CACHE_WORKERS}" \
   --invalid-log "${INVALID_DIR}/finetune_val_invalid.jsonl" \
-  --override "data.invalid_dir=${INVALID_DIR}" \
-  --override "data.root=${ABC_ROOT}" \
   --override "data.steps_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.segs_dir=${FINETUNE_FLAT_DIR}" \
   --override "data.cache_dir=${FINETUNE_CACHE_DIR}" \
@@ -226,7 +221,7 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.dataset \
   --override "data.labels_required=true" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.filter_split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
   --split "${FINETUNE_VAL_SPLIT}" \
   --invalid-log "${INVALID_DIR}/finetune_val_invalid.jsonl" \
   --output "${FINETUNE_VAL_CLEAN_SPLIT}" \

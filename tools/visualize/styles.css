@@ -83,7 +83,7 @@ p {
 
 .metrics-summary {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(520px, 1.5fr);
+  grid-template-columns: 1fr;
   align-items: center;
   gap: 20px;
   margin-bottom: 20px;
@@ -96,6 +96,30 @@ p {
 
 .metrics-summary[hidden] {
   display: none;
+}
+
+.metrics-summary.multi-experiment {
+  grid-template-columns: 1fr;
+}
+
+.metrics-experiment {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(520px, 1.5fr);
+  align-items: center;
+  gap: 20px;
+}
+
+.metrics-experiment + .metrics-experiment {
+  border-top: 1px solid #d9e1eb;
+  padding-top: 15px;
+}
+
+.metrics-experiment.filletrec-ourtestset .metrics-heading strong {
+  color: #7a4abb;
+}
+
+.metrics-experiment.filletrec-model-filletrec-testset .metrics-heading strong {
+  color: #17866c;
 }
 
 .metrics-heading {
@@ -213,6 +237,14 @@ p {
   border-bottom-color: #e2488f;
 }
 
+.dataset-heading.filletrec-ourtestset {
+  border-bottom-color: #8657c7;
+}
+
+.dataset-heading.filletrec-model-filletrec-testset {
+  border-bottom-color: #219477;
+}
+
 .dataset-heading h2 {
   margin: 0;
   color: #236fc5;
@@ -221,6 +253,14 @@ p {
 
 .dataset-heading.filletrec h2 {
   color: #c93679;
+}
+
+.dataset-heading.filletrec-ourtestset h2 {
+  color: #7340b7;
+}
+
+.dataset-heading.filletrec-model-filletrec-testset h2 {
+  color: #147b62;
 }
 
 .dataset-heading p {
@@ -537,6 +577,10 @@ p {
   }
 
   .metrics-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics-experiment {
     grid-template-columns: 1fr;
   }
 

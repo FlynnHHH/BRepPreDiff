@@ -10,40 +10,45 @@ from blendit.config import load_config
 from blendit.data.dataset import NonFiniteCacheError, StepSegDataset, _save_occ_cache
 
 
-def test_nonfinite_occ_cache_is_moved_to_invalid_dir(tmp_path: Path):
+def test_nonfinite_occ_cache_is_discarded_before_write(tmp_path: Path):
     cache_path = tmp_path / "cache" / "bad.npz"
-    invalid_dir = tmp_path / "invalid"
     arrays = {
         "face_cont": np.array([[0.0, np.nan], [np.inf, 1.0]], dtype=np.float32),
         "face_surface_type": np.array([1, 2], dtype=np.int64),
     }
 
     with pytest.raises(NonFiniteCacheError, match=r"face_cont: 2 non-finite values"):
-        _save_occ_cache(cache_path, arrays, invalid_dir)
+        _save_occ_cache(cache_path, arrays)
 
-    invalid_path = invalid_dir / cache_path.name
     assert not cache_path.exists()
-    assert invalid_path.exists()
-    with np.load(invalid_path, allow_pickle=False) as data:
-        assert np.isnan(data["face_cont"][0, 1])
-        assert np.isposinf(data["face_cont"][1, 0])
+
+
+def test_nonfinite_occ_cache_removes_previous_cache(tmp_path: Path):
+    cache_path = tmp_path / "cache" / "bad.npz"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_bytes(b"previous cache")
+
+    with pytest.raises(NonFiniteCacheError, match=r"cache discarded"):
+        _save_occ_cache(
+            cache_path,
+            {"face_cont": np.array([[np.nan]], dtype=np.float32)},
+        )
+
+    assert not cache_path.exists()
 
 
 def test_finite_occ_cache_remains_in_cache_dir(tmp_path: Path):
     cache_path = tmp_path / "cache" / "good.npz"
-    invalid_dir = tmp_path / "invalid"
 
     _save_occ_cache(
         cache_path,
         {"face_cont": np.array([[0.0, 1.0]], dtype=np.float32)},
-        invalid_dir,
     )
 
     assert cache_path.exists()
-    assert not invalid_dir.exists()
 
 
-def test_cache_build_moves_nonfinite_occ_output_and_logs_failure(tmp_path: Path, monkeypatch):
+def test_cache_build_discards_nonfinite_occ_output_and_logs_failure(tmp_path: Path, monkeypatch):
     step_path = tmp_path / "nonfinite.step"
     step_path.write_text("fake step file\n", encoding="utf-8")
     split_path = tmp_path / "split.txt"
@@ -51,12 +56,11 @@ def test_cache_build_moves_nonfinite_occ_output_and_logs_failure(tmp_path: Path,
     invalid_dir = tmp_path / "invalid"
     invalid_log = invalid_dir / "failures.jsonl"
 
-    config = load_config("configs/default.yaml")
+    config = load_config("data/default.yaml")
     config["data"].update(
         {
-            "root": str(tmp_path),
-            "steps_dir": ".",
-            "segs_dir": ".",
+            "steps_dir": str(tmp_path),
+            "segs_dir": str(tmp_path),
             "cache_dir": str(tmp_path / "cache"),
             "train_split": str(split_path),
             "labels_required": False,
@@ -72,7 +76,7 @@ def test_cache_build_moves_nonfinite_occ_output_and_logs_failure(tmp_path: Path,
             return {"face_cont": np.array([[np.nan]], dtype=np.float32)}
 
     monkeypatch.setattr("blendit.brep.occ_extractor.OccBRepExtractor", FakeExtractor)
-    dataset = StepSegDataset(config, split="train")
+    dataset = StepSegDataset(config, split="train", source_mode=True)
     cache_path = dataset.samples[0].cache_path
 
     failures = dataset.build_cache(num_workers=0, invalid_log=invalid_log)
@@ -80,7 +84,6 @@ def test_cache_build_moves_nonfinite_occ_output_and_logs_failure(tmp_path: Path,
     assert len(failures) == 1
     assert failures[0].error_type == "NonFiniteCacheError"
     assert not cache_path.exists()
-    assert (invalid_dir / cache_path.name).exists()
     record = json.loads(invalid_log.read_text(encoding="utf-8"))
     assert record["sample_id"] == "nonfinite"
     assert record["error_type"] == "NonFiniteCacheError"
@@ -93,12 +96,11 @@ def test_cache_failure_is_written_to_jsonl(tmp_path: Path, monkeypatch):
     split_path.write_text("bad.step\n", encoding="utf-8")
     invalid_log = tmp_path / "invalid.jsonl"
 
-    config = load_config("configs/default.yaml")
+    config = load_config("data/default.yaml")
     config["data"].update(
         {
-            "root": str(tmp_path),
-            "steps_dir": ".",
-            "segs_dir": ".",
+            "steps_dir": str(tmp_path),
+            "segs_dir": str(tmp_path),
             "cache_dir": str(tmp_path / "cache"),
             "train_split": str(split_path),
             "labels_required": False,
@@ -106,7 +108,7 @@ def test_cache_failure_is_written_to_jsonl(tmp_path: Path, monkeypatch):
         }
     )
 
-    dataset = StepSegDataset(config, split="train")
+    dataset = StepSegDataset(config, split="train", source_mode=True)
 
     def fail_extract(self, sample):
         raise RuntimeError("synthetic cache failure")
@@ -129,12 +131,11 @@ def test_build_cache_skips_existing_cache_by_default(tmp_path: Path, monkeypatch
     split_path = tmp_path / "split.txt"
     split_path.write_text("done.step\n", encoding="utf-8")
 
-    config = load_config("configs/default.yaml")
+    config = load_config("data/default.yaml")
     config["data"].update(
         {
-            "root": str(tmp_path),
-            "steps_dir": ".",
-            "segs_dir": ".",
+            "steps_dir": str(tmp_path),
+            "segs_dir": str(tmp_path),
             "cache_dir": str(tmp_path / "cache"),
             "train_split": str(split_path),
             "labels_required": False,
@@ -142,7 +143,7 @@ def test_build_cache_skips_existing_cache_by_default(tmp_path: Path, monkeypatch
         }
     )
 
-    dataset = StepSegDataset(config, split="train")
+    dataset = StepSegDataset(config, split="train", source_mode=True)
     dataset.samples[0].cache_path.parent.mkdir(parents=True, exist_ok=True)
     dataset.samples[0].cache_path.write_bytes(b"existing cache")
 
@@ -161,12 +162,11 @@ def test_build_cache_overwrite_reprocesses_existing_cache(tmp_path: Path, monkey
     split_path = tmp_path / "split.txt"
     split_path.write_text("done.step\n", encoding="utf-8")
 
-    config = load_config("configs/default.yaml")
+    config = load_config("data/default.yaml")
     config["data"].update(
         {
-            "root": str(tmp_path),
-            "steps_dir": ".",
-            "segs_dir": ".",
+            "steps_dir": str(tmp_path),
+            "segs_dir": str(tmp_path),
             "cache_dir": str(tmp_path / "cache"),
             "train_split": str(split_path),
             "labels_required": False,
@@ -174,7 +174,7 @@ def test_build_cache_overwrite_reprocesses_existing_cache(tmp_path: Path, monkey
         }
     )
 
-    dataset = StepSegDataset(config, split="train")
+    dataset = StepSegDataset(config, split="train", source_mode=True)
     dataset.samples[0].cache_path.parent.mkdir(parents=True, exist_ok=True)
     dataset.samples[0].cache_path.write_bytes(b"existing cache")
     calls = []
