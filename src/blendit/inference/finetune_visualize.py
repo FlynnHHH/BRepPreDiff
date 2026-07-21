@@ -17,6 +17,7 @@ from blendit.config import feature_dims, load_experiment_config
 from blendit.data.graph import BRepGraph, collate_graphs, load_graph_npz, normalize_graph_features, save_graph_npz
 from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint, resolve_device
+from blendit.training.evaluate import classification_metrics_from_confusion
 
 
 CLASS_COLORS: dict[int, tuple[int, int, int]] = {
@@ -748,6 +749,34 @@ def _binary_classification_metrics(prediction: np.ndarray, target: np.ndarray) -
     )
 
 
+def _multiclass_classification_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    *,
+    num_classes: int,
+) -> dict[str, Any]:
+    prediction = np.asarray(prediction, dtype=np.int64)
+    target = np.asarray(target, dtype=np.int64)
+    if prediction.shape != target.shape:
+        raise ValueError(
+            f"Multiclass metric shape mismatch: prediction={prediction.shape}, target={target.shape}"
+        )
+    valid = np.logical_and(target >= 0, target < num_classes)
+    valid_prediction = prediction[valid]
+    valid_target = target[valid]
+    invalid_prediction = np.setdiff1d(
+        np.unique(valid_prediction), np.arange(num_classes, dtype=np.int64)
+    )
+    if invalid_prediction.size:
+        raise ValueError(
+            f"Multiclass prediction contains ids outside 0..{num_classes - 1}: "
+            f"{invalid_prediction.tolist()}"
+        )
+    confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
+    np.add.at(confusion, (valid_target, valid_prediction), 1)
+    return classification_metrics_from_confusion(torch.from_numpy(confusion))
+
+
 def _read_seg_classes(config: dict[str, Any], seg_path: Path, num_faces: int) -> np.ndarray:
     labels_cfg = config.get("labels", {})
     ignore_index = int(labels_cfg.get("ignore_index", -100))
@@ -822,6 +851,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seg-root", default=None, help="Base directory for relative --seg-list or --seg paths.")
     parser.add_argument("--cache-dir", default=None, help="Optional feature cache directory. Direct STEP mode only writes cache when this is set.")
     parser.add_argument("--output-dir", default="tools/visualize/results")
+    parser.add_argument("--manifest-name", default="prediction_manifest.json")
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--device", default=None, help="Override train.device for inference, e.g. cuda or cpu.")
@@ -944,6 +974,10 @@ def main() -> None:
         "false_positive": 0,
         "false_negative": 0,
     }
+    aggregate_multiclass_confusion = np.zeros(
+        (model_num_classes, model_num_classes), dtype=np.int64
+    )
+    evaluated_multiclass_samples = 0
 
     with torch.no_grad():
         iterator = tqdm(
@@ -1007,10 +1041,21 @@ def main() -> None:
                 )
 
                 binary_metrics = None
+                multiclass_metrics = None
                 if args.binary_transition and gt_classes is not None:
                     binary_metrics = _binary_classification_metrics(display_pred, gt_classes)
                     for key in aggregate_confusion:
                         aggregate_confusion[key] += int(binary_metrics[key])
+                elif gt_classes is not None:
+                    multiclass_metrics = _multiclass_classification_metrics(
+                        display_pred,
+                        gt_classes,
+                        num_classes=model_num_classes,
+                    )
+                    aggregate_multiclass_confusion += np.asarray(
+                        multiclass_metrics["confusion_matrix"], dtype=np.int64
+                    )
+                    evaluated_multiclass_samples += 1
 
                 record = {
                     "sample_id": sample_id,
@@ -1038,6 +1083,7 @@ def main() -> None:
                         else None
                     ),
                     "binary_metrics": binary_metrics,
+                    "metrics": multiclass_metrics,
                     "mean_confidence": float(np.mean(sample_conf)) if sample_conf.size else 0.0,
                     "ply_vertices": semantic_stats.vertices,
                     "ply_triangles": semantic_stats.faces,
@@ -1052,8 +1098,25 @@ def main() -> None:
         manifest["evaluated_samples"] = sum(
             record["binary_metrics"] is not None for record in manifest["samples"]
         )
+    elif evaluated_multiclass_samples:
+        detailed_metrics = classification_metrics_from_confusion(
+            torch.from_numpy(aggregate_multiclass_confusion)
+        )
+        manifest["metrics"] = {
+            "averaging": "macro",
+            "accuracy": detailed_metrics["accuracy"],
+            "precision": detailed_metrics["macro_precision"],
+            "recall": detailed_metrics["macro_recall"],
+            "f1": detailed_metrics["macro_f1"],
+            "iou": detailed_metrics["macro_iou"],
+            "weighted_f1": detailed_metrics["weighted_f1"],
+            "weighted_iou": detailed_metrics["weighted_iou"],
+            "faces": detailed_metrics["faces"],
+        }
+        manifest["detailed_metrics"] = detailed_metrics
+        manifest["evaluated_samples"] = evaluated_multiclass_samples
 
-    manifest_path = output_dir / "prediction_manifest.json"
+    manifest_path = output_dir / args.manifest_name
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"wrote manifest={manifest_path} samples={len(manifest['samples'])}")
 

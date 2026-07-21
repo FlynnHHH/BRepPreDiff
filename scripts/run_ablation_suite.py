@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor/resume pretraining, run the requested ablations, and summarize validation metrics."""
+"""Resume a full pretrain/finetune ablation suite and report validation/test metrics."""
 
 from __future__ import annotations
 
@@ -45,6 +45,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=float, default=15.0)
     parser.add_argument("--max-retries", type=int, default=20)
     parser.add_argument("--suite-dir", default="runs/ablation_suite")
+    parser.add_argument("--batch-size", type=int, default=512)
+    parser.add_argument("--num-workers", type=int, default=16)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -61,7 +63,10 @@ class SuiteRunner:
         self.state_path = self.suite_dir / "state.json"
         self.report_json_path = self.suite_dir / "results.json"
         self.report_csv_path = self.suite_dir / "results.csv"
+        self.report_md_path = self.suite_dir / "RESULTS.md"
+        self.evaluation_dir = self.suite_dir / "test_evaluations"
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.evaluation_dir.mkdir(parents=True, exist_ok=True)
         self.state = self._load_state()
         self.completed_checkpoints: dict[str, Path] = {}
         self.python = Path(sys.executable).resolve()
@@ -197,7 +202,12 @@ class SuiteRunner:
             "--override",
             f"run.name={experiment.run_name}",
         ]
-        overrides = list(experiment.overrides)
+        overrides = [
+            *experiment.overrides,
+            f"train.epochs={experiment.epochs}",
+            f"train.batch_size={self.args.batch_size}",
+            f"train.num_workers={self.args.num_workers}",
+        ]
         if experiment.pretrain_source:
             pretrain_checkpoint = self.completed_checkpoints[experiment.pretrain_source]
             overrides.append(f"train.pretrain_checkpoint={pretrain_checkpoint}")
@@ -206,6 +216,17 @@ class SuiteRunner:
         for override in overrides:
             command.extend(["--override", override])
         return command
+
+    def environment(self) -> dict[str, str]:
+        environment = os.environ.copy()
+        environment["CUDA_VISIBLE_DEVICES"] = self.args.gpus
+        source_path = str(ROOT / "src")
+        environment["PYTHONPATH"] = (
+            source_path
+            if not environment.get("PYTHONPATH")
+            else f"{source_path}{os.pathsep}{environment['PYTHONPATH']}"
+        )
+        return environment
 
     def launch(self, experiment: Experiment, resume: Path | None) -> int:
         command = self.command(experiment, resume)
@@ -220,21 +241,13 @@ class SuiteRunner:
         if self.args.dry_run:
             return 0
 
-        environment = os.environ.copy()
-        environment["CUDA_VISIBLE_DEVICES"] = self.args.gpus
-        source_path = str(ROOT / "src")
-        environment["PYTHONPATH"] = (
-            source_path
-            if not environment.get("PYTHONPATH")
-            else f"{source_path}{os.pathsep}{environment['PYTHONPATH']}"
-        )
         launcher_log = self.log_dir / f"{experiment.name}.log"
         with launcher_log.open("a", encoding="utf-8") as stream:
             print(f"\n{now()} | {command_text}", file=stream, flush=True)
             process = subprocess.run(
                 command,
                 cwd=ROOT,
-                env=environment,
+                env=self.environment(),
                 stdout=stream,
                 stderr=subprocess.STDOUT,
                 check=False,
@@ -295,184 +308,255 @@ class SuiteRunner:
             attempts_started_here += 1
             self.log(f"{experiment.name}: launcher returncode={returncode}; checking completion/resume")
 
+    def evaluate_experiment(self, experiment: Experiment) -> None:
+        if experiment.stage != "finetune":
+            return
+        record = self.state["experiments"].get(experiment.name, {})
+        evaluation_path = self.evaluation_dir / f"{experiment.name}.json"
+        if record.get("test_evaluation") and evaluation_path.exists():
+            return
+        best_checkpoint = record.get("best_checkpoint")
+        if not best_checkpoint:
+            raise RuntimeError(f"{experiment.name} completed without a validation best checkpoint")
+
+        command = [
+            str(self.python),
+            "-m",
+            "blendit.training.evaluate",
+            "--config",
+            experiment.config,
+            "--checkpoint",
+            str(best_checkpoint),
+            "--split",
+            "test",
+            "--output",
+            str(evaluation_path),
+            "--batch-size",
+            str(self.args.batch_size),
+            "--num-workers",
+            str(self.args.num_workers),
+        ]
+        for override in experiment.overrides:
+            command.extend(["--override", override])
+        evaluation_log = self.log_dir / f"{experiment.name}.test.log"
+        self.log(f"{experiment.name}: test evaluation start checkpoint={best_checkpoint}")
+        with evaluation_log.open("a", encoding="utf-8") as stream:
+            process = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=self.environment(),
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+        if process.returncode != 0 or not evaluation_path.exists():
+            raise RuntimeError(
+                f"{experiment.name} test evaluation failed with returncode={process.returncode}; "
+                f"see {evaluation_log}"
+            )
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+        record["test_evaluation"] = evaluation
+        record["test_evaluated_at"] = now()
+        self.save_state()
+        self.write_reports()
+        self.log(
+            f"{experiment.name}: test evaluation complete "
+            f"macro_f1={evaluation['metrics']['macro_f1']:.6f}"
+        )
+
     def write_reports(self) -> None:
         results: list[dict[str, Any]] = []
+        csv_rows: list[dict[str, Any]] = []
         for name, record in self.state.get("experiments", {}).items():
             if record.get("status") != "complete" or "best_metrics" not in record:
                 continue
-            row = {"experiment": name, **record.get("factors", {})}
-            row.update({f"val_{key}": value for key, value in record["best_metrics"].items()})
-            row.update(
-                {
-                    "best_epoch": record.get("best_epoch"),
-                    "best_checkpoint": record.get("best_checkpoint"),
-                }
-            )
-            results.append(row)
-        results.sort(key=lambda row: row["experiment"])
+            test_evaluation = record.get("test_evaluation")
+            result = {
+                "experiment": name,
+                "factors": record.get("factors", {}),
+                "best_epoch": record.get("best_epoch"),
+                "best_checkpoint": record.get("best_checkpoint"),
+                "validation_metrics": record["best_metrics"],
+                "test_evaluation": test_evaluation,
+            }
+            results.append(result)
+
+            row = {
+                "experiment": name,
+                **record.get("factors", {}),
+                "best_epoch": record.get("best_epoch"),
+                "best_checkpoint": record.get("best_checkpoint"),
+                **{f"val_{key}": value for key, value in record["best_metrics"].items()},
+            }
+            if test_evaluation:
+                test_metrics = test_evaluation["metrics"]
+                row.update(
+                    {
+                        f"test_{key}": value
+                        for key, value in test_metrics.items()
+                        if not isinstance(value, (dict, list))
+                    }
+                )
+                row.update(
+                    {
+                        f"test_transition_{key}": value
+                        for key, value in test_metrics.get("transition_binary", {}).items()
+                    }
+                )
+                for per_class in test_metrics.get("per_class", []):
+                    class_id = per_class["class_id"]
+                    for key, value in per_class.items():
+                        if key not in {"class_id", "class_name"}:
+                            row[f"test_class_{class_id}_{key}"] = value
+            csv_rows.append(row)
+
+        results.sort(key=lambda result: result["experiment"])
+        csv_rows.sort(key=lambda row: row["experiment"])
         with self.report_json_path.open("w", encoding="utf-8") as stream:
             json.dump(results, stream, indent=2, ensure_ascii=False, sort_keys=True)
         if not results:
             return
         fieldnames: list[str] = []
-        for row in results:
+        for row in csv_rows:
             for key in row:
                 if key not in fieldnames:
                     fieldnames.append(key)
         with self.report_csv_path.open("w", encoding="utf-8", newline="") as stream:
             writer = csv.DictWriter(stream, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(results)
+            writer.writerows(csv_rows)
+        self.report_md_path.write_text(self.markdown_report(results), encoding="utf-8")
+
+    def markdown_report(self, results: list[dict[str, Any]]) -> str:
+        lines = [
+            "# Finetune baseline and ablation results",
+            "",
+            f"Generated: {now()}",
+            "",
+            f"- Finetune train split: `data/splits/finetune_train.txt`",
+            f"- Finetune validation split: `data/splits/finetune_val.txt`",
+            f"- Test split: `data/splits/finetune_test.txt`",
+            f"- Batch size per rank: `{self.args.batch_size}`",
+            f"- DataLoader workers per rank: `{self.args.num_workers}`",
+            "- Best checkpoint selection: validation Macro-F1",
+            "",
+            "## Summary",
+            "",
+            "| Experiment | Role | Ablated factor | Val Macro-F1 | Test accuracy | Test Macro-F1 | Test mIoU | Transition F1 |",
+            "|---|---|---|---:|---:|---:|---:|---:|",
+        ]
+
+        def metric(value: Any) -> str:
+            return "—" if value is None else f"{float(value):.6f}"
+
+        for result in results:
+            factors = result["factors"]
+            test_metrics = (result.get("test_evaluation") or {}).get("metrics", {})
+            transition = test_metrics.get("transition_binary", {})
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        str(result["experiment"]),
+                        str(factors.get("role", "")),
+                        str(factors.get("ablated_factor", "")),
+                        metric(result["validation_metrics"].get("f1")),
+                        metric(test_metrics.get("accuracy")),
+                        metric(test_metrics.get("macro_f1")),
+                        metric(test_metrics.get("macro_iou")),
+                        metric(transition.get("f1")),
+                    ]
+                )
+                + " |"
+            )
+
+        for result in results:
+            lines.extend(["", f"## {result['experiment']}", ""])
+            lines.append(f"- Factors: `{json.dumps(result['factors'], ensure_ascii=False, sort_keys=True)}`")
+            lines.append(f"- Best epoch: `{result['best_epoch']}`")
+            lines.append(f"- Best checkpoint: `{result['best_checkpoint']}`")
+            lines.extend(["", "### Validation metrics", "", "| Metric | Value |", "|---|---:|"])
+            for key, value in sorted(result["validation_metrics"].items()):
+                lines.append(f"| {key} | {metric(value)} |")
+
+            evaluation = result.get("test_evaluation")
+            if not evaluation:
+                lines.extend(["", "Test evaluation pending."])
+                continue
+            test_metrics = evaluation["metrics"]
+            lines.extend(["", "### Test metrics", "", "| Metric | Value |", "|---|---:|"])
+            for key, value in test_metrics.items():
+                if not isinstance(value, (dict, list)):
+                    lines.append(f"| {key} | {metric(value)} |")
+            for key, value in test_metrics.get("transition_binary", {}).items():
+                lines.append(f"| transition_{key} | {metric(value)} |")
+
+            lines.extend(
+                [
+                    "",
+                    "### Per-class test metrics",
+                    "",
+                    "| Class | Support | Predicted | Precision | Recall | F1 | IoU |",
+                    "|---|---:|---:|---:|---:|---:|---:|",
+                ]
+            )
+            for row in test_metrics.get("per_class", []):
+                lines.append(
+                    f"| {row['class_id']} {row['class_name']} | {row['support']} | {row['predicted']} | "
+                    f"{metric(row['precision'])} | {metric(row['recall'])} | "
+                    f"{metric(row['f1'])} | {metric(row['iou'])} |"
+                )
+            lines.extend(["", "### Test confusion matrix", "", "Rows are ground truth; columns are predictions.", ""])
+            matrix = test_metrics.get("confusion_matrix", [])
+            if matrix:
+                labels = [str(row["class_name"]) for row in test_metrics.get("per_class", [])]
+                lines.append("| GT \\ Pred | " + " | ".join(labels) + " |")
+                lines.append("|---|" + "---:|" * len(labels))
+                for label, row in zip(labels, matrix):
+                    lines.append(f"| {label} | " + " | ".join(str(value) for value in row) + " |")
+        lines.append("")
+        return "\n".join(lines)
 
 
 def experiments(baseline_run: str) -> list[Experiment]:
-    baseline = Experiment(
+    baseline_pretrain = Experiment(
         name="baseline_pretrain",
         stage="pretrain",
         config="configs/pretrain.yaml",
-        run_name="suite_baseline_resume",
-        epochs=100,
+        run_name="suite_20260720_baseline_pretrain_resume",
+        epochs=150,
         factors={"coarse_label": True},
         initial_run=baseline_run,
     )
-    no_coarse = Experiment(
-        name="no_coarse_pretrain",
+    no_coarse_pretrain = Experiment(
+        name="ablation_no_coarse_pretrain",
         stage="pretrain",
         config="configs/pretrain_no_coarse.yaml",
-        run_name="suite_pretrain_no_coarse",
-        epochs=100,
-        factors={"coarse_label": False},
+        run_name="suite_20260720_ablation_no_coarse_pretrain",
+        epochs=150,
+        factors={
+            "role": "ablation",
+            "ablated_factor": "coarse_label_pretraining",
+            "coarse_label": False,
+        },
     )
 
     finetunes = [
         Experiment(
-            name="baseline_mlp_full",
-            stage="finetune",
-            config="configs/finetune.yaml",
-            run_name="suite_baseline_mlp_full",
-            epochs=100,
-            factors={"coarse_label": True, "head": "mlp", "prediction_type": "n/a", "encoder_freeze": "none"},
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_epsilon_full",
+            name="baseline_default",
             stage="finetune",
             config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_epsilon_full",
-            epochs=100,
-            factors={"coarse_label": True, "head": "diffloss", "prediction_type": "epsilon", "encoder_freeze": "none"},
-            overrides=("label_diffusion.prediction_type=epsilon",),
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="no_coarse_mlp_full",
-            stage="finetune",
-            config="configs/finetune.yaml",
-            run_name="suite_no_coarse_mlp_full_no_head",
-            epochs=100,
-            factors={"coarse_label": False, "head": "mlp", "prediction_type": "n/a", "encoder_freeze": "none"},
-            overrides=("model.use_coarse_label_head=false",),
-            pretrain_source="no_coarse_pretrain",
-        ),
-        Experiment(
-            name="no_coarse_diff_epsilon_full",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_no_coarse_diff_epsilon_full_no_head",
-            epochs=100,
-            factors={"coarse_label": False, "head": "diffloss", "prediction_type": "epsilon", "encoder_freeze": "none"},
-            overrides=(
-                "model.use_coarse_label_head=false",
-                "label_diffusion.prediction_type=epsilon",
-            ),
-            pretrain_source="no_coarse_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_x_start_full",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_x_start_full",
-            epochs=100,
-            factors={"coarse_label": True, "head": "diffloss", "prediction_type": "x_start", "encoder_freeze": "none"},
-            overrides=("label_diffusion.prediction_type=x_start",),
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_x_start_epsilon_full",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_x_start_epsilon_full",
+            run_name="suite_20260720_baseline_default",
             epochs=100,
             factors={
+                "role": "baseline",
+                "ablated_factor": "none",
                 "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start_epsilon",
-                "encoder_freeze": "none",
-                "x_start_loss_weight": 1.0,
-                "epsilon_loss_weight": 1.0,
-            },
-            overrides=(
-                "label_diffusion.prediction_type=x_start_epsilon",
-                "label_diffusion.x_start_loss_weight=1.0",
-                "label_diffusion.epsilon_loss_weight=1.0",
-            ),
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_x_start_epsilon_eps_0_1",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_x_start_epsilon_eps_0_1",
-            epochs=100,
-            factors={
-                "coarse_label": True,
-                "head": "diffloss",
-                "prediction_type": "x_start_epsilon",
-                "encoder_freeze": "none",
-                "x_start_loss_weight": 1.0,
-                "epsilon_loss_weight": 0.1,
-            },
-            overrides=(
-                "label_diffusion.prediction_type=x_start_epsilon",
-                "label_diffusion.x_start_loss_weight=1.0",
-                "label_diffusion.epsilon_loss_weight=0.1",
-            ),
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_x_start_epsilon_eps_0_25",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_x_start_epsilon_eps_0_25",
-            epochs=100,
-            factors={
-                "coarse_label": True,
-                "head": "diffloss",
-                "prediction_type": "x_start_epsilon",
-                "encoder_freeze": "none",
-                "x_start_loss_weight": 1.0,
-                "epsilon_loss_weight": 0.25,
-            },
-            overrides=(
-                "label_diffusion.prediction_type=x_start_epsilon",
-                "label_diffusion.x_start_loss_weight=1.0",
-                "label_diffusion.epsilon_loss_weight=0.25",
-            ),
-            pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="baseline_diff_x_start_epsilon_eps_0_5",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_x_start_epsilon_eps_0_5",
-            epochs=100,
-            factors={
-                "coarse_label": True,
-                "head": "diffloss",
-                "prediction_type": "x_start_epsilon",
-                "encoder_freeze": "none",
                 "x_start_loss_weight": 1.0,
                 "epsilon_loss_weight": 0.5,
+                "encoder_freeze": "none",
             },
             overrides=(
                 "label_diffusion.prediction_type=x_start_epsilon",
@@ -482,42 +566,252 @@ def experiments(baseline_run: str) -> list[Experiment]:
             pretrain_source="baseline_pretrain",
         ),
         Experiment(
-            name="baseline_mlp_encoder_all",
+            name="ablation_head_mlp_full",
             stage="finetune",
             config="configs/finetune.yaml",
-            run_name="suite_baseline_mlp_encoder_all",
+            run_name="suite_20260720_ablation_head_mlp_full",
             epochs=100,
-            factors={"coarse_label": True, "head": "mlp", "prediction_type": "n/a", "encoder_freeze": "all"},
+            factors={
+                "role": "ablation",
+                "ablated_factor": "finetune_head",
+                "coarse_label": True,
+                "head": "mlp",
+                "prediction_type": "n/a",
+                "encoder_freeze": "none",
+            },
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_prediction_epsilon_full",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_prediction_epsilon_full",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "prediction_type",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "epsilon",
+                "encoder_freeze": "none",
+            },
+            overrides=("label_diffusion.prediction_type=epsilon",),
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_no_coarse_default",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_no_coarse_default",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "coarse_label_pretraining",
+                "coarse_label": False,
+                "head": "diffloss",
+                "prediction_type": "x_start_epsilon",
+                "x_start_loss_weight": 1.0,
+                "epsilon_loss_weight": 0.5,
+                "encoder_freeze": "none",
+            },
+            overrides=(
+                "model.use_coarse_label_head=false",
+                "label_diffusion.prediction_type=x_start_epsilon",
+                "label_diffusion.x_start_loss_weight=1.0",
+                "label_diffusion.epsilon_loss_weight=0.5",
+            ),
+            pretrain_source="ablation_no_coarse_pretrain",
+        ),
+        Experiment(
+            name="ablation_no_coarse_mlp_full",
+            stage="finetune",
+            config="configs/finetune.yaml",
+            run_name="suite_20260720_ablation_no_coarse_mlp_full",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "coarse_label_pretraining+finetune_head",
+                "coarse_label": False,
+                "head": "mlp",
+                "prediction_type": "n/a",
+                "encoder_freeze": "none",
+            },
+            overrides=("model.use_coarse_label_head=false",),
+            pretrain_source="ablation_no_coarse_pretrain",
+        ),
+        Experiment(
+            name="ablation_no_coarse_prediction_epsilon_full",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_no_coarse_prediction_epsilon_full",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "coarse_label_pretraining+prediction_type",
+                "coarse_label": False,
+                "head": "diffloss",
+                "prediction_type": "epsilon",
+                "encoder_freeze": "none",
+            },
+            overrides=(
+                "model.use_coarse_label_head=false",
+                "label_diffusion.prediction_type=epsilon",
+            ),
+            pretrain_source="ablation_no_coarse_pretrain",
+        ),
+        Experiment(
+            name="ablation_prediction_x_start_full",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_prediction_x_start_full",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "prediction_type",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "x_start",
+                "encoder_freeze": "none",
+            },
+            overrides=("label_diffusion.prediction_type=x_start",),
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_epsilon_weight_1_0",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_epsilon_weight_1_0",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "epsilon_loss_weight",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "x_start_epsilon",
+                "x_start_loss_weight": 1.0,
+                "epsilon_loss_weight": 1.0,
+                "encoder_freeze": "none",
+            },
+            overrides=(
+                "label_diffusion.prediction_type=x_start_epsilon",
+                "label_diffusion.x_start_loss_weight=1.0",
+                "label_diffusion.epsilon_loss_weight=1.0",
+            ),
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_epsilon_weight_0_1",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_epsilon_weight_0_1",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "epsilon_loss_weight",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "x_start_epsilon",
+                "x_start_loss_weight": 1.0,
+                "epsilon_loss_weight": 0.1,
+                "encoder_freeze": "none",
+            },
+            overrides=(
+                "label_diffusion.prediction_type=x_start_epsilon",
+                "label_diffusion.x_start_loss_weight=1.0",
+                "label_diffusion.epsilon_loss_weight=0.1",
+            ),
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_epsilon_weight_0_25",
+            stage="finetune",
+            config="configs/finetune_diffloss.yaml",
+            run_name="suite_20260720_ablation_epsilon_weight_0_25",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "epsilon_loss_weight",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "x_start_epsilon",
+                "x_start_loss_weight": 1.0,
+                "epsilon_loss_weight": 0.25,
+                "encoder_freeze": "none",
+            },
+            overrides=(
+                "label_diffusion.prediction_type=x_start_epsilon",
+                "label_diffusion.x_start_loss_weight=1.0",
+                "label_diffusion.epsilon_loss_weight=0.25",
+            ),
+            pretrain_source="baseline_pretrain",
+        ),
+        Experiment(
+            name="ablation_mlp_encoder_all",
+            stage="finetune",
+            config="configs/finetune.yaml",
+            run_name="suite_20260720_ablation_mlp_encoder_all",
+            epochs=100,
+            factors={
+                "role": "ablation",
+                "ablated_factor": "finetune_head+encoder_freeze",
+                "coarse_label": True,
+                "head": "mlp",
+                "prediction_type": "n/a",
+                "encoder_freeze": "all",
+            },
             overrides=("train.encoder_freeze_mode=all",),
             pretrain_source="baseline_pretrain",
         ),
         Experiment(
-            name="baseline_mlp_encoder_partial",
+            name="ablation_mlp_encoder_partial",
             stage="finetune",
             config="configs/finetune.yaml",
-            run_name="suite_baseline_mlp_encoder_partial",
+            run_name="suite_20260720_ablation_mlp_encoder_partial",
             epochs=100,
-            factors={"coarse_label": True, "head": "mlp", "prediction_type": "n/a", "encoder_freeze": "partial", "frozen_layers": 2},
+            factors={
+                "role": "ablation",
+                "ablated_factor": "finetune_head+encoder_freeze",
+                "coarse_label": True,
+                "head": "mlp",
+                "prediction_type": "n/a",
+                "encoder_freeze": "partial",
+                "frozen_layers": 2,
+            },
             overrides=("train.encoder_freeze_mode=partial", "train.encoder_frozen_layers=2"),
             pretrain_source="baseline_pretrain",
         ),
         Experiment(
-            name="baseline_diff_epsilon_encoder_all",
+            name="ablation_epsilon_encoder_all",
             stage="finetune",
             config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_epsilon_encoder_all",
+            run_name="suite_20260720_ablation_epsilon_encoder_all",
             epochs=100,
-            factors={"coarse_label": True, "head": "diffloss", "prediction_type": "epsilon", "encoder_freeze": "all"},
+            factors={
+                "role": "ablation",
+                "ablated_factor": "prediction_type+encoder_freeze",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "epsilon",
+                "encoder_freeze": "all",
+            },
             overrides=("label_diffusion.prediction_type=epsilon", "train.encoder_freeze_mode=all"),
             pretrain_source="baseline_pretrain",
         ),
         Experiment(
-            name="baseline_diff_epsilon_encoder_partial",
+            name="ablation_epsilon_encoder_partial",
             stage="finetune",
             config="configs/finetune_diffloss.yaml",
-            run_name="suite_baseline_diff_epsilon_encoder_partial",
+            run_name="suite_20260720_ablation_epsilon_encoder_partial",
             epochs=100,
-            factors={"coarse_label": True, "head": "diffloss", "prediction_type": "epsilon", "encoder_freeze": "partial", "frozen_layers": 2},
+            factors={
+                "role": "ablation",
+                "ablated_factor": "prediction_type+encoder_freeze",
+                "coarse_label": True,
+                "head": "diffloss",
+                "prediction_type": "epsilon",
+                "encoder_freeze": "partial",
+                "frozen_layers": 2,
+            },
             overrides=(
                 "label_diffusion.prediction_type=epsilon",
                 "train.encoder_freeze_mode=partial",
@@ -526,7 +820,7 @@ def experiments(baseline_run: str) -> list[Experiment]:
             pretrain_source="baseline_pretrain",
         ),
     ]
-    return [baseline, no_coarse, *finetunes]
+    return [baseline_pretrain, no_coarse_pretrain, *finetunes]
 
 
 def main() -> None:
@@ -538,11 +832,12 @@ def main() -> None:
     runner.log(f"suite start experiments={len(planned)} gpus={args.gpus}")
     for experiment in planned:
         runner.run_experiment(experiment)
+        runner.evaluate_experiment(experiment)
     runner.state["status"] = "complete"
     runner.state["completed_at"] = now()
     runner.save_state()
     runner.write_reports()
-    runner.log(f"suite complete report={runner.report_csv_path}")
+    runner.log(f"suite complete report={runner.report_md_path}")
 
 
 if __name__ == "__main__":

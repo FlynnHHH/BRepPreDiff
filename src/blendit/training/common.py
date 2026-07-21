@@ -159,6 +159,12 @@ def prepare_training_data(
     distributed: DistributedContext | None = None,
 ) -> dict[str, Any]:
     distributed = distributed or DistributedContext()
+    prepare_on_start = bool(config.get("data", {}).get("prepare_on_start", False))
+    if not prepare_on_start:
+        if distributed.is_main_process:
+            print("data preparation skipped: data.prepare_on_start=false")
+        return config
+
     from blendit.data.load_data import prepare_data
 
     if not distributed.enabled:

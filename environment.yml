@@ -3,10 +3,10 @@ name: blendit
 channels:
   - pytorch
   - defaults
+  - conda-forge
 
-# Reproduces the locally verified blendit environment. pythonocc-core is not
-# installed in that environment; add it separately when STEP extraction or PLY
-# export is required.
+# Reproduces the locally verified Python 3.9/PyTorch environment, including
+# pythonocc-core for STEP extraction and PLY export.
 dependencies:
   - python=3.9.23
   - pip=26.0.1
@@ -17,6 +17,7 @@ dependencies:
   - torchaudio=0.12.1
   - cudatoolkit=10.2.89
   - pytest=8.4.2
+  - pythonocc-core=7.8.1
   - pip:
       - numpy==1.24.0
       - PyYAML==6.0.3

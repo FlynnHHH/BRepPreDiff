@@ -1,6 +1,7 @@
 # Blendit finetune 推理可视化
 
-此网页读取 `results/` 目录下的 PLY 文件：
+此网页读取 `results/` 目录下的 PLY 文件。默认 Blendit baseline 区域使用
+`data/splits/finetune_test.txt`，展示 NonTransition/VBF/EBF 三分类结果与 Macro 指标：
 
 - `*_instance_pred_rgb.ply`：SEG GT 高亮；找不到 SEG 时为灰色原始模型。
 - `*_semantic_pred.ply`：Blendit finetune 预测结果，VBF 为粉色，EBF 为黄色。

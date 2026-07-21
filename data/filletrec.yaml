@@ -2,6 +2,7 @@ data:
   steps_dir: data/filletrec/filletRec/steps
   segs_dir: data/filletrec/filletRec/labels
   cache_dir: data/cache/filletrec
+  prepare_on_start: false
   cache_dirs:
     train: data/cache/filletrec/train
     val: data/cache/filletrec/val

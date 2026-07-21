@@ -104,7 +104,12 @@ def test_prepare_data_rebuilds_invalid_and_missing_caches(tmp_path: Path, monkey
 
 
 def test_non_main_rank_waits_without_a_long_collective(tmp_path: Path, monkeypatch):
-    config = {"data": {"cache_dir": str(tmp_path / "cache")}}
+    config = {
+        "data": {
+            "cache_dir": str(tmp_path / "cache"),
+            "prepare_on_start": True,
+        }
+    }
     prepared_config = {"data": {"cache_dir": str(tmp_path / "prepared_cache")}}
     marker = tmp_path / ".blendit_coord" / "prepare_test-token.ready"
     broadcast_calls = []
@@ -131,3 +136,38 @@ def test_non_main_rank_waits_without_a_long_collective(tmp_path: Path, monkeypat
 
     assert result == prepared_config
     assert broadcast_calls == [0, 0]
+
+
+def test_training_skips_data_preparation_by_default(tmp_path: Path, monkeypatch, capsys):
+    config = {"data": {"cache_dir": str(tmp_path / "cache")}}
+
+    def unexpected_prepare(*args, **kwargs):
+        raise AssertionError("prepare_data must be opt-in during training startup")
+
+    monkeypatch.setattr("blendit.data.load_data.prepare_data", unexpected_prepare)
+
+    result = prepare_training_data(config)
+
+    assert result is config
+    assert "data.prepare_on_start=false" in capsys.readouterr().out
+
+
+def test_non_main_rank_skips_without_distributed_coordination(tmp_path: Path, monkeypatch):
+    config = {
+        "data": {
+            "cache_dir": str(tmp_path / "cache"),
+            "prepare_on_start": False,
+        }
+    }
+
+    def unexpected_broadcast(*args, **kwargs):
+        raise AssertionError("disabled preparation must not enter distributed coordination")
+
+    monkeypatch.setattr("torch.distributed.broadcast_object_list", unexpected_broadcast)
+
+    result = prepare_training_data(
+        config,
+        DistributedContext(enabled=True, rank=1, local_rank=1, world_size=2, backend="gloo"),
+    )
+
+    assert result is config

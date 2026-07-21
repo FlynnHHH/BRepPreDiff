@@ -12,6 +12,7 @@ DATA_CONFIGS = (
     "data/pretrain.yaml",
     "data/finetune.yaml",
     "data/filletrec.yaml",
+    "data/mfcad.yaml",
 )
 TRAINING_CONFIGS = (
     "configs/default.yaml",
@@ -20,6 +21,8 @@ TRAINING_CONFIGS = (
     "configs/finetune.yaml",
     "configs/finetune_diffloss.yaml",
     "configs/finetune_filletrec_diffloss.yaml",
+    "configs/finetune_mfcad_baseline.yaml",
+    "configs/finetune_mfcad_mlp.yaml",
 )
 
 

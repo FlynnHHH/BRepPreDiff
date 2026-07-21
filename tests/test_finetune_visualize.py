@@ -8,6 +8,7 @@ from blendit.inference.finetune_visualize import (
     _binary_classification_metrics,
     _binary_transition_classes,
     _build_samples,
+    _multiclass_classification_metrics,
     _read_filletrec_json_classes,
 )
 
@@ -45,6 +46,18 @@ def test_binary_metrics_treat_transition_as_positive_class():
     assert metrics["precision"] == pytest.approx(0.5)
     assert metrics["recall"] == pytest.approx(0.5)
     assert metrics["f1"] == pytest.approx(0.5)
+
+
+def test_multiclass_metrics_report_macro_scores_and_confusion():
+    prediction = np.asarray([0, 1, 2, 0, 2, 1], dtype=np.int64)
+    target = np.asarray([0, 1, 1, 2, 2, 1], dtype=np.int64)
+
+    metrics = _multiclass_classification_metrics(prediction, target, num_classes=3)
+
+    assert metrics["faces"] == 6
+    assert metrics["accuracy"] == pytest.approx(4 / 6)
+    assert metrics["confusion_matrix"] == [[1, 0, 0], [0, 2, 1], [1, 0, 1]]
+    assert metrics["transition_binary"]["f1"] == pytest.approx(8 / 9)
 
 
 def test_split_samples_use_independent_step_and_seg_directories(tmp_path: Path):

@@ -1,34 +1,34 @@
 seed: 42
-data_config: ../data/finetune.yaml
+data_config: ../data/mfcad.yaml
 
 run:
-  name: finetune
+  name: mfcad_mlp
   output_dir: runs
   log_interval: 10
-  save_every_epochs: 1
+  save_every_epochs: 10
+  show_progress: false
 
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
-  num_classes: 3
+  num_classes: 25
   finetune_head: mlp
 
 train:
   device: cuda
+  require_cuda: true
   epochs: 100
-  batch_size: 512
-  num_workers: 16
+  batch_size: 256
+  num_workers: 8
   normalize_per_graph: true
   lr: 3.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
-  # best.pt is selected by validation Macro-F1 (higher is better).
+  selection_metric: f1
   resume: null
-  # Override this when initializing finetune from a pretrain checkpoint:
-  # --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
   pretrain_checkpoint: null
   encoder_freeze_mode: none
   encoder_frozen_layers: 2

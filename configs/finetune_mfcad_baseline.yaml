@@ -1,20 +1,21 @@
 seed: 42
-data_config: ../data/finetune.yaml
+data_config: ../data/mfcad.yaml
 
 run:
-  name: finetune_diffloss
+  name: mfcad_baseline
   output_dir: runs
   log_interval: 10
-  save_every_epochs: 1
+  save_every_epochs: 10
+  show_progress: false
 
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
-  num_classes: 3
+  num_classes: 25
   finetune_head: diffusion
 
-# Per-face Diffusion Loss. The clean target is 2 * one_hot(label) - 1.
+# Blendit's default DiffLoss baseline.
 label_diffusion:
   target_encoding: bipolar_one_hot
   train_timesteps: 1000
@@ -37,22 +38,20 @@ label_diffusion:
 
 train:
   device: cuda
+  require_cuda: true
   epochs: 100
   batch_size: 256
-  num_workers: 16
+  num_workers: 8
   normalize_per_graph: true
   lr: 3.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
-  # best.pt is selected by validation Macro-F1 (higher is better).
+  selection_metric: f1
   resume: null
-  # Supply a concrete pretraining checkpoint at launch, for example:
-  # --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
   pretrain_checkpoint: null
   encoder_freeze_mode: none
   encoder_frozen_layers: 2
-  # Sqrt inverse-frequency weights for the current 84.9% / 3.3% / 11.8% split.
   class_weights: null
   dice_loss_weight: 0.3

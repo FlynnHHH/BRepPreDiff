@@ -36,6 +36,7 @@ blendit-infer-visual = "blendit.inference.finetune_visualize:main"
 blendit-infer-seg = "blendit.inference.step_to_seg:main"
 blendit-pretrain = "blendit.training.pretrain:main"
 blendit-finetune = "blendit.training.finetune:main"
+blendit-evaluate = "blendit.training.evaluate:main"
 blendit-smoke = "blendit.training.smoke:main"
 
 [build-system]

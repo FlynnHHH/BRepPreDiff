@@ -35,13 +35,14 @@ const INSTANCE_SUFFIX = "_instance_pred_rgb.ply";
 const SEMANTIC_SUFFIX = "_semantic_pred.ply";
 const PREDICTION_MANIFEST_SOURCES = [
   {
-    key: "original",
-    filename: "original_testset_manifest.json",
-    metricsTitle: "Blendit on original Test Set",
-    modelName: "Blendit",
-    visualizationNumClasses: 2,
-    gtTitle: "Original Test Set GT 过渡面",
-    predictionTitle: "Blendit 过渡面预测"
+    key: "finetune-test",
+    filename: "finetune_test_manifest.json",
+    metricsTitle: "Blendit baseline on finetune_test",
+    metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
+    modelName: "Blendit baseline",
+    visualizationNumClasses: 3,
+    gtTitle: "finetune_test 三分类 GT",
+    predictionTitle: "Blendit NonTransition / VBF / EBF 预测"
   },
   {
     key: "filletrec",
@@ -493,11 +494,13 @@ function formatPercent(value, digits = 2) {
 
 function metricsMarkup(metrics, compact = false) {
   if (!metrics) return "";
+  const macro = metrics.averaging === "macro" || metrics.macro_f1 !== undefined;
   const items = [
     ["Accuracy", metrics.accuracy],
-    ["Precision", metrics.precision],
-    ["Recall", metrics.recall],
-    ["F1", metrics.f1]
+    [macro ? "Macro Precision" : "Precision", macro ? metrics.macro_precision ?? metrics.precision : metrics.precision],
+    [macro ? "Macro Recall" : "Recall", macro ? metrics.macro_recall ?? metrics.recall : metrics.recall],
+    [macro ? "Macro F1" : "F1", macro ? metrics.macro_f1 ?? metrics.f1 : metrics.f1],
+    ...(macro ? [["mIoU", metrics.macro_iou ?? metrics.iou]] : [])
   ];
   return `
     <div class="metric-grid${compact ? " compact" : ""}">
@@ -545,7 +548,7 @@ function createCard(sampleName, instanceFile, semanticFile) {
         <span>预测对比</span>
       </div>
     </div>
-    ${record?.binary_metrics ? `<div class="sample-metrics">${metricsMarkup(record.binary_metrics, true)}</div>` : ""}
+    ${record?.metrics || record?.binary_metrics ? `<div class="sample-metrics">${metricsMarkup(record.metrics || record.binary_metrics, true)}</div>` : ""}
     <div class="sample-grid" role="group" aria-label="实例与语义对比">
       <section class="viewer-panel" aria-label="${gtTitle}">
         <h3>${gtTitle}</h3>
@@ -714,7 +717,7 @@ function renderMetricsSummary() {
         <div class="metrics-heading">
           <div>
             <strong>${escapeHtml(source.metricsTitle)}</strong>
-            <span>正类：过渡面 · ${escapeHtml(checkpointName)} · epoch ${checkpointEpoch}</span>
+            <span>${escapeHtml(source.metricsSubtitle || "正类：过渡面")} · ${escapeHtml(checkpointName)} · epoch ${checkpointEpoch}</span>
           </div>
           <span>${evaluatedSamples} 个样本 / ${faces} 个 OCC 面</span>
         </div>
@@ -732,9 +735,9 @@ function datasetForSample(sampleName) {
     return "filletrec-model-filletrec-testset";
   }
   if (sampleName.startsWith("filletrec__")) return "filletrec";
-  // Once the original-test manifest is available, omit stale duplicate PLYs
+  // Once the finetune-test manifest is available, omit stale duplicate PLYs
   // left by earlier path-deduplication runs (Ex9/Ex14 hash suffixes).
-  return predictionManifests.has("original") ? "untracked" : "original";
+  return predictionManifests.has("finetune-test") ? "untracked" : "finetune-test";
 }
 
 function toggleFavorite(name, button) {
@@ -867,10 +870,10 @@ function renderCards() {
   const fragment = document.createDocumentFragment();
   const groups = [
     {
-      key: "original",
-      title: "原 Test Set",
-      description: "与 FilletRec Test Set 相同 checkpoint 的二分类过渡面结果",
-      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "original")
+      key: "finetune-test",
+      title: "Finetune Test Split",
+      description: "默认 Blendit baseline 在 finetune_test split 上的三分类结果",
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "finetune-test")
     },
     {
       key: "filletrec",

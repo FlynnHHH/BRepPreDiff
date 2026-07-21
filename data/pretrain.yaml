@@ -1,8 +1,9 @@
 data:
-  steps_dir: data/raw/pretrain/steps
-  segs_dir: data/raw/pretrain/segs
+  steps_dir: /data/hhfeng/blendit/pretrain/step
+  segs_dir: /data/hhfeng/blendit/pretrain/seg
   cache_dir: data/cache/features/pretrain
-  train_split: data/abc_splits/pretrain_train_clean.txt
+  prepare_on_start: false
+  train_split: data/splits/pretrain_train.txt
   val_split: null
   test_split: null
   step_extensions: [".step", ".stp", ".STEP", ".STP"]
@@ -13,7 +14,7 @@ data:
   invalid_log: null
 
 brep:
-  uv_grid_size: 4
+  uv_grid_size: 10
   occ_precision: 1.0e-6
   smooth_angle_degrees: 5.0
   surface_type_vocab: 32

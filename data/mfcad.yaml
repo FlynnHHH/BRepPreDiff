@@ -1,0 +1,58 @@
+data:
+  steps_dir: /data/hhfeng/MFCAD++/step
+  segs_dir: /data/hhfeng/MFCAD++/seg
+  cache_dir: data/cache/features/mfcad
+  prepare_on_start: false
+  train_split: /data/hhfeng/MFCAD++/blendit_splits/train.txt
+  val_split: /data/hhfeng/MFCAD++/blendit_splits/val.txt
+  test_split: /data/hhfeng/MFCAD++/blendit_splits/test.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 16
+  invalid_log: null
+
+brep:
+  # Match the released Blendit pretraining checkpoints so the complete encoder
+  # (including face_cont_proj) can be initialized for fine-tuning.
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map: null
+  default_class: null
+  ignore_index: -100
+  # MFCAD++ has 24 machining-feature classes plus the Stock background class.
+  include_transition_binary: false
+  names:
+    - Chamfer
+    - Through hole
+    - Triangular passage
+    - Rectangular passage
+    - 6-sided passage
+    - Triangular through slot
+    - Rectangular through slot
+    - Circular through slot
+    - Rectangular through step
+    - 2-sided through step
+    - Slanted through step
+    - O-ring
+    - Blind hole
+    - Triangular pocket
+    - Rectangular pocket
+    - 6-sided pocket
+    - Circular end pocket
+    - Rectangular blind slot
+    - Vertical circular end blind slot
+    - Horizontal circular end blind slot
+    - Triangular blind step
+    - Circular blind step
+    - Rectangular blind step
+    - Round
+    - Stock

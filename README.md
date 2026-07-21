@@ -50,9 +50,8 @@ auxiliary heads.
 - `pythonocc-core` for STEP extraction and mesh export
 - NumPy, PyYAML, tqdm
 
-The checked-in Conda file reproduces the locally tested Python/PyTorch environment. That local
-environment does not contain `pythonocc-core`; cached-data training and the unit tests work without
-it, while STEP extraction and PLY export require installing it separately.
+The checked-in Conda file reproduces the locally tested Python/PyTorch environment and includes a
+Python 3.9-compatible `pythonocc-core` build for STEP extraction and PLY export.
 
 ## Installation
 
@@ -63,9 +62,6 @@ conda env create -f environment.yml
 conda activate blendit
 python -m pip install --no-deps -e .
 ```
-
-For STEP extraction, install a `pythonocc-core` build compatible with Python 3.9 in the environment
-before running data preparation.
 
 For development:
 
@@ -147,8 +143,36 @@ The command performs one idempotent preparation pass:
 5. Delete unreadable caches and caches containing NaN or infinity.
 6. Fail if any split is still incomplete.
 
-Pretraining and fine-tuning run the same preparation automatically before creating DataLoaders.
-Training always reads cached NPZ graphs; it does not parse STEP inside DataLoader workers.
+This preparation pass is the authoritative full-cache validation. Run it again whenever the
+STEP/SEG inputs, split files, B-Rep extraction settings, or cached NPZ files change.
+
+Training startup skips the full preparation and cache scan by default:
+
+```yaml
+data:
+  prepare_on_start: false
+```
+
+With this setting, training only resolves each split entry to an existing cache path while building
+the Dataset, then loads NPZ files on demand for each batch. It does not scan every cache for
+NaN/Inf, rebuild caches, or parse STEP files inside DataLoader workers. If a prepared cache is
+later corrupted, training reports the error when that sample is loaded.
+
+The recommended workflow is therefore:
+
+```bash
+# Run once, and repeat after any source, split, extraction-setting, or cache change.
+blendit-prepare-data --config data/pretrain.yaml --workers 16
+
+# Reuse the validated cache without another full scan.
+torchrun --standalone --nproc_per_node=4 \
+  -m blendit.training.pretrain \
+  --config configs/pretrain.yaml
+```
+
+Set `data.prepare_on_start: true` only when training should run the same full preparation
+automatically. Under distributed training, rank 0 then performs the preparation while the other
+ranks wait for it to finish.
 
 Advanced data commands are exposed through the same module:
 
@@ -164,6 +188,32 @@ blendit-scan-cache --cache-dir data/cache/features \
 blendit-filter-split --split data/splits/train.txt \
   --invalid-log data/cache/invalid.jsonl \
   --output data/splits/train_clean.txt
+```
+
+For MFCAD++, the face class is stored as the name of each STEP `ADVANCED_FACE` entity. Extract
+one label per line into Blendit-compatible SEG files, while preserving the train/validation/test
+directory layout, with:
+
+```bash
+python -m blendit.data.mfcad_seg \
+  --dataset-root /data/hhfeng/MFCAD++ \
+  --step-root /data/hhfeng/MFCAD++/step \
+  --seg-root /data/hhfeng/MFCAD++/seg \
+  --blendit-splits-dir /data/hhfeng/MFCAD++/blendit_splits \
+  --workers 16
+```
+
+The dataset contains 24 machining-feature categories (`0..23`) plus the Stock/background label
+(`24`), so face segmentation uses 25 output classes. The matching source-data configuration is
+`data/mfcad.yaml`; its UV grid matches the pretrained Blendit encoder.
+
+Fine-tune the default DiffLoss baseline or the MLP head with the dedicated configurations:
+
+```bash
+blendit-finetune --config configs/finetune_mfcad_baseline.yaml \
+  --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
+blendit-finetune --config configs/finetune_mfcad_mlp.yaml \
+  --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
 ## Pretraining
@@ -216,12 +266,42 @@ blendit-finetune --config configs/finetune_diffloss.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
+Multi-GPU fine-tuning:
+
+```bash
+torchrun --standalone --nproc_per_node=4 -m blendit.training.finetune \
+  --config configs/finetune.yaml \
+  --override train.device=cuda \
+  --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
+```
+
+Use `configs/finetune_diffloss.yaml` in the command above to train the label-diffusion head on
+multiple GPUs.
+
 `train.encoder_freeze_mode` supports `none`, `all`, and `partial`. For partial freezing,
 `train.encoder_frozen_layers` controls how many message-passing layers are frozen.
 
 Fine-tuning checkpoints are selected using validation Macro-F1 by default. FilletRec binary
 fine-tuning uses positive-class F1 through
 [configs/finetune_filletrec_diffloss.yaml](configs/finetune_filletrec_diffloss.yaml).
+
+## Evaluation
+
+Evaluate one STEP/SEG pair, or pass two directories with matching relative file paths to evaluate a
+dataset:
+
+```bash
+blendit-evaluate \
+  --checkpoint runs/finetune/<run>/checkpoints/best.pt \
+  --step /path/to/step-or-directory \
+  --seg /path/to/seg-or-directory \
+  --output evaluation_metrics.json
+```
+
+The command uses the configuration embedded in the checkpoint by default. Use `--config` when
+evaluating an older checkpoint without an embedded configuration. The JSON result includes
+accuracy, macro and weighted F1/IoU, per-class metrics, the confusion matrix, and binary transition
+metrics with VBF and EBF merged.
 
 ## Inference
 

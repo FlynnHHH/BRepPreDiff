@@ -67,7 +67,10 @@ def test_diffusion_head_forward_backward_and_sampling():
     prepared = prepare_label_diffusion_training_batch(model, batch, config)
     assert prepared.x_start.shape == (18, 3)
     prediction = model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
-    assert prediction.shape == prepared.noise.shape
+    output_multiplier = (
+        2 if config["label_diffusion"]["prediction_type"] == "x_start_epsilon" else 1
+    )
+    assert prediction.shape == (prepared.noise.shape[0], model.num_classes * output_multiplier)
     loss, metrics = compute_label_diffusion_loss(prediction, prepared, model)
     assert torch.isfinite(loss)
     assert metrics["total"] > 0.0
