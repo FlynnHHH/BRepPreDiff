@@ -37,3 +37,27 @@ def test_filter_split_matches_hashed_cache_filenames(tmp_path: Path):
     assert result.kept == 1
     assert result.removed == 1
     assert output.read_text(encoding="utf-8").splitlines() == ["00000001_aaaaaaaaaa.npz"]
+
+
+def test_filter_split_does_not_remove_same_stem_from_other_category(tmp_path: Path):
+    split = tmp_path / "train.txt"
+    split.write_text("bearing/1.stp\nbolt/1.stp\n", encoding="utf-8")
+    invalid = tmp_path / "invalid.jsonl"
+    invalid.write_text(
+        json.dumps(
+            {
+                "sample_id": "bearing/1",
+                "step_path": "/dataset/bearing/1.stp",
+                "cache_path": "/cache/1_aaaaaaaaaa.npz",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "train_clean.txt"
+
+    result = filter_split(split, [invalid], output)
+
+    assert result.kept == 1
+    assert result.removed == 1
+    assert output.read_text(encoding="utf-8").splitlines() == ["bolt/1.stp"]

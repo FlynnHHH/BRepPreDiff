@@ -9,13 +9,14 @@ from blendit.data.graph import BRepGraph, collate_graphs
 from blendit.models import (
     DiffusionPretrainModel,
     DiffusionSchedule,
-    DiffusionSegmentationModel,
-    build_segmentation_model,
-    compute_label_diffusion_loss,
+    LabelDiffusionModel,
+    build_finetune_model,
+    compute_finetune_label_diffusion_loss,
+    compute_finetune_loss,
     prepare_label_diffusion_training_batch,
 )
 from blendit.models.diffusion import compute_pretrain_loss
-from blendit.models.segmentation import compute_segmentation_loss
+from blendit.task import CLASSIFICATION, task_type
 from blendit.utils import seed_everything
 
 
@@ -48,12 +49,11 @@ def main() -> None:
     device = torch.device("cpu")
     face_dim, edge_dim = feature_dims(config)
     num_classes = int(config["model"]["num_classes"])
-    batch = collate_graphs(
-        [
-            synthetic_graph("a", 6, face_dim, edge_dim, num_classes),
-            synthetic_graph("b", 5, face_dim, edge_dim, num_classes),
-        ]
-    ).to(device)
+    graphs = [
+        synthetic_graph("a", 6, face_dim, edge_dim, num_classes),
+        synthetic_graph("b", 5, face_dim, edge_dim, num_classes),
+    ]
+    batch = collate_graphs(graphs).to(device)
 
     schedule = DiffusionSchedule(
         int(config["diffusion"]["timesteps"]),
@@ -76,14 +76,30 @@ def main() -> None:
     )
     pretrain_loss.backward()
 
-    seg_model = build_segmentation_model(config, face_dim, edge_dim).to(device)
-    if isinstance(seg_model, DiffusionSegmentationModel):
-        prepared = prepare_label_diffusion_training_batch(seg_model, batch, config)
-        prediction = seg_model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
-        seg_loss, seg_metrics = compute_label_diffusion_loss(prediction, prepared, seg_model)
+    finetune_batch = batch
+    if task_type(config) == CLASSIFICATION:
+        for class_id, graph in enumerate(graphs):
+            graph.labels = torch.tensor([class_id % num_classes], dtype=torch.long)
+        finetune_batch = collate_graphs(graphs).to(device)
+
+    finetune_model = build_finetune_model(config, face_dim, edge_dim).to(device)
+    if isinstance(finetune_model, LabelDiffusionModel):
+        prepared = prepare_label_diffusion_training_batch(finetune_model, finetune_batch, config)
+        prediction = finetune_model(
+            finetune_batch,
+            prepared.x_t,
+            prepared.timesteps,
+            prepared.token_indices,
+        )
+        seg_loss, seg_metrics = compute_finetune_label_diffusion_loss(
+            prediction,
+            prepared,
+            finetune_model,
+            config,
+        )
     else:
-        logits = seg_model(batch)
-        seg_loss, seg_metrics = compute_segmentation_loss(logits, batch, config)
+        logits = finetune_model(finetune_batch)
+        seg_loss, seg_metrics = compute_finetune_loss(logits, finetune_batch, config)
     seg_loss.backward()
 
     print("pretrain", pretrain_metrics)

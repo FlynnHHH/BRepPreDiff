@@ -17,6 +17,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
 from blendit.config import feature_dims, load_experiment_config, save_config
+from blendit.task import CLASSIFICATION
 from blendit.utils import create_run_dir, make_logger, seed_everything
 
 
@@ -369,6 +370,23 @@ def _normalize_state_dict_keys(state: dict[str, torch.Tensor]) -> dict[str, torc
     return state
 
 
+def _migrate_legacy_finetune_state(
+    state: dict[str, torch.Tensor],
+    model: torch.nn.Module,
+) -> dict[str, torch.Tensor]:
+    """Map classification checkpoints created before CLS had its own head name."""
+    target_state = unwrap_model(model).state_dict()
+    has_classification_head = any(key.startswith("cls_head.") for key in target_state)
+    has_legacy_head = any(key.startswith("seg_head.") for key in state)
+    if not has_classification_head or not has_legacy_head:
+        return state
+    migrated: dict[str, torch.Tensor] = {}
+    for key, value in state.items():
+        target_key = f"cls_head.{key.removeprefix('seg_head.')}" if key.startswith("seg_head.") else key
+        migrated[target_key] = value
+    return migrated
+
+
 def save_checkpoint(
     path: str | Path,
     *,
@@ -407,6 +425,7 @@ def load_checkpoint(
 ) -> int:
     checkpoint = _torch_load_checkpoint(path, device)
     state = _normalize_state_dict_keys(checkpoint.get("model", checkpoint))
+    state = _migrate_legacy_finetune_state(state, model)
     unwrap_model(model).load_state_dict(state)
     if optimizer is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
@@ -469,14 +488,18 @@ def load_pretrain_checkpoint_for_finetune(
     model: torch.nn.Module,
     device: torch.device | str = "cpu",
 ) -> WeightLoadResult:
+    target_model = unwrap_model(model)
+    key_mappings = [("encoder.", "encoder.")]
+    # The coarse pretraining head is face-level supervision. Its hidden layer is
+    # a useful initialization for segmentation, but not for a graph-level
+    # classification head operating on pooled embeddings.
+    if getattr(target_model, "task", None) != CLASSIFICATION:
+        key_mappings.append(("coarse_label_head.", "seg_head."))
     return _load_mapped_weights(
         path,
         model=model,
         device=device,
-        key_mappings=(
-            ("encoder.", "encoder."),
-            ("coarse_label_head.", "seg_head."),
-        ),
+        key_mappings=tuple(key_mappings),
     )
 
 

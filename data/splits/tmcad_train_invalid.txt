@@ -1,0 +1,9 @@
+coupling/822.stp
+gear/622.stp
+nut/181.stp
+pulley/377.stp
+pulley/59.stp
+pulley/642.stp
+pulley/658.stp
+pulley/672.stp
+pulley/948.stp

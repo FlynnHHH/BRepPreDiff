@@ -14,6 +14,11 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
+from blendit.data.classification import (
+    extract_classification_arrays,
+    match_classification_label,
+    read_class_label,
+)
 from blendit.data.graph import (
     BRepGraph,
     collate_graphs,
@@ -21,6 +26,11 @@ from blendit.data.graph import (
     normalize_graph_features,
     save_graph_npz,
 )
+from blendit.data.segmentation import (
+    extract_segmentation_arrays,
+    match_segmentation_label,
+)
+from blendit.task import CLASSIFICATION, SEGMENTATION, task_type
 
 
 @dataclass(frozen=True)
@@ -102,9 +112,10 @@ def _extract_sample_to_cache_worker(sample: StepSegSample) -> str | CacheFailure
         from blendit.brep.occ_extractor import OccBRepExtractor
 
         extractor = OccBRepExtractor(_WORKER_CONFIG)
-        arrays = extractor.extract(
-            sample.step_path,
-            sample.seg_path,
+        arrays = _extract_sample_arrays(
+            extractor,
+            sample,
+            _WORKER_CONFIG,
             labels_required=_WORKER_LABELS_REQUIRED,
             strict_label_count=_WORKER_STRICT_LABEL_COUNT,
         )
@@ -232,17 +243,55 @@ def _cache_sample_id(item: str, cache_path: Path, step_extensions: Iterable[str]
 
 
 def _match_seg(segs_dir: Path, steps_dir: Path, step_path: Path) -> Path | None:
-    rel = step_path.relative_to(steps_dir)
-    candidates = [
-        segs_dir / rel.with_suffix(".seg"),
-        segs_dir / rel.with_suffix(".json"),
-        segs_dir / f"{step_path.stem}.seg",
-        segs_dir / f"{step_path.stem}.json",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
+    return _match_label(segs_dir, steps_dir, step_path, task=SEGMENTATION)
+
+
+def _match_label(
+    labels_dir: Path,
+    steps_dir: Path,
+    step_path: Path,
+    *,
+    task: str,
+) -> Path | None:
+    if task == CLASSIFICATION:
+        return match_classification_label(labels_dir, steps_dir, step_path)
+    return match_segmentation_label(labels_dir, steps_dir, step_path)
+
+
+def _configured_labels_dir(data_cfg: dict[str, Any]) -> Path:
+    configured = data_cfg.get("labels_dir", data_cfg.get("segs_dir"))
+    if configured is None:
+        raise ValueError("data.labels_dir (or legacy data.segs_dir) must be configured.")
+    return Path(configured)
+
+
+# Kept as a private compatibility alias for callers from before the data split.
+_read_class_label = read_class_label
+
+
+def _extract_sample_arrays(
+    extractor: Any,
+    sample: StepSegSample,
+    config: dict[str, Any],
+    *,
+    labels_required: bool,
+    strict_label_count: bool,
+) -> dict[str, np.ndarray]:
+    if task_type(config) == CLASSIFICATION:
+        return extract_classification_arrays(
+            extractor,
+            sample.step_path,
+            sample.seg_path,
+            config,
+            labels_required=labels_required,
+        )
+    return extract_segmentation_arrays(
+        extractor,
+        sample.step_path,
+        sample.seg_path,
+        labels_required=labels_required,
+        strict_label_count=strict_label_count,
+    )
 
 
 def _configured_cache_dir(data_cfg: dict[str, Any], split: str) -> Path:
@@ -256,8 +305,9 @@ class StepSegDataset(Dataset):
     def __init__(self, config: dict, split: str = "train", *, source_mode: bool = False) -> None:
         self.config = config
         data_cfg = config["data"]
+        self.task = task_type(config)
         self.steps_dir = Path(data_cfg["steps_dir"])
-        self.segs_dir = Path(data_cfg["segs_dir"])
+        self.segs_dir = _configured_labels_dir(data_cfg)
         self.cache_dir = _configured_cache_dir(data_cfg, split)
         self.labels_required = bool(data_cfg.get("labels_required", True))
         self.overwrite_cache = bool(data_cfg.get("overwrite_cache", False))
@@ -305,9 +355,15 @@ class StepSegDataset(Dataset):
 
         samples = []
         for step_path in step_files:
-            seg_path = _match_seg(self.segs_dir, self.steps_dir, step_path)
+            seg_path = _match_label(
+                self.segs_dir,
+                self.steps_dir,
+                step_path,
+                task=self.task,
+            )
             if seg_path is None and self.labels_required:
-                raise FileNotFoundError(f"Missing SEG/JSON label file for {step_path}.")
+                expected = "CLS" if self.task == CLASSIFICATION else "SEG/JSON"
+                raise FileNotFoundError(f"Missing {expected} label file for {step_path}.")
             rel_id = step_path.relative_to(self.steps_dir).with_suffix("").as_posix()
             samples.append(
                 StepSegSample(
@@ -326,9 +382,10 @@ class StepSegDataset(Dataset):
         from blendit.brep.occ_extractor import OccBRepExtractor
 
         extractor = OccBRepExtractor(self.config)
-        arrays = extractor.extract(
-            sample.step_path,
-            sample.seg_path,
+        arrays = _extract_sample_arrays(
+            extractor,
+            sample,
+            self.config,
             labels_required=self.labels_required,
             strict_label_count=self.strict_label_count,
         )

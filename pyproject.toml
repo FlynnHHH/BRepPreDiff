@@ -1,10 +1,10 @@
 [project]
 name = "blendit"
 version = "0.1.0"
-description = "B-Rep diffusion pretraining and face segmentation for blend face recognition."
+description = "B-Rep diffusion pretraining for CAD segmentation and classification."
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
-keywords = ["b-rep", "cad", "diffusion", "face-segmentation", "pytorch"]
+keywords = ["b-rep", "cad", "diffusion", "segmentation", "classification", "pytorch"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -30,6 +30,7 @@ dev = [
 [project.scripts]
 blendit-cache = "blendit.data.load_data:cache_main"
 blendit-prepare-data = "blendit.data.load_data:main"
+blendit-prepare-tmcad-cls = "blendit.data.tmcad_cls:main"
 blendit-filter-split = "blendit.data.load_data:filter_split_main"
 blendit-scan-cache = "blendit.data.load_data:scan_cache_main"
 blendit-infer-visual = "blendit.inference.finetune_visualize:main"

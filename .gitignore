@@ -20,6 +20,9 @@ htmlcov/
 # Data and generated artifacts
 /data/*
 !/data/*.yaml
+!/data/splits/
+/data/splits/*
+!/data/splits/tmcad_*.txt
 /dist/
 /runs/
 /tools/visualize/results/

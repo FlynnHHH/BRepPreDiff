@@ -19,12 +19,14 @@ from blendit.data.dataset import (
     CacheFailure,
     StepSegDataset,
     _configured_cache_dir,
+    _configured_labels_dir,
     _iter_step_files,
-    _match_seg,
+    _match_label,
     _read_split,
     _resolve_split_cache_for_item,
     _resolve_split_step,
 )
+from blendit.task import CLASSIFICATION, task_type
 
 
 SPLIT_NAMES = ("train", "val", "test")
@@ -143,22 +145,25 @@ def split_item_ids(item: str) -> set[str]:
     path = Path(item)
     ids = {item}
     if path.suffix:
-        ids.update(
-            {
-                path.with_suffix("").as_posix(),
-                path.stem,
-                _cache_stem_to_sample_id(path.stem),
-            }
-        )
+        ids.add(path.with_suffix("").as_posix())
+        if path.parent == Path("."):
+            ids.update({path.stem, _cache_stem_to_sample_id(path.stem)})
     else:
-        ids.update({path.as_posix(), path.name})
+        ids.add(path.as_posix())
+        if path.parent == Path("."):
+            ids.add(path.name)
     return {value for value in ids if value}
 
 
 def _invalid_record_ids(record: dict[str, Any]) -> set[str]:
     ids: set[str] = set()
     if record.get("sample_id"):
-        ids.add(str(record["sample_id"]))
+        sample_id = str(record["sample_id"])
+        ids.update(split_item_ids(sample_id))
+        # A cache/extraction record already has the authoritative sample ID.
+        # Do not add a bare filename stem from absolute paths: nested datasets
+        # commonly reuse numeric filenames across categories.
+        return ids
     for key in ("step_path", "cache_path"):
         if not record.get(key):
             continue
@@ -242,18 +247,25 @@ def split_has_items(config: dict[str, Any], split: str) -> bool:
 def _discover_source_items(config: dict[str, Any]) -> list[str]:
     data_cfg = config["data"]
     steps_dir = Path(data_cfg["steps_dir"])
-    segs_dir = Path(data_cfg["segs_dir"])
+    labels_dir = _configured_labels_dir(data_cfg)
+    configured_task = task_type(config)
     if not steps_dir.is_dir():
         raise FileNotFoundError(f"STEP directory does not exist: {steps_dir}")
-    if bool(data_cfg.get("labels_required", True)) and not segs_dir.is_dir():
-        raise FileNotFoundError(f"SEG/JSON directory does not exist: {segs_dir}")
+    if bool(data_cfg.get("labels_required", True)) and not labels_dir.is_dir():
+        label_kind = "CLS" if configured_task == CLASSIFICATION else "SEG/JSON"
+        raise FileNotFoundError(f"{label_kind} directory does not exist: {labels_dir}")
 
     extensions = data_cfg.get("step_extensions", [".step", ".stp"])
     labels_required = bool(data_cfg.get("labels_required", True))
     items: list[str] = []
     missing_labels = 0
     for step_path in _iter_step_files(steps_dir, extensions):
-        if labels_required and _match_seg(segs_dir, steps_dir, step_path) is None:
+        if labels_required and _match_label(
+            labels_dir,
+            steps_dir,
+            step_path,
+            task=configured_task,
+        ) is None:
             missing_labels += 1
             continue
         items.append(step_path.relative_to(steps_dir).as_posix())
@@ -262,7 +274,8 @@ def _discover_source_items(config: dict[str, Any]) -> list[str]:
         detail = f"; skipped {missing_labels} STEP files without labels" if missing_labels else ""
         raise ValueError(f"No usable STEP samples found under {steps_dir}{detail}.")
     if missing_labels:
-        print(f"split discovery: skipped {missing_labels} STEP files without SEG/JSON labels")
+        label_kind = "CLS" if configured_task == CLASSIFICATION else "SEG/JSON"
+        print(f"split discovery: skipped {missing_labels} STEP files without {label_kind} labels")
     return items
 
 

@@ -1,6 +1,13 @@
 from .graph import BRepGraph, GraphBatch
+from .classification import read_class_label
 
-__all__ = ["BRepGraph", "GraphBatch", "StepSegDataset", "build_dataloader"]
+__all__ = [
+    "BRepGraph",
+    "GraphBatch",
+    "StepSegDataset",
+    "build_dataloader",
+    "read_class_label",
+]
 
 
 def __getattr__(name: str):

@@ -1,6 +1,6 @@
 # Blendit
 
-Diffusion-based B-Rep representation learning and face segmentation for blend-face recognition.
+Diffusion-based B-Rep representation learning for face segmentation and whole-model classification.
 
 Blendit parses STEP models into attributed B-Rep graphs, caches graph features, pretrains a
 geometry-denoising encoder, and fine-tunes it for face-level classification. The default label
@@ -16,7 +16,8 @@ space contains three classes:
 - Independent STEP and SEG/JSON source directories.
 - Automatic split generation, cache completion, and invalid-cache removal.
 - Diffusion denoising pretraining over continuous face and edge features.
-- MLP and label-diffusion fine-tuning heads.
+- Segmentation (`task: seg`) and classification (`task: cls`) downstream tasks.
+- MLP and label-diffusion fine-tuning heads for both task types.
 - Single- and multi-GPU training with checkpoint resume support.
 - STEP-to-SEG inference, PLY visualization, and a Windows inference package builder.
 
@@ -128,6 +129,22 @@ other value -> non-transition (class 0)
 Set `labels.raw_to_class_map: null` and `labels.default_class: null` when labels already contain
 model class IDs, as in [data/filletrec.yaml](data/filletrec.yaml).
 
+Downstream fine-tuning defaults to face segmentation. Set the top-level task to `cls` for
+whole-model classification:
+
+```yaml
+task: cls
+data:
+  steps_dir: /path/to/steps
+  labels_dir: /path/to/one_hot_cls_files
+labels:
+  num_classes: 10
+```
+
+For `seg`, every graph label tensor has one class ID per face. For `cls`, each `.cls` source file
+is a whitespace-separated one-hot vector; it is strictly validated and converted to one graph-level
+target. The encoder's face embeddings are mean-pooled before either the MLP or DiffLoss head.
+
 ## Prepare data
 
 ```bash
@@ -214,6 +231,48 @@ blendit-finetune --config configs/finetune_mfcad_baseline.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 blendit-finetune --config configs/finetune_mfcad_mlp.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
+```
+
+### TMCAD model classification
+
+TMCAD contains ten model categories stored as top-level directories. Generate a one-hot `.cls`
+file beside every STEP/STP model, plus deterministic class-stratified 80/10/10 splits:
+
+```bash
+blendit-prepare-tmcad-cls --dataset-root /data/hhfeng/TMCAD
+blendit-prepare-data --config data/tmcad.yaml --workers 16
+```
+
+The stable alphabetical class mapping is recorded in
+`/data/hhfeng/TMCAD/blendit_splits/class_map.json`. With the bundled TMCAD data configuration it is:
+
+```text
+0 bearing, 1 bolt, 2 bracket, 3 coupling, 4 flange,
+5 gear, 6 nut, 7 pulley, 8 screw, 9 shaft
+```
+
+The checked-in `data/splits/tmcad_*.txt` clean splits retain 10,886 parseable models. Eleven source
+STEP files rejected by OCC (invalid/empty/non-finite geometry) are listed in the matching
+`data/splits/tmcad_*_invalid.txt` audit files; their `.cls` files remain in the source dataset.
+The completed DiffLoss/MLP experiment and per-class metrics are recorded in
+[reports/tmcad_finetune_results.md](reports/tmcad_finetune_results.md).
+
+Fine-tune and evaluate both heads from the same pretrained encoder:
+
+```bash
+PRETRAIN=runs/pretrain/<run>/checkpoints/last.pt
+
+blendit-finetune --config configs/finetune_tmcad_diffloss.yaml \
+  --override train.pretrain_checkpoint=$PRETRAIN
+blendit-evaluate \
+  --checkpoint runs/finetune/<tmcad_diffloss_run>/checkpoints/best.pt \
+  --split test --output runs/finetune/<tmcad_diffloss_run>/test_metrics.json
+
+blendit-finetune --config configs/finetune_tmcad_mlp.yaml \
+  --override train.pretrain_checkpoint=$PRETRAIN
+blendit-evaluate \
+  --checkpoint runs/finetune/<tmcad_mlp_run>/checkpoints/best.pt \
+  --split test --output runs/finetune/<tmcad_mlp_run>/test_metrics.json
 ```
 
 ## Pretraining
@@ -369,9 +428,16 @@ Blendit/
 ├── scripts/                 dataset, ablation, and package utilities
 ├── src/blendit/
 │   ├── brep/                OpenCascade feature extraction
-│   ├── data/                graph IO, datasets, preparation, cache validation
+│   ├── data/
+│   │   ├── segmentation.py   SEG/JSON matching and face-label extraction
+│   │   ├── classification.py CLS one-hot parsing and model-label extraction
+│   │   └── dataset.py        shared dataset lifecycle, cache, and task routing
 │   ├── inference/           SEG and visualization inference
-│   ├── models/              encoder, diffusion, and segmentation models
+│   ├── models/
+│   │   ├── segmentation.py   face-level models, losses, and metrics
+│   │   ├── classification.py model-level models, losses, and metrics
+│   │   ├── downstream.py     shared encoder and label-diffusion machinery
+│   │   └── finetune.py       task router used by training and evaluation
 │   └── training/            shared runtime, pretraining, and fine-tuning
 ├── tests/                   CPU unit and regression tests
 └── tools/                   browser viewer and Windows package assets

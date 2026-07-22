@@ -10,15 +10,15 @@ from blendit.config import feature_dims
 from blendit.data import build_dataloader
 from blendit.data.load_data import split_has_items
 from blendit.models import (
-    DiffusionSegmentationModel,
-    build_segmentation_model,
-    compute_label_diffusion_loss,
-    compute_segmentation_loss,
-    predict_segmentation_probabilities,
+    LabelDiffusionModel,
+    build_finetune_model,
+    compute_finetune_label_diffusion_loss,
+    compute_finetune_loss,
+    finetune_confusion_matrix,
+    finetune_metrics_from_confusion_matrix,
+    finetune_metrics_from_probabilities,
+    predict_finetune_probabilities,
     prepare_label_diffusion_training_batch,
-    segmentation_confusion_matrix,
-    segmentation_metrics_from_confusion_matrix,
-    segmentation_metrics_from_probabilities,
 )
 from blendit.training.common import (
     MetricAverager,
@@ -46,6 +46,7 @@ from blendit.training.common import (
     setup_distributed,
     unwrap_model,
 )
+from blendit.task import task_label, task_type
 
 
 def run_epoch(
@@ -84,31 +85,32 @@ def run_epoch(
         check_finite_batch(batch)
         with torch.set_grad_enabled(train):
             target_model = unwrap_model(model)
-            if isinstance(target_model, DiffusionSegmentationModel):
+            if isinstance(target_model, LabelDiffusionModel):
                 prepared = prepare_label_diffusion_training_batch(target_model, batch, config)
                 prediction = model(
                     batch,
                     prepared.x_t,
                     prepared.timesteps,
-                    prepared.face_indices,
+                    prepared.token_indices,
                 )
-                loss, metrics = compute_label_diffusion_loss(
+                loss, metrics = compute_finetune_label_diffusion_loss(
                     prediction,
                     prepared,
                     target_model,
+                    config,
                     class_weights,
                 )
                 if not train:
-                    probabilities = predict_segmentation_probabilities(target_model, batch, config)
-                    metrics.update(segmentation_metrics_from_probabilities(probabilities, batch, config))
+                    probabilities = predict_finetune_probabilities(target_model, batch, config)
+                    metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
             else:
                 logits = model(batch)
-                loss, metrics = compute_segmentation_loss(logits, batch, config, class_weights)
+                loss, metrics = compute_finetune_loss(logits, batch, config, class_weights)
                 if not train:
                     probabilities = logits.softmax(dim=-1)
-                    metrics.update(segmentation_metrics_from_probabilities(probabilities, batch, config))
+                    metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
             if validation_confusion is not None:
-                validation_confusion.add_(segmentation_confusion_matrix(probabilities, batch, config))
+                validation_confusion.add_(finetune_confusion_matrix(probabilities, batch, config))
             check_finite_loss(loss, metrics, batch.sample_ids)
             if train:
                 loss.backward()
@@ -123,12 +125,12 @@ def run_epoch(
     if validation_confusion is not None:
         if distributed is not None and distributed.enabled:
             dist.all_reduce(validation_confusion, op=dist.ReduceOp.SUM)
-        epoch_metrics.update(segmentation_metrics_from_confusion_matrix(validation_confusion))
+        epoch_metrics.update(finetune_metrics_from_confusion_matrix(validation_confusion, config))
     return epoch_metrics
 
 
 def main() -> None:
-    args = parse_train_args("Fine-tune B-Rep encoder for face segmentation.")
+    args = parse_train_args("Fine-tune the B-Rep encoder for segmentation or classification.")
     config = load_train_config(args, stage="finetune")
     distributed = setup_distributed(config)
     logger = None
@@ -160,8 +162,13 @@ def main() -> None:
             logger.info("validation disabled: data.val_split is not set or is empty")
 
         head_type = str(config.get("model", {}).get("finetune_head", "mlp"))
-        logger.info("building segmentation model head=%s", head_type)
-        model = build_segmentation_model(config, face_dim, edge_dim).to(device)
+        logger.info(
+            "building downstream model task=%s (%s) head=%s",
+            task_type(config),
+            task_label(config),
+            head_type,
+        )
+        model = build_finetune_model(config, face_dim, edge_dim).to(device)
         logger.info("model parameters=%d", count_parameters(model))
         resume = config["train"].get("resume")
         pretrain_checkpoint = config["train"].get("pretrain_checkpoint")

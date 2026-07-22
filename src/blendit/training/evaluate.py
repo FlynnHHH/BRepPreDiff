@@ -14,20 +14,34 @@ from tqdm import tqdm
 from blendit.brep.occ_extractor import OccBRepExtractor
 from blendit.config import apply_overrides, feature_dims, load_experiment_config
 from blendit.data import build_dataloader
-from blendit.data.graph import BRepGraph, collate_graphs, graph_from_arrays, normalize_graph_features
+from blendit.data.classification import (
+    CLASS_LABEL_EXTENSIONS,
+    extract_classification_arrays,
+)
+from blendit.data.graph import (
+    BRepGraph,
+    collate_graphs,
+    graph_from_arrays,
+    normalize_graph_features,
+)
+from blendit.data.segmentation import (
+    SEGMENTATION_LABEL_EXTENSIONS,
+    extract_segmentation_arrays,
+)
 from blendit.models import (
-    build_segmentation_model,
-    predict_segmentation_probabilities,
-    segmentation_confusion_matrix,
+    build_finetune_model,
+    finetune_confusion_matrix,
+    predict_finetune_probabilities,
 )
 from blendit.training.common import check_finite_batch, load_checkpoint, resolve_device
+from blendit.task import CLASSIFICATION, task_type
 from blendit.utils import seed_everything
 
 
 DEFAULT_CLASS_NAMES = ("NonTransition", "VBF", "EBF")
 DEFAULT_BINARY_CLASS_NAMES = ("NonTransition", "Transition")
 DEFAULT_STEP_EXTENSIONS = (".step", ".stp")
-LABEL_EXTENSIONS = (".seg", ".json")
+LABEL_EXTENSIONS = SEGMENTATION_LABEL_EXTENSIONS
 
 
 @dataclass(frozen=True)
@@ -53,12 +67,22 @@ class StepSegDataset(Dataset):
         sample = self.samples[index]
         if self._extractor is None:
             self._extractor = OccBRepExtractor(self.config)
-        arrays = self._extractor.extract(
-            sample.step_path,
-            seg_path=sample.seg_path,
-            labels_required=True,
-            strict_label_count=True,
-        )
+        if task_type(self.config) == CLASSIFICATION:
+            arrays = extract_classification_arrays(
+                self._extractor,
+                sample.step_path,
+                sample.seg_path,
+                self.config,
+                labels_required=True,
+            )
+        else:
+            arrays = extract_segmentation_arrays(
+                self._extractor,
+                sample.step_path,
+                sample.seg_path,
+                labels_required=True,
+                strict_label_count=True,
+            )
         graph = graph_from_arrays(arrays, sample.sample_id)
         if graph.labels is None:
             raise ValueError(f"No labels were loaded from {sample.seg_path}.")
@@ -206,8 +230,9 @@ def pair_step_seg_paths(
     *,
     step_extensions: Sequence[str] = DEFAULT_STEP_EXTENSIONS,
     recursive: bool = True,
+    task: str = "seg",
 ) -> list[StepSegSample]:
-    """Pair a STEP file/directory with a SEG/JSON file/directory."""
+    """Pair a STEP file/directory with a SEG/JSON or CLS file/directory."""
     step_path = Path(step_input).expanduser().resolve()
     seg_path = Path(seg_input).expanduser().resolve()
     if not step_path.exists():
@@ -235,9 +260,11 @@ def pair_step_seg_paths(
         extensions = ", ".join(sorted(normalized_step_extensions))
         raise ValueError(f"No STEP files with extensions [{extensions}] found under {step_path}.")
 
+    label_extensions = CLASS_LABEL_EXTENSIONS if task == CLASSIFICATION else LABEL_EXTENSIONS
+    label_description = "CLS" if task == CLASSIFICATION else "SEG or JSON"
     if seg_path.is_file():
-        if seg_path.suffix.lower() not in LABEL_EXTENSIONS:
-            raise ValueError(f"Label file must be SEG or JSON: {seg_path}")
+        if seg_path.suffix.lower() not in label_extensions:
+            raise ValueError(f"Label file must be {label_description}: {seg_path}")
         if len(step_paths) != 1:
             raise ValueError(
                 f"A single label file cannot be paired with {len(step_paths)} STEP files. "
@@ -246,11 +273,11 @@ def pair_step_seg_paths(
         relative_step = step_paths[0].relative_to(step_root).with_suffix("")
         return [StepSegSample(relative_step.as_posix(), step_paths[0], seg_path)]
     if not seg_path.is_dir():
-        raise ValueError(f"SEG path is neither a file nor a directory: {seg_path}")
+        raise ValueError(f"Label path is neither a file nor a directory: {seg_path}")
 
-    label_paths = _iter_files(seg_path, set(LABEL_EXTENSIONS), recursive=recursive)
+    label_paths = _iter_files(seg_path, set(label_extensions), recursive=recursive)
     if not label_paths:
-        raise ValueError(f"No SEG or JSON label files found under {seg_path}.")
+        raise ValueError(f"No {label_description} label files found under {seg_path}.")
     relative_index, stem_index = _label_indexes(label_paths, seg_path)
 
     samples: list[StepSegSample] = []
@@ -279,8 +306,10 @@ def pair_step_seg_paths(
     if missing:
         examples = ", ".join(str(path) for path in missing[:5])
         suffix = " ..." if len(missing) > 5 else ""
+        missing_description = "CLS" if task == CLASSIFICATION else "SEG/JSON"
         raise FileNotFoundError(
-            f"No matching SEG/JSON label was found for {len(missing)} STEP files: {examples}{suffix}"
+            f"No matching {missing_description} label was found for {len(missing)} STEP files: "
+            f"{examples}{suffix}"
         )
     return samples
 
@@ -337,9 +366,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--seg",
         "--seg-path",
+        "--label",
+        "--label-path",
         dest="seg_path",
         default=None,
-        help="A matching SEG/JSON file or directory. Directory layouts are paired by relative path.",
+        help="A matching SEG/JSON or CLS file/directory. Layouts are paired by relative path.",
     )
     parser.add_argument(
         "--no-recursive",
@@ -365,6 +396,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not checkpoint_path.is_file():
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint_path}")
     config = _load_evaluation_config(args, checkpoint_path)
+    configured_task = task_type(config)
 
     seed_everything(int(config.get("seed", 42)))
     device = resolve_device(config, enforce_cuda_requirement=False)
@@ -377,6 +409,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "step_extensions", DEFAULT_STEP_EXTENSIONS
             ),
             recursive=not args.no_recursive,
+            task=configured_task,
         )
         dataset = StepSegDataset(config, samples)
         dataloader = DataLoader(
@@ -389,7 +422,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     else:
         dataloader = build_dataloader(config, split=args.split, shuffle=False, distributed=False)
     face_dim, edge_dim = feature_dims(config)
-    model = build_segmentation_model(config, face_dim, edge_dim).to(device)
+    model = build_finetune_model(config, face_dim, edge_dim).to(device)
     checkpoint_epoch = load_checkpoint(checkpoint_path, model=model, optimizer=None, device=device)
     model.eval()
 
@@ -400,8 +433,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         for batch in tqdm(dataloader, desc=description):
             batch = batch.to(device)
             check_finite_batch(batch)
-            probabilities = predict_segmentation_probabilities(model, batch, config)
-            confusion.add_(segmentation_confusion_matrix(probabilities, batch, config).cpu())
+            probabilities = predict_finetune_probabilities(model, batch, config)
+            confusion.add_(finetune_confusion_matrix(probabilities, batch, config).cpu())
 
     configured_names = config.get("labels", {}).get("names")
     metrics = classification_metrics_from_confusion(
@@ -409,13 +442,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         class_names=configured_names,
         include_transition_binary=bool(
             config.get("labels", {}).get("include_transition_binary", True)
+            and configured_task != CLASSIFICATION
         ),
     )
+    if configured_task == CLASSIFICATION:
+        metrics["samples"] = metrics.pop("faces")
     result = {
         "checkpoint": str(checkpoint_path),
         "checkpoint_epoch": checkpoint_epoch,
         "config": str(args.config) if args.config else "checkpoint_embedded_config",
-        "input_mode": "step_seg" if direct_mode else "cached_split",
+        "task": configured_task,
+        "input_mode": (
+            ("step_cls" if configured_task == CLASSIFICATION else "step_seg")
+            if direct_mode
+            else "cached_split"
+        ),
         "step_path": str(Path(args.step_path).expanduser().resolve()) if direct_mode else None,
         "seg_path": str(Path(args.seg_path).expanduser().resolve()) if direct_mode else None,
         "split": None if direct_mode else args.split,
