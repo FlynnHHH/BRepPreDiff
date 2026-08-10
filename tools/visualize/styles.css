@@ -122,6 +122,10 @@ p {
   color: #17866c;
 }
 
+.metrics-experiment.blendit-best-lxy .metrics-heading strong {
+  color: #6d3cc4;
+}
+
 .metrics-heading {
   display: flex;
   align-items: center;
@@ -245,6 +249,10 @@ p {
   border-bottom-color: #219477;
 }
 
+.dataset-heading.blendit-best-lxy {
+  border-bottom-color: #7e56c2;
+}
+
 .dataset-heading h2 {
   margin: 0;
   color: #236fc5;
@@ -261,6 +269,10 @@ p {
 
 .dataset-heading.filletrec-model-filletrec-testset h2 {
   color: #147b62;
+}
+
+.dataset-heading.blendit-best-lxy h2 {
+  color: #6d3cc4;
 }
 
 .dataset-heading p {

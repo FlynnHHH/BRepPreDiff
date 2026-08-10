@@ -1,0 +1,70 @@
+task: cls
+
+data:
+  steps_dir: /data/hhfeng/FabWave
+  labels_dir: data/labels/fabwave_no_rotary_shaft_no_washer_overlap_min10
+  cache_dir: data/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10
+  prepare_on_start: false
+  train_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_train.txt
+  val_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_val.txt
+  test_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_test.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 16
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  encoding: one_hot
+  num_classes: 40
+  ignore_index: -100
+  include_transition_binary: false
+  names:
+    - Bearings
+    - Bolts
+    - Brackets
+    - Bushing
+    - Bushing_Damping_Liners
+    - Collets
+    - Gasket
+    - Grommets
+    - HeadlessScrews
+    - Hex_Head_Screws
+    - Keyway_Shaft
+    - Machine_Key
+    - Nuts
+    - O_Rings
+    - Thumb_Screws
+    - Pipe_Fittings
+    - Pipe_Joints
+    - Pipes
+    - Rollers
+    - Shaft_Collar
+    - Slotted_Flat_Head_Screws
+    - Socket_Head_Screws
+    - Washers
+    - Boxes
+    - Cotter_Pin
+    - External Retaining Rings
+    - Eyesbolts With Shoulders
+    - Gear Rod Stock
+    - Gears
+    - Holebolts With Shoulders
+    - Idler Sprocket
+    - Miter Gear Set Screw
+    - Rectangular Gear Rack
+    - Routing EyeBolts Bent Closed Eye
+    - Socket-Connect Flanges
+    - Sprocket Taper-Lock Bushing
+    - Strut Channel Floor Mount
+    - Strut Channel Side-Side
+    - Tag Holder
+    - Wide Grip External Retaining Ring

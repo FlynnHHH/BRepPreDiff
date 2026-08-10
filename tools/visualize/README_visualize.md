@@ -54,6 +54,34 @@ python viewer_server.py
 
 浏览器打开 `http://localhost:8061/`。
 
+## testset_lxy 最优模型三分类结果
+
+网页中的 `Blendit Best · testset_lxy` 独立分区使用现有三分类测试
+Macro-F1 最高的 MLP 权重，左栏展示 SEG GT，右栏展示模型预测：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.finetune_visualize \
+  --config configs/finetune.yaml \
+  --checkpoint runs/finetune/20260721-000045_suite_20260720_ablation_head_mlp_full/checkpoints/best.pt \
+  --step-dir /data/hhfeng/testset_lxy/step \
+  --step-root /data/hhfeng/testset_lxy/step \
+  --seg-dir /data/hhfeng/testset_lxy/seg \
+  --seg-root /data/hhfeng/testset_lxy/seg \
+  --output-dir tools/visualize/results \
+  --manifest-name blendit_best_lxy_manifest.json \
+  --sample-prefix blendit_best_lxy__
+```
+
+对应的逐面预测 SEG 单独输出到 `results/blendit_best_lxy_seg/`：
+
+```bash
+PYTHONPATH=src python -m blendit.inference.step_to_seg \
+  /data/hhfeng/testset_lxy/step \
+  --checkpoint runs/finetune/20260721-000045_suite_20260720_ablation_head_mlp_full/checkpoints/best.pt \
+  --config configs/finetune.yaml \
+  --output-dir tools/visualize/results/blendit_best_lxy_seg
+```
+
 ## FilletRec 二分类测试
 
 FilletRec JSON 标签按 OCC face 顺序存放，0 表示非过渡面，1 表示过渡面。加入

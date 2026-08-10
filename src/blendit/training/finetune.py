@@ -129,6 +129,50 @@ def run_epoch(
     return epoch_metrics
 
 
+def build_optimizer(model, config) -> torch.optim.AdamW:
+    train_cfg = config["train"]
+    base_lr = float(train_cfg["lr"])
+    encoder_lr = float(train_cfg.get("encoder_lr", base_lr))
+    head_lr = float(train_cfg.get("head_lr", base_lr))
+    weight_decay = float(train_cfg["weight_decay"])
+    trainable_parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    if not trainable_parameters:
+        raise ValueError("Fine-tuning configuration does not leave any trainable parameters.")
+    if encoder_lr == head_lr:
+        return torch.optim.AdamW(
+            trainable_parameters,
+            lr=encoder_lr,
+            weight_decay=weight_decay,
+        )
+
+    target_model = unwrap_model(model)
+    encoder_parameter_ids = {
+        id(parameter)
+        for parameter in target_model.encoder.parameters()
+        if parameter.requires_grad
+    }
+    encoder_parameters = [
+        parameter
+        for parameter in trainable_parameters
+        if id(parameter) in encoder_parameter_ids
+    ]
+    head_parameters = [
+        parameter
+        for parameter in trainable_parameters
+        if id(parameter) not in encoder_parameter_ids
+    ]
+    parameter_groups = []
+    if encoder_parameters:
+        parameter_groups.append({"params": encoder_parameters, "lr": encoder_lr})
+    if head_parameters:
+        parameter_groups.append({"params": head_parameters, "lr": head_lr})
+    return torch.optim.AdamW(
+        parameter_groups,
+        lr=base_lr,
+        weight_decay=weight_decay,
+    )
+
+
 def main() -> None:
     args = parse_train_args("Fine-tune the B-Rep encoder for segmentation or classification.")
     config = load_train_config(args, stage="finetune")
@@ -197,15 +241,14 @@ def main() -> None:
 
         model = maybe_wrap_ddp(model, distributed)
         logger.info("model ddp_wrapped=%s", distributed.enabled)
-        trainable_parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
-        if not trainable_parameters:
-            raise ValueError("Fine-tuning configuration does not leave any trainable parameters.")
-        optimizer = torch.optim.AdamW(
-            trainable_parameters,
-            lr=float(config["train"]["lr"]),
-            weight_decay=float(config["train"]["weight_decay"]),
+        optimizer = build_optimizer(model, config)
+        logger.info(
+            "optimizer ready: AdamW lr=%s encoder_lr=%s head_lr=%s weight_decay=%s",
+            config["train"]["lr"],
+            config["train"].get("encoder_lr", config["train"]["lr"]),
+            config["train"].get("head_lr", config["train"]["lr"]),
+            config["train"]["weight_decay"],
         )
-        logger.info("optimizer ready: AdamW lr=%s weight_decay=%s", config["train"]["lr"], config["train"]["weight_decay"])
         class_weights = class_weights_from_config(config, device)
         logger.info("class_weights=%s", "configured" if class_weights is not None else "none")
 
@@ -216,7 +259,7 @@ def main() -> None:
             logger.info("resumed checkpoint=%s epoch=%d", resume, start_epoch)
 
         best_selection_value = float("-inf")
-        selection_metric = str(config["train"].get("selection_metric", "f1"))
+        selection_metric = str(config["train"].get("selection_metric", "acc"))
         logger.info("best checkpoint selection metric=validation %s mode=max", selection_metric)
         epochs = int(config["train"]["epochs"])
         logger.info("training plan: start_epoch=%d target_epoch=%d total_epochs_to_run=%d", start_epoch, epochs, max(0, epochs - start_epoch))

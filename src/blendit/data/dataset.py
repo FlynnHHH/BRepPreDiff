@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from bisect import bisect_right
+import copy
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable
 import traceback
@@ -14,6 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
+from blendit.config import load_config
 from blendit.data.classification import (
     extract_classification_arrays,
     match_classification_label,
@@ -23,8 +26,10 @@ from blendit.data.graph import (
     BRepGraph,
     collate_graphs,
     load_graph_npz,
+    load_global_feature_stats,
     normalize_graph_features,
     save_graph_npz,
+    typewise_global_standardize_graph_features,
 )
 from blendit.data.segmentation import (
     extract_segmentation_arrays,
@@ -312,9 +317,27 @@ class StepSegDataset(Dataset):
         self.labels_required = bool(data_cfg.get("labels_required", True))
         self.overwrite_cache = bool(data_cfg.get("overwrite_cache", False))
         self.source_mode = bool(source_mode)
-        self.normalize_per_graph = bool(
-            config.get("train", {}).get("normalize_per_graph", True)
+        self.strip_labels = bool(data_cfg.get("strip_labels", False))
+        train_cfg = config.get("train", {})
+        preprocessing_cfg = train_cfg.get("feature_preprocessing", {})
+        configured_mode = preprocessing_cfg.get("mode") if isinstance(preprocessing_cfg, dict) else None
+        self.feature_preprocessing_mode = str(
+            configured_mode
+            or ("per_graph" if train_cfg.get("normalize_per_graph", True) else "none")
         )
+        if self.feature_preprocessing_mode not in {"per_graph", "none", "typewise_global"}:
+            raise ValueError(
+                "train.feature_preprocessing.mode must be one of: "
+                "per_graph, none, typewise_global."
+            )
+        self.global_feature_stats = None
+        if self.feature_preprocessing_mode == "typewise_global":
+            stats_path = preprocessing_cfg.get("stats_path")
+            if not stats_path:
+                raise ValueError(
+                    "train.feature_preprocessing.stats_path is required for typewise_global."
+                )
+            self.global_feature_stats = load_global_feature_stats(stats_path)
         self.strict_label_count = bool(data_cfg.get("strict_label_count", True))
         self.split = split
 
@@ -355,12 +378,17 @@ class StepSegDataset(Dataset):
 
         samples = []
         for step_path in step_files:
-            seg_path = _match_label(
-                self.segs_dir,
-                self.steps_dir,
-                step_path,
-                task=self.task,
-            )
+            # A source explicitly configured as unlabeled must not opportunistically
+            # consume co-located task metadata (for example Fusion Gallery's
+            # reconstruction/assembly JSON files) as SEG/CLS labels.
+            seg_path = None
+            if self.labels_required:
+                seg_path = _match_label(
+                    self.segs_dir,
+                    self.steps_dir,
+                    step_path,
+                    task=self.task,
+                )
             if seg_path is None and self.labels_required:
                 expected = "CLS" if self.task == CLASSIFICATION else "SEG/JSON"
                 raise FileNotFoundError(f"Missing {expected} label file for {step_path}.")
@@ -412,15 +440,31 @@ class StepSegDataset(Dataset):
     def __getitem__(self, index: int) -> BRepGraph:
         sample = self.samples[index]
         if not self.source_mode:
-            graph = load_graph_npz(sample.cache_path, sample.sample_id)
-            if self.normalize_per_graph:
-                graph = normalize_graph_features(graph)
-            return graph
+            graph = load_graph_npz(
+                sample.cache_path,
+                sample.sample_id,
+                load_labels=not self.strip_labels,
+            )
+            return self._preprocess_graph(graph)
         if self.overwrite_cache or not sample.cache_path.exists():
             self._extract_to_cache(sample)
-        graph = load_graph_npz(sample.cache_path, sample.sample_id)
-        if self.normalize_per_graph:
-            graph = normalize_graph_features(graph)
+        graph = load_graph_npz(
+            sample.cache_path,
+            sample.sample_id,
+            load_labels=not self.strip_labels,
+        )
+        return self._preprocess_graph(graph)
+
+    def _preprocess_graph(self, graph: BRepGraph) -> BRepGraph:
+        if self.feature_preprocessing_mode == "per_graph":
+            return normalize_graph_features(graph)
+        if self.feature_preprocessing_mode == "typewise_global":
+            assert self.global_feature_stats is not None
+            return typewise_global_standardize_graph_features(
+                graph,
+                self.global_feature_stats,
+                uv_grid_size=int(self.config["brep"]["uv_grid_size"]),
+            )
         return graph
 
     def _cache_worker_count(self, num_workers: int | None) -> int:
@@ -505,8 +549,144 @@ class StepSegDataset(Dataset):
         return failures
 
 
+def _source_config_path(config: dict[str, Any], source: dict[str, Any]) -> Path:
+    configured = source.get("data_config", source.get("config"))
+    if not configured:
+        raise ValueError("Each data.sources entry must set data_config.")
+    path = Path(configured)
+    if path.is_absolute():
+        return path
+    parent_config = config.get("data_config")
+    base_dir = Path(parent_config).parent if parent_config else Path.cwd()
+    return base_dir / path
+
+
+def _mapped_source_splits(source: dict[str, Any], requested_split: str) -> list[str]:
+    split_map = source.get("splits")
+    if split_map is None:
+        return [requested_split]
+    if not isinstance(split_map, dict):
+        raise TypeError(
+            f"data.sources[{source.get('name', '?')}].splits must be a mapping."
+        )
+    mapped = split_map.get(requested_split)
+    if mapped is None:
+        return []
+    if isinstance(mapped, str):
+        return [mapped]
+    if isinstance(mapped, list) and all(isinstance(value, str) for value in mapped):
+        return mapped
+    raise TypeError(
+        f"data.sources[{source.get('name', '?')}].splits.{requested_split} "
+        "must be a split name or list of split names."
+    )
+
+
+def _runtime_source_config(
+    config: dict[str, Any],
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    source_path = _source_config_path(config, source)
+    source_config = load_config(source_path)
+    if "data" not in source_config or "brep" not in source_config:
+        raise ValueError(
+            f"Multi-source data config must contain data and brep sections: {source_path}"
+        )
+
+    source_config = copy.deepcopy(source_config)
+    source_config["data_config"] = str(source_path)
+    source_config["seed"] = config.get("seed", 42)
+    source_config["train"] = copy.deepcopy(config.get("train", {}))
+    source_config["data"]["prepare_on_start"] = False
+    source_config["data"]["strip_labels"] = bool(
+        config.get("data", {}).get("strip_labels", False)
+    )
+
+    data_overrides = source.get("data")
+    if data_overrides is not None:
+        if not isinstance(data_overrides, dict):
+            raise TypeError(
+                f"data.sources[{source.get('name', '?')}].data must be a mapping."
+            )
+        source_config["data"].update(copy.deepcopy(data_overrides))
+    return source_config
+
+
+class MultiSourceDataset(Dataset):
+    """Concatenate configured cached datasets while preserving source identity."""
+
+    def __init__(self, config: dict[str, Any], split: str = "train") -> None:
+        self.config = config
+        self.split = split
+        sources = config.get("data", {}).get("sources")
+        if not isinstance(sources, list) or not sources:
+            raise ValueError("data.sources must be a non-empty list.")
+
+        root_brep = config.get("brep", {})
+        self.datasets: list[StepSegDataset] = []
+        self.component_names: list[str] = []
+        self.component_sizes: list[int] = []
+        self.cumulative_sizes: list[int] = []
+
+        total = 0
+        seen_names: set[str] = set()
+        for source_index, source in enumerate(sources):
+            if not isinstance(source, dict):
+                raise TypeError(f"data.sources[{source_index}] must be a mapping.")
+            name = str(source.get("name", f"source_{source_index}"))
+            if name in seen_names:
+                raise ValueError(f"Duplicate multi-source dataset name: {name!r}")
+            seen_names.add(name)
+
+            source_config = _runtime_source_config(config, source)
+            source_brep = source_config["brep"]
+            for key in (
+                "uv_grid_size",
+                "surface_type_vocab",
+                "edge_type_vocab",
+                "relation_type_vocab",
+            ):
+                if int(source_brep[key]) != int(root_brep[key]):
+                    raise ValueError(
+                        f"Source {name!r} has brep.{key}={source_brep[key]}, "
+                        f"expected {root_brep[key]}."
+                    )
+
+            mapped_splits = _mapped_source_splits(source, split)
+            for source_split in mapped_splits:
+                dataset = StepSegDataset(source_config, split=source_split)
+                component_name = f"{name}/{source_split}"
+                self.datasets.append(dataset)
+                self.component_names.append(component_name)
+                self.component_sizes.append(len(dataset))
+                total += len(dataset)
+                self.cumulative_sizes.append(total)
+
+        if not self.datasets:
+            raise ValueError(f"No multi-source components are configured for split={split!r}.")
+
+    def __len__(self) -> int:
+        return self.cumulative_sizes[-1]
+
+    def __getitem__(self, index: int) -> BRepGraph:
+        if index < 0:
+            index += len(self)
+        if index < 0 or index >= len(self):
+            raise IndexError(index)
+        dataset_index = bisect_right(self.cumulative_sizes, index)
+        previous_size = 0 if dataset_index == 0 else self.cumulative_sizes[dataset_index - 1]
+        graph = self.datasets[dataset_index][index - previous_size]
+        return replace(
+            graph,
+            sample_id=f"{self.component_names[dataset_index]}:{graph.sample_id}",
+        )
+
+
 def build_dataloader(config: dict, split: str, shuffle: bool, distributed: bool = False) -> DataLoader:
-    dataset = StepSegDataset(config, split=split)
+    if config.get("data", {}).get("sources"):
+        dataset: Dataset = MultiSourceDataset(config, split=split)
+    else:
+        dataset = StepSegDataset(config, split=split)
     if len(dataset) == 0:
         split_key = f"{split}_split"
         data_cfg = config.get("data", {})

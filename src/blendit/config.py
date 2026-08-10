@@ -70,6 +70,10 @@ def _parse_scalar(raw: str) -> Any:
         return float(raw)
     except ValueError:
         pass
+    if raw.startswith(("[", "{")):
+        parsed = yaml.safe_load(raw)
+        if isinstance(parsed, (list, dict)):
+            return parsed
     return raw
 
 

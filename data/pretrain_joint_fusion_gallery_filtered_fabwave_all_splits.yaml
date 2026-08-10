@@ -1,0 +1,46 @@
+data:
+  # Transductive self-supervised protocol: all available geometry is used
+  # without labels. FabWave uses the current filtered 40-class corpus because
+  # files removed by its overlap audit remain referenced by the legacy splits.
+  prepare_on_start: false
+  strip_labels: true
+  sources:
+    - name: blendit
+      data_config: pretrain.yaml
+      splits:
+        train: [train]
+    - name: tmcad
+      data_config: tmcad.yaml
+      splits:
+        train: [train, val, test]
+    - name: fusion360seg_s2_0_1
+      data_config: fusion360seg_s2_0_1_pretrain.yaml
+      splits:
+        train: [train, val, test]
+    - name: mfcadpp
+      data_config: mfcad.yaml
+      splits:
+        train: [train, val, test]
+    - name: fusion360rec_r1_0_1
+      data_config: fusion360rec_r1_0_1_pretrain.yaml
+      splits:
+        train: [train, val, test]
+    - name: fusion360ass_j1_0_0
+      data_config: fusion360ass_j1_0_0_pretrain.yaml
+      splits:
+        train: [train, val, test]
+    - name: fabwave_filtered_min10
+      data_config: fabwave_no_rotary_shaft_no_washer_overlap_min10.yaml
+      splits:
+        train: [train, val, test]
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  ignore_index: -100

@@ -150,10 +150,10 @@ class SuiteRunner:
 
     def best_checkpoint(self, experiment: Experiment) -> dict[str, Any] | None:
         records = self.checkpoint_records(experiment, best_only=True)
-        records = [record for record in records if "f1" in record["metrics"]]
+        records = [record for record in records if "acc" in record["metrics"]]
         if not records:
             return None
-        return max(records, key=lambda record: float(record["metrics"]["f1"]))
+        return max(records, key=lambda record: float(record["metrics"]["acc"]))
 
     @staticmethod
     def active_process_lines(experiment: Experiment) -> list[str]:
@@ -438,7 +438,7 @@ class SuiteRunner:
             f"- Test split: `data/splits/finetune_test.txt`",
             f"- Batch size per rank: `{self.args.batch_size}`",
             f"- DataLoader workers per rank: `{self.args.num_workers}`",
-            "- Best checkpoint selection: validation Macro-F1",
+            "- Best checkpoint selection: validation accuracy",
             "",
             "## Summary",
             "",

@@ -237,7 +237,20 @@ def _configured_split_paths(data_cfg: dict[str, Any]) -> dict[str, Path]:
 
 
 def split_has_items(config: dict[str, Any], split: str) -> bool:
-    value = config.get("data", {}).get(f"{split}_split")
+    data_cfg = config.get("data", {})
+    sources = data_cfg.get("sources")
+    if isinstance(sources, list):
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            split_map = source.get("splits")
+            if split_map is None or (
+                isinstance(split_map, dict) and split_map.get(split) is not None
+            ):
+                return True
+        return False
+
+    value = data_cfg.get(f"{split}_split")
     if not value:
         return False
     path = Path(value)

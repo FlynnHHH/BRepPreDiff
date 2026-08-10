@@ -31,6 +31,7 @@ dev = [
 blendit-cache = "blendit.data.load_data:cache_main"
 blendit-prepare-data = "blendit.data.load_data:main"
 blendit-prepare-tmcad-cls = "blendit.data.tmcad_cls:main"
+blendit-prepare-fabwave-cls = "blendit.data.fabwave_cls:main"
 blendit-filter-split = "blendit.data.load_data:filter_split_main"
 blendit-scan-cache = "blendit.data.load_data:scan_cache_main"
 blendit-infer-visual = "blendit.inference.finetune_visualize:main"

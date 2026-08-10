@@ -1,0 +1,34 @@
+data:
+  # Transductive self-supervised protocol requested for this experiment:
+  # downstream validation/test geometry is included without loading its labels.
+  prepare_on_start: false
+  strip_labels: true
+  sources:
+    - name: blendit
+      data_config: pretrain.yaml
+      splits:
+        train: [train]
+    - name: tmcad
+      data_config: tmcad.yaml
+      splits:
+        train: [train, val, test]
+    - name: fusion360seg
+      data_config: fusion360seg.yaml
+      splits:
+        train: [train, val, test]
+    - name: mfcadpp
+      data_config: mfcad.yaml
+      splits:
+        train: [train, val, test]
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  # Labels are intentionally not loaded from NPZ files during pretraining.
+  ignore_index: -100

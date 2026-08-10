@@ -325,6 +325,12 @@ blendit-finetune --config configs/finetune_diffloss.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
+For the tuned Blendit DiffLoss setup initialized from the joint
+`all_splits_no_coarse` checkpoint, use
+[configs/finetune_joint_blendit_diffloss.yaml](configs/finetune_joint_blendit_diffloss.yaml).
+Its controlled MLP comparison, parameter search, and exact test metrics are recorded in
+[reports/blendit_joint_diffloss_tuning_results.md](reports/blendit_joint_diffloss_tuning_results.md).
+
 Multi-GPU fine-tuning:
 
 ```bash
@@ -340,9 +346,7 @@ multiple GPUs.
 `train.encoder_freeze_mode` supports `none`, `all`, and `partial`. For partial freezing,
 `train.encoder_frozen_layers` controls how many message-passing layers are frozen.
 
-Fine-tuning checkpoints are selected using validation Macro-F1 by default. FilletRec binary
-fine-tuning uses positive-class F1 through
-[configs/finetune_filletrec_diffloss.yaml](configs/finetune_filletrec_diffloss.yaml).
+Fine-tuning checkpoints are selected using validation accuracy by default.
 
 ## Evaluation
 

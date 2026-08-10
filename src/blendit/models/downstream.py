@@ -220,9 +220,12 @@ def label_diffusion_objective(
     active_weight = sum(component_weights[name] for name in component_losses)
     if active_weight <= 0.0:
         raise ValueError("Active label diffusion loss weights must sum to a positive value.")
+    # Loss weights are literal coefficients.  In particular, weights 1.0 and
+    # 0.5 implement L = L_x_start + 0.5 * L_epsilon rather than a normalized
+    # weighted average.
     per_token_loss = sum(
         component_weights[name] * values for name, values in component_losses.items()
-    ) / active_weight
+    )
     if class_weights is None:
         loss = per_token_loss.mean()
     else:
@@ -276,6 +279,15 @@ def predict_label_diffusion_probabilities(
     diffusion_cfg = config["label_diffusion"]
     inference_samples = max(1, int(diffusion_cfg.get("inference_samples", 1)))
     score_temperature = max(float(diffusion_cfg.get("score_temperature", 1.0)), 1.0e-6)
+    configured_score_bias = diffusion_cfg.get("class_score_bias")
+    score_bias = None
+    if configured_score_bias is not None:
+        if len(configured_score_bias) != model.num_classes:
+            raise ValueError(
+                "label_diffusion.class_score_bias must contain one value per class: "
+                f"expected={model.num_classes} got={len(configured_score_bias)}"
+            )
+        score_bias = batch.face_cont.new_tensor(configured_score_bias)
     probabilities = batch.face_cont.new_zeros((model.token_count(batch), model.num_classes))
     for sample_index in range(inference_samples):
         initial_noise = stable_initial_noise(
@@ -292,5 +304,8 @@ def predict_label_diffusion_probabilities(
             temperature=float(diffusion_cfg.get("sampling_temperature", 1.0)),
             clip_x_start=bool(diffusion_cfg.get("clip_x_start", True)),
         )
-        probabilities.add_(F.softmax(sampled_x_start / score_temperature, dim=-1))
+        scores = sampled_x_start / score_temperature
+        if score_bias is not None:
+            scores = scores + score_bias
+        probabilities.add_(F.softmax(scores, dim=-1))
     return probabilities / inference_samples

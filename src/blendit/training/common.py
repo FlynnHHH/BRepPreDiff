@@ -609,12 +609,15 @@ def log_config_summary(logger: Any, config: dict[str, Any]) -> None:
     label_diffusion_cfg = config.get("label_diffusion", {})
     logger.info(
         "config data.cache_dir=%s data.cache_dirs=%s "
-        "data.train_split=%s data.val_split=%s data.test_split=%s",
+        "data.train_split=%s data.val_split=%s data.test_split=%s "
+        "data.strip_labels=%s data.sources=%d",
         data_cfg.get("cache_dir"),
         data_cfg.get("cache_dirs"),
         data_cfg.get("train_split"),
         data_cfg.get("val_split"),
         data_cfg.get("test_split"),
+        data_cfg.get("strip_labels", False),
+        len(data_cfg.get("sources", [])),
     )
     logger.info(
         "config train.epochs=%s train.batch_size=%s train.lr=%s train.weight_decay=%s "
@@ -655,6 +658,17 @@ def log_dataloader_summary(logger: Any, name: str, dataloader: Any, distributed:
         distributed.enabled,
         distributed.world_size,
     )
+    component_names = getattr(dataset, "component_names", None)
+    component_sizes = getattr(dataset, "component_sizes", None)
+    if component_names is not None and component_sizes is not None:
+        logger.info(
+            "dataloader %s components: %s",
+            name,
+            ", ".join(
+                f"{component_name}={component_size}"
+                for component_name, component_size in zip(component_names, component_sizes)
+            ),
+        )
 
 
 def log_checkpoint_saved(logger: Any, path: str | Path, epoch: int) -> None:

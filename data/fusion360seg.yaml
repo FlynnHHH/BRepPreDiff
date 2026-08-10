@@ -1,0 +1,38 @@
+data:
+  steps_dir: /data/hhfeng/fusion360seg/s2.0.0/breps/step
+  segs_dir: /data/hhfeng/fusion360seg/s2.0.0/breps/seg
+  cache_dir: data/cache/features/fusion360seg
+  prepare_on_start: false
+  train_split: data/splits/fusion360seg_train.txt
+  val_split: data/splits/fusion360seg_val.txt
+  test_split: data/splits/fusion360seg_test.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 16
+  invalid_log: data/cache/features/fusion360seg_invalid.jsonl
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map: null
+  default_class: null
+  ignore_index: -100
+  include_transition_binary: false
+  names:
+    - ExtrudeSide
+    - ExtrudeEnd
+    - CutSide
+    - CutEnd
+    - Fillet
+    - Chamfer
+    - RevolveSide
+    - RevolveEnd

@@ -61,3 +61,48 @@ def test_partial_encoder_freeze_rejects_invalid_layer_count():
     model = SegmentationModel(config, face_dim, edge_dim)
     with pytest.raises(ValueError, match="encoder_frozen_layers"):
         configure_encoder_finetuning(model, config)
+
+
+def test_finetune_optimizer_supports_separate_encoder_and_head_learning_rates():
+    from blendit.config import feature_dims, load_experiment_config
+    from blendit.models import SegmentationModel
+    from blendit.training.finetune import build_optimizer
+
+    config = load_experiment_config("configs/finetune.yaml")
+    config["train"]["encoder_lr"] = 1.0e-4
+    config["train"]["head_lr"] = 3.0e-4
+    face_dim, edge_dim = feature_dims(config)
+    model = SegmentationModel(config, face_dim, edge_dim)
+
+    optimizer = build_optimizer(model, config)
+
+    assert [group["lr"] for group in optimizer.param_groups] == [1.0e-4, 3.0e-4]
+    encoder_parameter_ids = {id(parameter) for parameter in model.encoder.parameters()}
+    assert {
+        id(parameter)
+        for parameter in optimizer.param_groups[0]["params"]
+    } == encoder_parameter_ids
+    assert not (
+        {
+            id(parameter)
+            for parameter in optimizer.param_groups[1]["params"]
+        }
+        & encoder_parameter_ids
+    )
+
+
+def test_finetune_optimizer_honors_equal_explicit_group_learning_rates():
+    from blendit.config import feature_dims, load_experiment_config
+    from blendit.models import SegmentationModel
+    from blendit.training.finetune import build_optimizer
+
+    config = load_experiment_config("configs/finetune.yaml")
+    config["train"]["encoder_lr"] = 1.0e-4
+    config["train"]["head_lr"] = 1.0e-4
+    face_dim, edge_dim = feature_dims(config)
+    model = SegmentationModel(config, face_dim, edge_dim)
+
+    optimizer = build_optimizer(model, config)
+
+    assert len(optimizer.param_groups) == 1
+    assert optimizer.param_groups[0]["lr"] == 1.0e-4

@@ -45,6 +45,16 @@ const PREDICTION_MANIFEST_SOURCES = [
     predictionTitle: "Blendit NonTransition / VBF / EBF 预测"
   },
   {
+    key: "blendit-best-lxy",
+    filename: "blendit_best_lxy_manifest.json",
+    metricsTitle: "Blendit best MLP on testset_lxy",
+    metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
+    modelName: "Blendit best MLP",
+    visualizationNumClasses: 3,
+    gtTitle: "testset_lxy SEG 三分类 GT",
+    predictionTitle: "Blendit 最优 MLP 三分类预测"
+  },
+  {
     key: "filletrec",
     filename: "prediction_manifest.json",
     metricsTitle: "Blendit on FilletRec Test Set",
@@ -523,7 +533,10 @@ function createCard(sampleName, instanceFile, semanticFile) {
 
   const isFavorite = favorites.has(sampleName);
   const record = manifestSamples.get(sampleName);
-  const displayName = record?.display_name || sampleName;
+  const displayName = record?.display_name ||
+    (record?._datasetKey === "blendit-best-lxy"
+      ? sampleName.replace(/^blendit_best_lxy__/, "")
+      : sampleName);
   const gtTitle = record?._gtTitle || "SEG GT 高亮";
   const predictionTitle = record?._predictionTitle || "EBF/VBF 预测高亮";
 
@@ -735,6 +748,7 @@ function datasetForSample(sampleName) {
     return "filletrec-model-filletrec-testset";
   }
   if (sampleName.startsWith("filletrec__")) return "filletrec";
+  if (sampleName.startsWith("blendit_best_lxy__")) return "blendit-best-lxy";
   // Once the finetune-test manifest is available, omit stale duplicate PLYs
   // left by earlier path-deduplication runs (Ex9/Ex14 hash suffixes).
   return predictionManifests.has("finetune-test") ? "untracked" : "finetune-test";
@@ -874,6 +888,12 @@ function renderCards() {
       title: "Finetune Test Split",
       description: "默认 Blendit baseline 在 finetune_test split 上的三分类结果",
       pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "finetune-test")
+    },
+    {
+      key: "blendit-best-lxy",
+      title: "Blendit Best · testset_lxy",
+      description: "现有最优三分类 MLP（test Macro-F1 0.964880）在 testset_lxy 上的 SEG GT / 预测对比",
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "blendit-best-lxy")
     },
     {
       key: "filletrec",

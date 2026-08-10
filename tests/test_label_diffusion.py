@@ -169,3 +169,47 @@ def test_label_diffusion_prediction_conversions_are_inverse():
     reconstructed_epsilon = schedule.predict_epsilon(x_t, timesteps, x_start)
     assert torch.allclose(reconstructed_x_start, x_start, atol=1.0e-5)
     assert torch.allclose(reconstructed_epsilon, epsilon, atol=1.0e-5)
+
+
+def test_joint_prediction_loss_uses_literal_component_weights():
+    import torch
+
+    from blendit.config import feature_dims
+    from blendit.data.graph import collate_graphs
+    from blendit.models import (
+        build_segmentation_model,
+        compute_label_diffusion_loss,
+        prepare_label_diffusion_training_batch,
+    )
+    from blendit.training.smoke import synthetic_graph
+
+    config = _small_diffusion_config()
+    config["label_diffusion"]["prediction_type"] = "x_start_epsilon"
+    config["label_diffusion"]["x_start_loss_weight"] = 1.0
+    config["label_diffusion"]["epsilon_loss_weight"] = 0.5
+    face_dim, edge_dim = feature_dims(config)
+    batch = collate_graphs([synthetic_graph("literal-weights", 4, face_dim, edge_dim, 3)])
+    model = build_segmentation_model(config, face_dim, edge_dim)
+    prepared = prepare_label_diffusion_training_batch(model, batch, config)
+    prediction = model(batch, prepared.x_t, prepared.timesteps, prepared.face_indices)
+
+    loss, metrics = compute_label_diffusion_loss(prediction, prepared, model)
+
+    expected = metrics["x_start_mse"] + 0.5 * metrics["epsilon_mse"]
+    assert loss.item() == pytest.approx(expected)
+
+
+def test_label_diffusion_rejects_score_bias_with_wrong_class_count():
+    from blendit.config import feature_dims
+    from blendit.data.graph import collate_graphs
+    from blendit.models import build_segmentation_model, predict_segmentation_probabilities
+    from blendit.training.smoke import synthetic_graph
+
+    config = _small_diffusion_config()
+    config["label_diffusion"]["class_score_bias"] = [0.0, 0.0]
+    face_dim, edge_dim = feature_dims(config)
+    batch = collate_graphs([synthetic_graph("score-bias", 4, face_dim, edge_dim, 3)])
+    model = build_segmentation_model(config, face_dim, edge_dim)
+
+    with pytest.raises(ValueError, match="one value per class"):
+        predict_segmentation_probabilities(model, batch, config)

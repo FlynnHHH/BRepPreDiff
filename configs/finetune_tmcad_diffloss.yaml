@@ -47,7 +47,7 @@ train:
   grad_clip_norm: 1.0
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
-  selection_metric: f1
+  selection_metric: acc
   resume: null
   pretrain_checkpoint: null
   encoder_freeze_mode: none

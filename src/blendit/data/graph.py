@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -72,6 +73,91 @@ def normalize_graph_features(graph: BRepGraph, eps: float = 1.0e-6) -> BRepGraph
         edge_mean = edge.mean(dim=0, keepdim=True)
         edge_std = edge.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
         edge = (edge - edge_mean) / edge_std
+    return BRepGraph(
+        face_cont=face,
+        face_surface_type=graph.face_surface_type,
+        edge_index=graph.edge_index,
+        edge_cont=edge,
+        edge_type=graph.edge_type,
+        edge_relation=graph.edge_relation,
+        labels=graph.labels,
+        sample_id=graph.sample_id,
+    )
+
+
+@dataclass(frozen=True)
+class GlobalFeatureStats:
+    face_mean: torch.Tensor
+    face_std: torch.Tensor
+    edge_mean: torch.Tensor
+    edge_std: torch.Tensor
+    face_count: int
+    edge_count: int
+    uv_grid_size: int
+
+
+def load_global_feature_stats(path: str | Path) -> GlobalFeatureStats:
+    stats_path = Path(path)
+    with stats_path.open("r", encoding="utf-8") as stream:
+        payload = json.load(stream)
+    if int(payload.get("version", 0)) != 1:
+        raise ValueError(f"Unsupported feature-statistics version in {stats_path}.")
+    return GlobalFeatureStats(
+        face_mean=torch.tensor(payload["face_mean"], dtype=torch.float32),
+        face_std=torch.tensor(payload["face_std"], dtype=torch.float32),
+        edge_mean=torch.tensor(payload["edge_mean"], dtype=torch.float32),
+        edge_std=torch.tensor(payload["edge_std"], dtype=torch.float32),
+        face_count=int(payload["face_count"]),
+        edge_count=int(payload["edge_count"]),
+        uv_grid_size=int(payload["uv_grid_size"]),
+    )
+
+
+def typewise_global_standardize_graph_features(
+    graph: BRepGraph,
+    stats: GlobalFeatureStats,
+    *,
+    uv_grid_size: int,
+    eps: float = 1.0e-6,
+) -> BRepGraph:
+    """Apply global z-scores except to directional/bounded feature channels."""
+    if stats.uv_grid_size != uv_grid_size:
+        raise ValueError(
+            f"Feature statistics use uv_grid_size={stats.uv_grid_size}, "
+            f"but the dataset uses {uv_grid_size}."
+        )
+    if stats.face_mean.numel() != graph.face_cont.shape[-1]:
+        raise ValueError("Face feature statistics have an incompatible dimension.")
+    if stats.edge_mean.numel() != graph.edge_cont.shape[-1]:
+        raise ValueError("Edge feature statistics have an incompatible dimension.")
+
+    face_std = stats.face_std.clamp_min(eps)
+    face = (graph.face_cont - stats.face_mean) / face_std
+    # Surface normals are directional unit vectors, so a component-wise z-score
+    # would destroy their geometry. Re-normalize each xyz vector instead.
+    center_normals = graph.face_cont[:, 4:7]
+    face[:, 4:7] = center_normals / center_normals.norm(
+        dim=-1, keepdim=True
+    ).clamp_min(eps)
+    grid_input = graph.face_cont[:, 11:].reshape(
+        graph.num_faces, uv_grid_size * uv_grid_size, 6
+    )
+    grid_output = face[:, 11:].reshape(
+        graph.num_faces, uv_grid_size * uv_grid_size, 6
+    )
+    grid_normals = grid_input[:, :, 3:6]
+    grid_output[:, :, 3:6] = grid_normals / grid_normals.norm(
+        dim=-1, keepdim=True
+    ).clamp_min(eps)
+
+    edge = graph.edge_cont.clone()
+    if edge.numel() > 0:
+        # edge_cont = [log1p(length), angle/pi, normal dot product]. Only the
+        # unbounded length channel needs a fitted global z-score.
+        edge[:, 0] = (edge[:, 0] - stats.edge_mean[0]) / stats.edge_std[0].clamp_min(eps)
+        edge[:, 1] = edge[:, 1].clamp(0.0, 1.0)
+        edge[:, 2] = edge[:, 2].clamp(-1.0, 1.0)
+
     return BRepGraph(
         face_cont=face,
         face_surface_type=graph.face_surface_type,
@@ -166,9 +252,18 @@ def graph_from_arrays(arrays: dict[str, Any], sample_id: str) -> BRepGraph:
     )
 
 
-def load_graph_npz(path: str | Path, sample_id: str) -> BRepGraph:
+def load_graph_npz(
+    path: str | Path,
+    sample_id: str,
+    *,
+    load_labels: bool = True,
+) -> BRepGraph:
     with np.load(path, allow_pickle=False) as data:
-        arrays = {key: data[key] for key in data.files}
+        arrays = {
+            key: data[key]
+            for key in data.files
+            if load_labels or key != "labels"
+        }
     return graph_from_arrays(arrays, sample_id)
 
 

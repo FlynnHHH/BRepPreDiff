@@ -64,6 +64,32 @@ def test_step_and_seg_directories_are_configured_independently(tmp_path: Path):
     assert dataset.samples[0].seg_path == seg_path
 
 
+def test_explicitly_unlabeled_source_ignores_co_located_json(tmp_path: Path):
+    steps_dir = tmp_path / "fusion_gallery"
+    steps_dir.mkdir()
+    step_path = steps_dir / "part.step"
+    step_path.touch()
+    # Fusion360Rec/Fusion360Ass JSON is task metadata, not a face-label list.
+    (steps_dir / "part.json").write_text('{"metadata": {}}', encoding="utf-8")
+
+    config = load_config("data/default.yaml")
+    config["data"].update(
+        {
+            "steps_dir": str(steps_dir),
+            "segs_dir": str(steps_dir),
+            "cache_dir": str(tmp_path / "cache"),
+            "train_split": None,
+            "labels_required": False,
+        }
+    )
+
+    dataset = StepSegDataset(config, split="train", source_mode=True)
+
+    assert len(dataset) == 1
+    assert dataset.samples[0].step_path == step_path
+    assert dataset.samples[0].seg_path is None
+
+
 def test_cached_train_uses_configured_split(tmp_path: Path):
     cache_path = tmp_path / "cache" / "part_abc123.npz"
     _write_cache(cache_path)

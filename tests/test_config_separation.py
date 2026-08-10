@@ -13,6 +13,8 @@ DATA_CONFIGS = (
     "data/finetune.yaml",
     "data/filletrec.yaml",
     "data/mfcad.yaml",
+    "data/fusion360seg.yaml",
+    "data/pretrain_joint_all_splits.yaml",
 )
 TRAINING_CONFIGS = (
     "configs/default.yaml",
@@ -23,6 +25,13 @@ TRAINING_CONFIGS = (
     "configs/finetune_filletrec_diffloss.yaml",
     "configs/finetune_mfcad_baseline.yaml",
     "configs/finetune_mfcad_mlp.yaml",
+    "configs/finetune_fusion360seg_mlp_full.yaml",
+    "configs/pretrain_joint_all_splits_no_coarse.yaml",
+    "configs/finetune_joint_blendit_mlp.yaml",
+    "configs/finetune_joint_blendit_diffloss.yaml",
+    "configs/finetune_joint_tmcad_mlp.yaml",
+    "configs/finetune_joint_fusion360seg_mlp.yaml",
+    "configs/finetune_joint_mfcadpp_mlp.yaml",
 )
 
 
@@ -62,3 +71,20 @@ def test_experiment_config_resolves_relative_data_config_and_applies_overrides(t
     assert config["brep"]["uv_grid_size"] == 4
     assert config["train"]["epochs"] == 3
     assert Path(config["data_config"]) == config_dir / "../data/prepare.yaml"
+
+
+def test_experiment_config_parses_list_override(tmp_path: Path):
+    data_path = tmp_path / "data.yaml"
+    training_path = tmp_path / "training.yaml"
+    data_path.write_text("data: {}\n", encoding="utf-8")
+    training_path.write_text(
+        f"data_config: {data_path}\ntrain:\n  class_weights: null\n",
+        encoding="utf-8",
+    )
+
+    config = load_experiment_config(
+        training_path,
+        overrides=["train.class_weights=[0.67,1.37,0.96]"],
+    )
+
+    assert config["train"]["class_weights"] == [0.67, 1.37, 0.96]
