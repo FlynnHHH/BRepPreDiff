@@ -20,10 +20,10 @@ def _write_cache(path: Path, label: int) -> None:
     save_graph_npz(
         path,
         {
-            "face_cont": np.zeros((2, 17), dtype=np.float32),
+            "face_cont": np.zeros((2, 18), dtype=np.float32),
             "face_surface_type": np.zeros((2,), dtype=np.int64),
             "edge_index": np.asarray([[0, 1], [1, 0]], dtype=np.int64),
-            "edge_cont": np.zeros((2, 3), dtype=np.float32),
+            "edge_cont": np.zeros((2, 9), dtype=np.float32),
             "edge_type": np.zeros((2,), dtype=np.int64),
             "edge_relation": np.zeros((2,), dtype=np.int64),
             "labels": np.full((2,), label, dtype=np.int64),

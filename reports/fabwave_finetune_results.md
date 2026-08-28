@@ -8,7 +8,7 @@
 - OCC-valid CAD: 4,549 models
 - Clean split sizes: 3,639 train, 463 validation, 447 test
 - Pretrained encoder:
-  `runs/pretrain/20260723-213828_joint_all_splits_no_coarse/checkpoints/last.pt`
+  `<joint-pretrain-run>/checkpoints/last.pt`
 - MLP: 100 epochs; DiffLoss: 200 epochs
 - Optimizer: AdamW, learning rate `3e-4`, weight decay `1e-4`
 - Effective training batch size: 512 (256 per GPU, two GPUs per head)
@@ -62,7 +62,7 @@ standard configured-class metric so it matches the saved evaluator output.
 
 - Dataset config: `data/fabwave.yaml`
 - Class map: `data/splits/fabwave_class_map.json`
-- Invalid STEP audit: `data/cache/features/fabwave_invalid.jsonl`
+- Invalid STEP audit: `/data/hhfeng/blendit/cache/features/fabwave_invalid.jsonl`
 - MLP checkpoint:
   `runs/finetune/20260804-152415_joint_fabwave_mlp/checkpoints/best.pt`
 - MLP metrics:

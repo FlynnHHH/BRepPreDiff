@@ -1,12 +1,12 @@
 data:
   steps_dir: data/filletrec/filletRec/steps
   segs_dir: data/filletrec/filletRec/labels
-  cache_dir: data/cache/filletrec
+  cache_dir: /data/hhfeng/blendit/cache/filletrec
   prepare_on_start: false
   cache_dirs:
-    train: data/cache/filletrec/train
-    val: data/cache/filletrec/val
-    test: data/cache/filletrec/test
+    train: /data/hhfeng/blendit/cache/filletrec/train
+    val: /data/hhfeng/blendit/cache/filletrec/val
+    test: /data/hhfeng/blendit/cache/filletrec/test
   train_split: data/filletrec/filletRec/train.txt
   val_split: data/filletrec/filletRec/val.txt
   test_split: data/filletrec/filletRec/test.txt

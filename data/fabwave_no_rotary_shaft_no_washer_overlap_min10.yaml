@@ -3,7 +3,7 @@ task: cls
 data:
   steps_dir: /data/hhfeng/FabWave
   labels_dir: data/labels/fabwave_no_rotary_shaft_no_washer_overlap_min10
-  cache_dir: data/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10
+  cache_dir: /data/hhfeng/blendit/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10
   prepare_on_start: false
   train_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_train.txt
   val_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_val.txt

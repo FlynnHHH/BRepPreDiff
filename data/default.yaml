@@ -1,7 +1,7 @@
 data:
   steps_dir: data/raw/steps
   segs_dir: data/raw/segs
-  cache_dir: data/cache/features
+  cache_dir: /data/hhfeng/blendit/cache/features
   prepare_on_start: false
   train_split: data/splits/train.txt
   val_split: data/splits/val.txt
@@ -20,6 +20,7 @@ data:
 
 brep:
   uv_grid_size: 4
+  edge_u_grid_size: 4
   occ_precision: 1.0e-6
   smooth_angle_degrees: 5.0
   surface_type_vocab: 32

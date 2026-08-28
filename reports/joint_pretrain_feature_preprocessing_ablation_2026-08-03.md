@@ -21,7 +21,7 @@
 | 项目 | 设置 |
 |---|---|
 | 数据配置 | `data/pretrain_joint_all_splits.yaml` |
-| 模型 | 4 层、hidden dim 128 的无 coarse head 扩散预训练模型 |
+| 模型 | 4 层、hidden dim 128 的扩散预训练模型 |
 | 训练轮数 | 150 epochs |
 | 随机种子 | 42 |
 | 优化器 | AdamW，学习率 `1e-3`，weight decay `1e-4` |
@@ -138,4 +138,3 @@ x' = \frac{x - \mu_{graph}}{\max(\sigma_{graph}, 10^{-6})}
 - `runs/launch_logs/20260803-154958_joint_pretrain_per_graph.log`
 - `runs/launch_logs/20260803-154958_joint_pretrain_none.log`
 - `runs/launch_logs/20260803-154958_joint_pretrain_typewise_global.log`
-

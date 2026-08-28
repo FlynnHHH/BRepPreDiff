@@ -87,7 +87,14 @@ class StepSegDataset(Dataset):
         if graph.labels is None:
             raise ValueError(f"No labels were loaded from {sample.seg_path}.")
         if self.normalize_per_graph:
-            graph = normalize_graph_features(graph)
+            uv_grid_size = int(self.config["brep"]["uv_grid_size"])
+            graph = normalize_graph_features(
+                graph,
+                uv_grid_size=uv_grid_size,
+                edge_u_grid_size=int(
+                    self.config["brep"].get("edge_u_grid_size", uv_grid_size)
+                ),
+            )
         return graph
 
 

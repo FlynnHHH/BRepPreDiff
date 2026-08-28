@@ -1,35 +1,37 @@
 # Fusion360Seg、MFCAD++、TMCAD、FabWave 论文准确率调研与 BlendIt 对比
 
 > 检索截止：2026-07-23  
-> BlendIt 实验结果更新：2026-08-07  
+> BlendIt 实验结果更新：2026-08-11
 > 排序指标：Accuracy（Acc，%），同一论文的多个版本优先采用正式发表版或最新版。  
 > `NR` 表示论文明确使用了该数据集，但可访问正文、主表或摘要没有披露可核验的该数据集 Accuracy。
 
 ## 结论摘要
 
 - **MFCAD++ 数值上位列第 8/21，但不是严格的测试隔离对比。** 最新最佳结果来自 **Edge Update Attention + MLP 微调头**：Acc **99.3632%**、Macro-F1 **98.9913%**、Macro-IoU **98.0172%**。它比 Hierarchical CADNet 高 **1.99 pp**，比 BrepMFR 低 **0.40 pp**。
-- **TMCAD 只能在注明版本与预训练协议后比较。** 最新 Edge Update Attention + DiffLoss 结果为 Acc **83.9926%**、Macro-F1 **83.4995%**、Macro-IoU **72.3311%**；数值上比 BRT 的 83.45% 高 **0.54 pp**，但低于 Brep2Shape 的 84.72%。有效样本、划分和预训练协议不同，不能把差值解释为纯模型收益。
+- **TMCAD 只能在注明版本与预训练协议后比较。** 最新 Edge Update Attention + Mean+Max pooling + MLP 结果为 Acc **86.1086%**、Macro-F1 **85.7531%**、Macro-IoU **75.6592%**，在本表中数值上列第 **3/5**；比 Brep2Shape 的 84.72% 高 **1.39 pp**、比 BRT 的 83.45% 高 **2.66 pp**。有效样本、划分和预训练协议不同，不能把差值解释为纯模型收益。
 - **Fusion360Seg 现在有两套不同任务结果。** 标准 8 类任务上的最新最佳结果来自 **Edge Update Attention + MLP 微调头**：Acc **93.0596%**、Macro-F1 **87.3927%**、Macro-IoU **78.6993%**，数值上排第 **9/15**；本地 3 类 `NonTransition / VBF / EBF` 任务仍须与标准 8 类榜单分开报告。
-- **FabWave 没有统一的官方划分或稳定的标签版本。** 清洗后 40 类上，最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 实验得到相同测试结果：Acc **97.9540%**、Macro-F1 **99.4929%**、Macro-IoU **99.0794%**。该版本删除了 Rotary Shaft、302 个 Washers/O-Rings 重叠模型及有效样本少于 10 的类别；论文主榜通常采用 45 类且划分不同，因此只作数值参考。
+- **FabWave 没有统一的官方划分或稳定的标签版本。** 清洗后 40 类上，最新 **Edge Update Attention + Mean+Max pooling + MLP** 与 baseline encoder + Mean+Max 及先前分类实验得到相同测试结果：Acc **97.9540%**、Macro-F1 **99.4929%**、Macro-IoU **99.0794%**。该版本删除了 Rotary Shaft、302 个 Washers/O-Rings 重叠模型及有效样本少于 10 的类别；论文主榜通常采用 45 类且划分不同，因此只作数值参考。
 - 本次共整理：Fusion360Seg **14** 篇论文结果加 **1** 条 BlendIt 标准 8 类结果、MFCAD++ **20** 篇论文结果加 **1** 条 BlendIt 本地结果、TMCAD **4** 篇论文结果加 **1** 条 BlendIt 本地结果；FabWave 包含 **5** 条 45 类论文主榜结果、**1** 条 BlendIt 40 类结果、**6** 条派生/特殊协议结果和 **1** 条仅报告 F1/mAP 的结果。
 
-最新 BlendIt 结果来自 **333,476** 个可解析 STEP 的七来源联合无标签预训练，使用
-**Edge Update Attention** encoder 预训练 150 epochs（micro-batch 32、梯度累积 8、有效 batch 256）。来源包括
+最新分割与分类结果来自 **333,476** 个可解析 STEP 的七来源联合无标签预训练，使用
+**Edge Update Attention** encoder 预训练 150 epochs（micro-batch 32、梯度累积 8、有效 batch 256）；
+TMCAD/FabWave 分类采用 **Mean+Max pooling** 和 MLP 分类头。预训练 checkpoint SHA-256 为
+`647be213de85ea393e94ec96e6fb33f4b4c87ed2e6709f8f8d041d7ba64c89ae`。预训练来源包括
 Blendit、TMCAD、Fusion360Seg s2.0.1、MFCAD++、Fusion360Rec、Fusion360Ass 和
 FabWave（清洗后 40 类版本）。各下游数据集的 train、validation、test 几何均参与无标签预训练，但微调、
 模型选择和最终评估仍分别只使用 train、validation 和 test 标签。因此，这些结果属于
 **transductive self-supervised pretraining**，下表中的排名和差值
 只表示数值位置，不能解释为与测试几何完全隔离方法之间的纯模型收益。
 
-### 最新 Edge Update Attention 实验汇总
+### 最新 BlendIt 主结果汇总
 
 | 下游任务 | 任务 / 微调头 | Best epoch | Test Acc | Macro-F1 | Macro-IoU |
 |---|---|---:|---:|---:|---:|
 | BlendIt | Seg / MLP | 18 | 98.1210% | 96.2606% | 92.8949% |
 | Fusion360Seg | Seg / MLP | 97 | 93.0596% | 87.3927% | 78.6993% |
 | MFCAD++ | Seg / MLP | 88 | 99.3632% | 98.9913% | 98.0172% |
-| TMCAD | Cls / DiffLoss | 173 | 83.9926% | 83.4995% | 72.3311% |
-| FabWave 40 类清洗版 | Cls / DiffLoss | 87 | 97.9540% | 99.4929% | 99.0794% |
+| TMCAD | Cls / Edge Update + Mean+Max + MLP | 141 | 86.1086% | 85.7531% | 75.6592% |
+| FabWave 40 类清洗版 | Cls / Edge Update + Mean+Max + MLP | 29 | 97.9540% | 99.4929% | 99.0794% |
 
 ## 1. 口径与可比性
 
@@ -87,10 +89,10 @@ BlendIt 在该标准 8 类任务上的最佳完整聚合指标来自
 | BlendIt `baseline_default` | 3 | 7,659 | 97.8509% | 95.4612% | 91.4494% |
 | BlendIt `ablation_head_mlp_full`（最佳 F1/mIoU） | 3 | 7,659 | 98.1234% | **96.4880%** | **93.3230%** |
 | BlendIt `ablation_mlp_encoder_partial` | 3 | 7,659 | 98.1283% | 96.4395% | 93.2313% |
-| **BlendIt `joint_all_splits_no_coarse`（先前最高 Acc）** | 3 | 7,659 | **98.1403%** | 96.3957% | 93.1435% |
+| **BlendIt `joint_all_splits`（先前最高 Acc）** | 3 | 7,659 | **98.1403%** | 96.3957% | 93.1435% |
 | BlendIt Edge Update Attention + MLP（新联合预训练） | 3 | 7,659 | 98.1210% | 96.2606% | 92.8949% |
 
-**比较结论：不可直接排位。** BlendIt 的 `NonTransition / VBF / EBF` 与标准数据集的 ExtrudeSide、CutEnd、Fillet 等 8 类操作标签没有一一对应关系，而且本地训练规模仅约为标准数据集的 21%。新 Edge Update 结果为 **98.1210% Acc / 96.2606% Macro-F1 / 92.8949% Macro-IoU**；当前该任务最高 Acc 仍是 `joint_all_splits_no_coarse` 的 **98.1403%**。建议将该实验命名为 **“Fusion-derived 3-class transition task”**，与第 2.1 节的标准 Fusion360Seg 8 类结果分开报告。
+**比较结论：不可直接排位。** BlendIt 的 `NonTransition / VBF / EBF` 与标准数据集的 ExtrudeSide、CutEnd、Fillet 等 8 类操作标签没有一一对应关系，而且本地训练规模仅约为标准数据集的 21%。新 Edge Update 结果为 **98.1210% Acc / 96.2606% Macro-F1 / 92.8949% Macro-IoU**；当前该任务最高 Acc 仍是 `joint_all_splits` 的 **98.1403%**。建议将该实验命名为 **“Fusion-derived 3-class transition task”**，与第 2.1 节的标准 Fusion360Seg 8 类结果分开报告。
 
 ### 2.3 使用了 Fusion 数据但未进入 Accuracy 排名
 
@@ -153,29 +155,35 @@ BlendIt 在该标准 8 类任务上的最佳完整聚合指标来自
 
 ### 4.1 全部可核验结果（Acc 降序）
 
-以最新 BlendIt **Edge Update Attention + DiffLoss** 的 **83.9926%** 为本地基准。由于各论文的数据清洗、标签、划分与预训练协议差异明显，以下 `Δ` 只作数值参考。
+以最新 BlendIt **Edge Update Attention + Mean+Max pooling + MLP** 的 **86.1086%** 为本地基准。由于各论文的数据清洗、标签、划分与预训练协议差异明显，以下 `Δ` 只作数值参考。
 
 | 排名 | 论文 / 方法 | 年份 | Acc | Δ vs BlendIt | 等级 | 数据版本与协议 |
 |---:|---|---:|---:|---:|:---:|---|
-| 1 | [KDH-CAD](https://arxiv.org/abs/2606.01702) | 2026 | **95.82** | +11.83 | C | 清洗重标注 9,799；Bolt/Screw 合并并增加 Spring；仅 1,000 train shots，固定 500 val/500 test；Macro-F1=94.47 |
-| 2 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | **88.50** | +4.51 | B | SSRN 预印本；摘要报告 TMCAD shape-level Acc，具体有效样本与划分未完整披露 |
-| 3 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **84.72** | +0.73 | B | 仅保留 7,599 个有效文件；取最佳模型规模；默认 100 epoch 为 82.64，350 epoch 为 84.03 |
-| **4** | **BlendIt（Edge Update Attention + DiffLoss；全量联合预训练）** | 2026 | **83.9926** | **基准** | B | 原始 MechCAD 10 类；10,897 个源模型、10,886 个有效模型；8,709/1,090/1,087；无标签 test 几何参与七来源联合预训练；200 epochs；按 validation Acc 选择 epoch 173 `best.pt` |
-| 5 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **83.45** | −0.54 | A− | 原始 TMCAD 家族、10 类、70/15/15；期刊最终版；v1/MechCAD 曾报告 82.01 |
+| 1 | [KDH-CAD](https://arxiv.org/abs/2606.01702) | 2026 | **95.82** | +9.71 | C | 清洗重标注 9,799；Bolt/Screw 合并并增加 Spring；仅 1,000 train shots，固定 500 val/500 test；Macro-F1=94.47 |
+| 2 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | **88.50** | +2.39 | B | SSRN 预印本；摘要报告 TMCAD shape-level Acc，具体有效样本与划分未完整披露 |
+| **3** | **BlendIt（Edge Update Attention + Mean+Max pooling + MLP；七来源联合预训练）** | 2026 | **86.1086** | **基准** | B | 原始 MechCAD 10 类；10,897 个源模型、10,886 个有效模型；8,709/1,090/1,087；无标签 test 几何参与七来源联合预训练；200 epochs；按 validation Acc 选择 epoch 141 `best.pt` |
+| 4 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **84.72** | −1.39 | B | 仅保留 7,599 个有效文件；取最佳模型规模；默认 100 epoch 为 82.64，350 epoch 为 84.03 |
+| 5 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **83.45** | −2.66 | A− | 原始 TMCAD 家族、10 类、70/15/15；期刊最终版；v1/MechCAD 曾报告 82.01 |
 
 ### 4.2 BlendIt 本地结果对照
 
 | 方法 | Test Acc | Macro-F1 | Macro-IoU |
 |---|---:|---:|---:|
+| **BlendIt Edge Update Attention + Mean+Max pooling + MLP（最新实验，200 epochs）** | **86.1086%** | **85.7531%** | **75.6592%** |
+| BlendIt baseline encoder + Mean+Max pooling + MLP（pooling v3，200 epochs） | 85.5566% | 85.2855% | 75.0315% |
+| BlendIt baseline encoder + Mean pooling + MLP（同组受控基线，200 epochs） | 82.6127% | 82.1251% | 70.4983% |
 | BlendIt baseline encoder + DiffLoss（先前联合预训练，200 epochs） | 84.2686% | 83.9380% | 73.2085% |
 | BlendIt MLP（全量联合预训练，200 epochs） | 81.8767% | 81.3106% | 69.4729% |
-| **BlendIt Edge Update Attention + DiffLoss（新联合预训练，200 epochs）** | **83.9926%** | **83.4995%** | **72.3311%** |
+| BlendIt Edge Update Attention + DiffLoss（先前最新结果，200 epochs） | 83.9926% | 83.4995% | 72.3311% |
 
-新 Edge Update Attention 结果相对先前 baseline encoder + DiffLoss 低
-**0.2760 pp Acc**、**0.4385 pp Macro-F1** 和 **0.8774 pp Macro-IoU**。两次实验的
-联合语料版本也不同，不应将差值解释为单一 encoder 效应。
+在保持 encoder、预训练 checkpoint、MLP 头、数据划分和训练超参数一致时，baseline encoder 上的 Mean+Max 相对 Mean 提升
+**2.9439 pp Acc**、**3.1604 pp Macro-F1** 和 **4.5331 pp Macro-IoU**，参数量增加 **6.00%**。
+进一步换用 Edge Update Attention 及其架构匹配预训练 checkpoint 后，相对 baseline encoder + Mean+Max
+提高 **0.5520 pp Acc**、**0.4676 pp Macro-F1** 和 **0.6277 pp Macro-IoU**，但参数量增加
+**112.40%**。两种 encoder 对应的预训练语料分别为 333,476/334,036 图，因此该差值不是严格的单变量 encoder 消融；
+结果也只来自单随机种子，仍需多种子实验确认稳定性。
 
-**最接近的数据版本参照是 BRT。** 它仍使用原始 TMCAD 10 类家族，但采用 70/15/15 划分，而 BlendIt 约为 80/10/10；此外 BlendIt 的无标签 test 几何参与了联合预训练。BlendIt 数值高 **0.54 pp**；该差距可用于定位，但不应写成严格同协议优越性。
+**最接近的数据版本参照是 BRT。** 它仍使用原始 TMCAD 10 类家族，但采用 70/15/15 划分，而 BlendIt 约为 80/10/10；此外 BlendIt 的无标签 test 几何参与了联合预训练。BlendIt 数值高 **2.66 pp**；该差距可用于定位，但不应写成严格同协议优越性。
 
 ## 5. FabWave
 
@@ -190,14 +198,14 @@ BlendIt 的清洗后 40 类本地结果作为数值参考；排名表示已报�
 | 1 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **99.99** | B | 4,572 个模型、45 类；6-layer 模型在 Brep2Shape-250k 上预训练后微调 100 epochs；预训练语料本身含 3,270 个 FabWave 模型；99.99 为主表/最佳种子值，附录三种子均值为 99.74±0.43 |
 | 2 | [Bringing Attention to CAD / BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **98.95** | A− | 45 类 FabWave；期刊最终版/v2；数据集无官方划分，具体有效文件与随机划分需随实现记录 |
 | 3 | [VGNet](https://doi.org/10.1109/TMM.2024.3521706) | 2025 | **98.00** | A− | 4,475 个模型、45 类；融合多视图与 B-rep attributed graph；同文 retrieval mAP=92.90 |
-| **4** | **BlendIt（Edge Update Attention + DiffLoss；全量联合预训练）** | 2026 | **97.9540** | C | 清洗后 40 类、3,989 个有效模型；3,191/407/391；按最高 validation Acc 选择 epoch 87 `best.pt`；无标签 test 几何参与七来源联合预训练；200 epochs；类别与划分不同，仅作数值参考 |
+| **4** | **BlendIt（Edge Update Attention + Mean+Max pooling + MLP；七来源联合预训练）** | 2026 | **97.9540** | C | 清洗后 40 类、3,989 个有效模型；3,191/407/391；按最高 validation Acc 选择 epoch 29 `best.pt`；无标签 test 几何参与七来源联合预训练；200 epochs；类别与划分不同，仅作数值参考 |
 | 5 | [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 2024 | **96.33** | B | AAGNet 原本面向分割；此处采用 Brep2Shape 按分类任务适配并训练 350 epochs 的同表基线，不是 AAGNet 原论文主任务结果 |
 | 6 | [UV-Net](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | **92.68** | B | 采用 Brep2Shape 的 45 类同表复现值；UV-Net 原论文的 52 类 Standard 子集结果为 94.51%，见第 5.2 节 |
 
-BlendIt 最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 得到完全相同的测试结果：**97.9540% Acc /
+BlendIt 最新 **Edge Update Attention + Mean+Max pooling + MLP** 与 baseline encoder + Mean+Max、baseline pooling 消融及先前分类实验得到完全相同的测试结果：**97.9540% Acc /
 99.4929% Macro-F1 / 99.0794% Macro-IoU / 97.9461% Weighted-F1**，391 个 test
-样本中正确 383 个。新 checkpoint 位于 epoch 87，validation Acc 为
-**96.8059%**。本地数据处理依次删除
+样本中正确 383 个。Edge Update + Mean+Max checkpoint 位于 epoch 29，validation Acc 为
+**97.0516%**。本地数据处理依次删除
 250 个 `Rotary_Shaft`、302 个与 O-Rings 重叠的 Washers，以及有效样本少于 10 的
 `Webbing Guide`（0）、`Miter Gears`（1）和 `Sleeve Washers`（7）；最终保留 40 类。
 由于论文主榜通常采用 45 类，不能将表中第 4 的数值位置解释为严格方法排名。
@@ -223,7 +231,7 @@ BlendIt 最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 得�
 
 - **最接近当前 45 类全量基准的是 BRT、VGNet 与 Brep2Shape 主表。** 即使类别数相同，4,475、4,504、4,572 等有效模型统计和随机划分仍不一致。
 - **Brep2Shape 的 99.99% 不能直接视为严格 test-isolated SOTA。** 其 250k 预训练集包含 3,270 个 FabWave 模型；论文未证明这些模型与下游 test split 完全去重隔离。更稳妥的复现实验参照是附录三种子均值 **99.74±0.43%**。
-- **BlendIt baseline MLP/DiffLoss 与新 Edge Update Attention + DiffLoss 在清洗后 40 类协议上均为 97.9540% Acc。** 数值上比 Brep2Shape/BRT 的 45 类结果低 2.04/1.00 pp，比 VGNet 低 0.05 pp；类别、有效模型和划分不同，差值只作定位。
+- **BlendIt Edge Update Attention + Mean+Max、baseline encoder + Mean+Max 及先前分类实验在清洗后 40 类协议上均为 97.9540% Acc。** 更大的 encoder 未在该任务上带来可见 test 收益；数值上比 Brep2Shape/BRT 的 45 类结果低 2.04/1.00 pp，比 VGNet 低 0.05 pp，且类别、有效模型和划分不同，差值只作定位。
 - **FabWave 很容易受近重复、参数变体和类别过滤影响。** 后续实验应固定文件 manifest、哈希去重、类别表和随机种子，并同时报告 Macro-F1。
 
 ## 6. 建议用于论文/报告的表述
@@ -238,11 +246,11 @@ BlendIt 最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 得�
 
 ### TMCAD
 
-> On the original ten-class TMCAD/MechCAD taxonomy, BlendIt with an Edge Update Attention encoder and a DiffLoss fine-tuning head achieved 83.99% accuracy and 83.50% macro-F1. BRT reports 83.45% on the original dataset family and Brep2Shape reports 84.72% on a more heavily filtered version; the data splits and pretraining protocols differ.
+> On the original ten-class TMCAD/MechCAD taxonomy, BlendIt with a four-layer Edge Update Attention encoder, Mean+Max graph pooling, and an MLP fine-tuning head achieved 86.11% accuracy, 85.75% macro-F1, and 75.66% macro-IoU. This is 0.55 percentage points above the corresponding baseline-encoder Mean+Max experiment, although the architecture-matched pretraining checkpoints used slightly different seven-source corpora. BRT reports 83.45% on the original dataset family and Brep2Shape reports 84.72% on a more heavily filtered version; the data splits and pretraining protocols differ.
 
 ### FabWave
 
-> FabWave results are reported separately by label taxonomy and supervision protocol because the dataset has no official split and published variants contain different numbers of categories and valid models. After removing Rotary Shaft, 302 overlapping Washer/O-Ring models, and classes with fewer than ten valid samples, BlendIt with an Edge Update Attention encoder and a DiffLoss head achieved 97.95% accuracy, 99.49% macro-F1, and 99.08% macro-IoU on a local 40-class split containing 3,989 valid models. On commonly used 45-class variants, Brep2Shape reports 99.99% accuracy (99.74% mean over three seeds) and BRT reports 98.95%; no strict direct comparison is claimed.
+> FabWave results are reported separately by label taxonomy and supervision protocol because the dataset has no official split and published variants contain different numbers of categories and valid models. After removing Rotary Shaft, 302 overlapping Washer/O-Ring models, and classes with fewer than ten valid samples, BlendIt with a four-layer Edge Update Attention encoder, Mean+Max graph pooling, and an MLP head achieved 97.95% accuracy, 99.49% macro-F1, and 99.08% macro-IoU on a local 40-class split containing 3,989 valid models. It tied the baseline-encoder Mean+Max experiment on all test metrics. On commonly used 45-class variants, Brep2Shape reports 99.99% accuracy (99.74% mean over three seeds) and BRT reports 98.95%; no strict direct comparison is claimed.
 
 ## 7. 检索边界与注意事项
 
@@ -260,7 +268,7 @@ BlendIt 最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 得�
 - `finetune_baseline_ablation_results.md`：Fusion-derived 三分类任务与消融结果
 - `mfcad_finetune_results.md`：MFCAD++ 官方划分与完整测试集结果
 - `tmcad_finetune_results.md`：TMCAD/MechCAD 原始 10 类结果
-- `joint_all_splits_no_coarse_report.md`：2026-07-24 更新的联合无 coarse-label 预训练、四项微调与完整测试结果
+- `joint_all_splits_report.md`：2026-07-24 更新的联合预训练、四项微调与完整测试结果
 - `joint_fusion_gallery_all_unlabeled_mlp_diffloss_2026-08-05.md`：334,036 个 STEP 的七来源联合预训练与 DiffLoss 四项测试结果
 - `joint_fusion_gallery_mlp_head_benchmarks_2026-08-05.md`：同一预训练 checkpoint 下的 MLP 四项测试结果及与 DiffLoss 的受控对比
 - `fabwave_min10_diffloss_acc_results_2026-08-06.md`：FabWave 40 类清洗口径、按最高 validation Acc 选取的 DiffLoss checkpoint、完整测试指标与错误构成
@@ -268,3 +276,7 @@ BlendIt 最新 **Edge Update Attention + DiffLoss** 与先前 MLP/DiffLoss 得�
 - `max_acc_best_checkpoint_retest_2026-08-06.md`：三项主数据集在 max-accuracy `best.pt` 策略下的 DiffLoss 重训与测试结果
 - `mlp_vs_diffloss_max_acc_results_2026-08-07.md`：四项任务共 4 组 MLP 与 4 组 DiffLoss 的统一 max-accuracy 对比、run 路径和 checkpoint 哈希
 - `runs/edge_update_new_joint/`：333,476 图七来源 Edge Update Attention 预训练 checkpoint，以及 BlendIt/Fusion360Seg/MFCAD++ MLP 和 TMCAD/FabWave DiffLoss 的完整测试指标
+- `cls_pooling_ablation_2026-08-11.md`：TMCAD 与 FabWave 的 Mean、Mean+Max、Mean+Std、Residual Attention 受控消融、完整测试指标、run 路径和 checkpoint 哈希
+- `runs/cls_pooling_ablation/finetune/`：baseline encoder 的 Mean+Max 与其他 pooling v3 消融训练配置、日志、`best.pt` 与测试产物
+- `edge_update_meanmax_cls_2026-08-11.md`：Edge Update Attention + Mean+Max 在 TMCAD/FabWave 上的正式结果、与 baseline encoder 的对比及 checkpoint 哈希
+- `runs/edge_update_meanmax_cls/`：物理 GPU 1/2 的完整训练配置、日志、checkpoint 与测试指标

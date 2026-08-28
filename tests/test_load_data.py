@@ -15,10 +15,10 @@ def _write_valid_cache(path: Path) -> None:
     save_graph_npz(
         path,
         {
-            "face_cont": np.zeros((1, 3), dtype=np.float32),
+            "face_cont": np.zeros((1, 123), dtype=np.float32),
             "face_surface_type": np.zeros((1,), dtype=np.int64),
             "edge_index": np.empty((2, 0), dtype=np.int64),
-            "edge_cont": np.empty((0, 1), dtype=np.float32),
+            "edge_cont": np.empty((0, 27), dtype=np.float32),
             "edge_type": np.empty((0,), dtype=np.int64),
             "edge_relation": np.empty((0,), dtype=np.int64),
             "labels": np.zeros((1,), dtype=np.int64),

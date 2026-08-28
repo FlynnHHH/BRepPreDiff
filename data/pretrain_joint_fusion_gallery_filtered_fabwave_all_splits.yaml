@@ -35,7 +35,10 @@ data:
         train: [train, val, test]
 
 brep:
+  # OCC-grid-v2: 11 + 10*10*7 = 711 face channels and
+  # 3 + 10*6 = 63 edge channels.
   uv_grid_size: 10
+  edge_u_grid_size: 10
   occ_precision: 1.0e-6
   smooth_angle_degrees: 5.0
   surface_type_vocab: 32

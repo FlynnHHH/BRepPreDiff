@@ -3,9 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
+import torch
 
 from blendit.config import load_config
-from blendit.data.dataset import StepSegDataset
+from blendit.data.dataset import StepSegDataset, build_dataloader
 from blendit.data.graph import save_graph_npz
 
 
@@ -13,10 +15,10 @@ def _write_cache(path: Path) -> None:
     save_graph_npz(
         path,
         {
-            "face_cont": np.zeros((2, 3), dtype=np.float32),
+            "face_cont": np.zeros((2, 123), dtype=np.float32),
             "face_surface_type": np.zeros((2,), dtype=np.int64),
             "edge_index": np.empty((2, 0), dtype=np.int64),
-            "edge_cont": np.empty((0, 1), dtype=np.float32),
+            "edge_cont": np.empty((0, 27), dtype=np.float32),
             "edge_type": np.empty((0,), dtype=np.int64),
             "edge_relation": np.empty((0,), dtype=np.int64),
             "labels": np.zeros((2,), dtype=np.int64),
@@ -122,6 +124,23 @@ def test_cached_val_split_can_reference_original_step_stem(tmp_path: Path):
     assert graph.num_faces == 2
 
 
+def test_cached_dataset_rejects_legacy_feature_dimensions(tmp_path: Path):
+    cache_path = tmp_path / "cache" / "part_abc123.npz"
+    _write_cache(cache_path)
+    with np.load(cache_path) as current:
+        arrays = {key: current[key] for key in current.files}
+    arrays["face_cont"] = np.zeros((2, 107), dtype=np.float32)
+    arrays["edge_cont"] = np.empty((0, 3), dtype=np.float32)
+    save_graph_npz(cache_path, arrays)
+    split_path = tmp_path / "split.txt"
+    split_path.write_text("part_abc123.npz\n", encoding="utf-8")
+
+    dataset = StepSegDataset(_cached_config(tmp_path, split_path), split="train")
+
+    with pytest.raises(ValueError, match="Rebuild the feature cache"):
+        dataset[0]
+
+
 def test_cached_dataset_uses_split_specific_cache_dirs(tmp_path: Path):
     train_cache = tmp_path / "cache_split" / "train"
     val_cache = tmp_path / "cache_split" / "val"
@@ -147,3 +166,34 @@ def test_cached_dataset_uses_split_specific_cache_dirs(tmp_path: Path):
     assert train_dataset[0].sample_id == "train"
     assert len(val_dataset) == 1
     assert val_dataset[0].sample_id == "val"
+
+
+def test_dataloader_seed_is_independent_from_model_rng(tmp_path: Path):
+    cache_dir = tmp_path / "cache"
+    cache_names = [f"part_{index}.npz" for index in range(8)]
+    for cache_name in cache_names:
+        _write_cache(cache_dir / cache_name)
+    split_path = tmp_path / "split.txt"
+    split_path.write_text("\n".join(cache_names) + "\n", encoding="utf-8")
+    config = _cached_config(tmp_path, split_path)
+    config["train"] = {
+        "batch_size": 2,
+        "num_workers": 0,
+        "dataloader_seed": 42,
+    }
+
+    torch.manual_seed(7)
+    first_order = [
+        sample_id
+        for batch in build_dataloader(config, split="train", shuffle=True)
+        for sample_id in batch.sample_ids
+    ]
+    torch.manual_seed(999)
+    torch.rand(1000)
+    second_order = [
+        sample_id
+        for batch in build_dataloader(config, split="train", shuffle=True)
+        for sample_id in batch.sample_ids
+    ]
+
+    assert first_order == second_order

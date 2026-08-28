@@ -19,7 +19,10 @@ MANIFEST_NAME = "finetune_test_manifest.json"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite-dir", required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--suite-dir")
+    source.add_argument("--run-dir")
+    parser.add_argument("--config", default=None)
     parser.add_argument("--results-dir", default="tools/visualize/results")
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--num-workers", type=int, default=16)
@@ -90,28 +93,50 @@ def install_staging(staging_dir: Path, results_dir: Path) -> list[str]:
 
 def main() -> None:
     args = parse_args()
-    suite_dir = (ROOT / args.suite_dir).resolve()
     results_dir = (ROOT / args.results_dir).resolve()
-    state_path = suite_dir / "state.json"
-    state = load_json(state_path)
-    if state.get("status") != "complete":
-        raise RuntimeError(f"Suite is not complete: status={state.get('status')!r}")
-
-    baseline = state.get("experiments", {}).get("baseline_default", {})
-    checkpoint = baseline.get("best_checkpoint")
-    test_evaluation = baseline.get("test_evaluation")
-    if not checkpoint or not test_evaluation:
-        raise RuntimeError("baseline_default is missing a best checkpoint or test evaluation")
+    if args.run_dir:
+        source_dir = (ROOT / args.run_dir).resolve()
+        test_evaluation = load_json(source_dir / "test_metrics.json")
+        checkpoint = test_evaluation.get("checkpoint") or str(
+            source_dir / "checkpoints" / "best.pt"
+        )
+        checkpoint_epoch = test_evaluation.get("checkpoint_epoch")
+        config_path = Path(args.config).resolve() if args.config else source_dir / "config.yaml"
+        inference_overrides: list[str] = []
+    else:
+        source_dir = (ROOT / args.suite_dir).resolve()
+        state = load_json(source_dir / "state.json")
+        if state.get("status") != "complete":
+            raise RuntimeError(f"Suite is not complete: status={state.get('status')!r}")
+        baseline = state.get("experiments", {}).get("baseline_default", {})
+        checkpoint = baseline.get("best_checkpoint")
+        test_evaluation = baseline.get("test_evaluation")
+        if not checkpoint or not test_evaluation:
+            raise RuntimeError("baseline_default is missing a best checkpoint or test evaluation")
+        checkpoint_epoch = baseline.get("best_epoch")
+        config_path = Path(args.config or "configs/finetune_diffloss.yaml")
+        inference_overrides = [
+            "label_diffusion.prediction_type=x_start_epsilon",
+            "label_diffusion.x_start_loss_weight=1.0",
+            "label_diffusion.epsilon_loss_weight=0.5",
+        ]
     expected_samples = int(test_evaluation["samples"])
 
-    staging_dir = suite_dir / "visualization_staging"
+    checkpoint = Path(checkpoint).resolve()
+    config_path = config_path.resolve()
+    if not checkpoint.is_file():
+        raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
+    if not config_path.is_file():
+        raise FileNotFoundError(f"Visualization config does not exist: {config_path}")
+
+    staging_dir = source_dir / "visualization_staging"
     staging_dir.mkdir(parents=True, exist_ok=True)
     command = [
         str(Path(sys.executable).resolve()),
         "-m",
         "blendit.inference.finetune_visualize",
         "--config",
-        "configs/finetune_diffloss.yaml",
+        str(config_path),
         "--checkpoint",
         str(checkpoint),
         "--split",
@@ -124,13 +149,9 @@ def main() -> None:
         str(args.batch_size),
         "--num-workers",
         str(args.num_workers),
-        "--override",
-        "label_diffusion.prediction_type=x_start_epsilon",
-        "--override",
-        "label_diffusion.x_start_loss_weight=1.0",
-        "--override",
-        "label_diffusion.epsilon_loss_weight=0.5",
     ]
+    for override in inference_overrides:
+        command.extend(("--override", override))
     environment = os.environ.copy()
     source_path = str(ROOT / "src")
     environment["PYTHONPATH"] = (
@@ -138,7 +159,8 @@ def main() -> None:
         if not environment.get("PYTHONPATH")
         else f"{source_path}{os.pathsep}{environment['PYTHONPATH']}"
     )
-    log_path = suite_dir / "logs" / "finetune_test_visualization.log"
+    log_path = source_dir / "logs" / "finetune_test_visualization.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as stream:
         process = subprocess.run(
             command,
@@ -174,9 +196,9 @@ def main() -> None:
 
     record = {
         "installed_at": datetime.now().isoformat(timespec="seconds"),
-        "suite_dir": str(suite_dir),
+        "source_dir": str(source_dir),
         "checkpoint": str(checkpoint),
-        "checkpoint_epoch": baseline.get("best_epoch"),
+        "checkpoint_epoch": checkpoint_epoch,
         "samples": expected_samples,
         "archived_files": archived_files,
         "archive_dir": str(archive_dir),

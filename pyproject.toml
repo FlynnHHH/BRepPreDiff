@@ -20,6 +20,7 @@ dependencies = [
     "pyyaml>=6.0",
     "torch>=1.12",
     "tqdm>=4.66",
+    "wandb==0.22.3",
 ]
 
 [project.optional-dependencies]

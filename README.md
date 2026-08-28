@@ -41,15 +41,14 @@ face segmentation fine-tuning
 
 The topology remains fixed during pretraining. Gaussian noise is applied to continuous geometry
 features such as area, centroid, normals, curvature, UV samples, edge length, and dihedral angle.
-Surface type, edge type, topology relation, and optional coarse labels are reconstructed through
-auxiliary heads.
+Surface type, edge type, and topology relation are reconstructed through auxiliary heads.
 
 ## Requirements
 
 - Python 3.9–3.12
 - PyTorch 1.12 or newer
 - `pythonocc-core` for STEP extraction and mesh export
-- NumPy, PyYAML, tqdm
+- NumPy, PyYAML, tqdm, Weights & Biases (`wandb==0.22.3`)
 
 The checked-in Conda file reproduces the locally tested Python/PyTorch environment and includes a
 Python 3.9-compatible `pythonocc-core` build for STEP extraction and PLY export.
@@ -98,7 +97,7 @@ Start from [data/default.yaml](data/default.yaml):
 data:
   steps_dir: data/raw/steps
   segs_dir: data/raw/segs
-  cache_dir: data/cache/features
+  cache_dir: /data/hhfeng/blendit/cache/features
   train_split: data/splits/train.txt
   val_split: data/splits/val.txt
   test_split: data/splits/test.txt
@@ -107,6 +106,7 @@ data:
 
 brep:
   uv_grid_size: 4
+  edge_u_grid_size: 4
   smooth_angle_degrees: 5.0
 
 labels:
@@ -117,6 +117,11 @@ labels:
 
 `steps_dir` and `segs_dir` are independent; neither must be a child of a shared root. Split files
 contain one STEP filename, relative path, stem, or cache filename per line.
+
+Each face UV sample contains `XYZ + unit normal + trimming mask` (7 channels). Each edge U-grid
+sample contains `XYZ + unit tangent` (6 channels); `edge_u_grid_size` defaults to
+`uv_grid_size` when omitted. Caches created with the earlier 6-channel face grid / scalar-only
+edge schema must be rebuilt.
 
 The default ABC/BrepDit mapping is:
 
@@ -143,7 +148,11 @@ labels:
 
 For `seg`, every graph label tensor has one class ID per face. For `cls`, each `.cls` source file
 is a whitespace-separated one-hot vector; it is strictly validated and converted to one graph-level
-target. The encoder's face embeddings are mean-pooled before either the MLP or DiffLoss head.
+target. The encoder's face embeddings are pooled before either the MLP or DiffLoss head.
+Classification training configs default to `model.graph_pooling: mean_max`; experiments can also
+select `mean`, `mean_std`, or `residual_attention`. The learned alternatives are initialized to
+reproduce mean pooling exactly and learn only a residual complement during fine-tuning. Configs
+that omit this field still fall back to `mean` so legacy checkpoints remain compatible.
 
 ## Prepare data
 
@@ -198,12 +207,12 @@ Advanced data commands are exposed through the same module:
 blendit-cache --config data/default.yaml --split train --workers 8
 
 # Scan an existing cache
-blendit-scan-cache --cache-dir data/cache/features \
-  --invalid-log data/cache/invalid.jsonl
+blendit-scan-cache --cache-dir /data/hhfeng/blendit/cache/features \
+  --invalid-log /data/hhfeng/blendit/cache/invalid.jsonl
 
 # Remove failed samples from a split
 blendit-filter-split --split data/splits/train.txt \
-  --invalid-log data/cache/invalid.jsonl \
+  --invalid-log /data/hhfeng/blendit/cache/invalid.jsonl \
   --output data/splits/train_clean.txt
 ```
 
@@ -281,6 +290,14 @@ blendit-evaluate \
 blendit-pretrain --config configs/pretrain.yaml
 ```
 
+The default training configs use the four-head `edge_update_attention` encoder. To explicitly use
+the original FFN/message-passing encoder instead:
+
+```bash
+blendit-pretrain --config configs/pretrain.yaml \
+  --override model.encoder_type=ffn
+```
+
 Common overrides:
 
 ```bash
@@ -306,8 +323,28 @@ blendit-pretrain --config configs/pretrain.yaml \
   --override train.epochs=150
 ```
 
-Use [configs/pretrain_no_coarse.yaml](configs/pretrain_no_coarse.yaml) for the no-coarse-label-head
-ablation.
+Pretraining and fine-tuning initialize a W&B run by default and record epoch-level
+`train/loss` and `val/loss` curves together with every component metric. Authenticate once before
+training:
+
+```bash
+wandb login
+```
+
+The default project is `blendit`. Configure the destination in the training YAML or with overrides:
+
+```yaml
+wandb:
+  enabled: true
+  project: blendit
+  entity: null
+  group: null
+  tags: []
+```
+
+Only rank 0 creates and writes the W&B run during distributed training. Set
+`WANDB_MODE=offline` to record locally without a network connection, or use
+`--override wandb.enabled=false` to explicitly disable tracking.
 
 ## Fine-tuning
 
@@ -325,11 +362,10 @@ blendit-finetune --config configs/finetune_diffloss.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
-For the tuned Blendit DiffLoss setup initialized from the joint
-`all_splits_no_coarse` checkpoint, use
+For the tuned Blendit DiffLoss setup initialized from joint self-supervised pretraining, use
 [configs/finetune_joint_blendit_diffloss.yaml](configs/finetune_joint_blendit_diffloss.yaml).
 Its controlled MLP comparison, parameter search, and exact test metrics are recorded in
-[reports/blendit_joint_diffloss_tuning_results.md](reports/blendit_joint_diffloss_tuning_results.md).
+[reports/blendit_joint_diffloss_results.md](reports/blendit_joint_diffloss_results.md).
 
 Multi-GPU fine-tuning:
 

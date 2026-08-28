@@ -1,8 +1,8 @@
 seed: 42
-data_config: ../data/pretrain.yaml
+data_config: ../data/pretrain_joint_all_splits.yaml
 
 run:
-  name: pretrain_no_coarse
+  name: joint_all_splits
   output_dir: runs
   log_interval: 10
   save_every_epochs: 5
@@ -12,9 +12,6 @@ model:
   num_layers: 4
   dropout: 0.1
   time_dim: 128
-  num_classes: 3
-  # Coarse-label ablation: the pretraining model does not instantiate this head.
-  use_coarse_label_head: false
 
 diffusion:
   timesteps: 1000
@@ -24,11 +21,11 @@ diffusion:
   recon_loss_weight: 0.5
   categorical_loss_weight: 0.5
   relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.0
 
 train:
   device: cuda
-  epochs: 100
+  require_cuda: true
+  epochs: 150
   batch_size: 512
   num_workers: 16
   normalize_per_graph: true

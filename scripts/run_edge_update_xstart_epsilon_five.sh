@@ -4,18 +4,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/blendit-encoder-edge-update}"
 PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
-RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/edge_update_new_joint}"
+RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/new_occ_features_downstreams}"
 LOG_ROOT="${LOG_ROOT:-$ROOT_DIR/runs/launch_logs/edge_update_xstart_epsilon_$RUN_TAG}"
-PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-$RUN_ROOT/pretrain/20260807-123426_edge_update_new_joint_20260807-123259/checkpoints/last.pt}"
+PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-$ROOT_DIR/runs/pretrain/20260818-173143_new_occ_features_edge_update_resume_e095_20260818-1729/checkpoints/last.pt}"
+TASK_GROUP="${TASK_GROUP:-all}"
 
-if [[ ! -d "$EDGE_WORKTREE/src/blendit" ]]; then
-  echo "Edge Update worktree not found: $EDGE_WORKTREE" >&2
-  exit 2
-fi
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Python executable not found: $PYTHON_BIN" >&2
   exit 2
@@ -32,8 +28,9 @@ if [[ ${#GPUS[@]} -ne 4 ]]; then
 fi
 
 mkdir -p "$RUN_ROOT" "$LOG_ROOT"
+printf '%s\n' "$$" >"$LOG_ROOT/launcher.pid"
 cd "$ROOT_DIR"
-export PYTHONPATH="$EDGE_WORKTREE/src${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$ROOT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
 
 while ! timeout 30s nvidia-smi -L >/dev/null 2>&1; do
@@ -57,6 +54,7 @@ run_downstream() {
     --override "model.encoder_type=edge_update_attention" \
     --override "model.num_heads=4" \
     --override "model.finetune_head=diffusion" \
+    --override "brep.edge_u_grid_size=10" \
     --override "label_diffusion.prediction_type=x_start_epsilon" \
     --override "label_diffusion.x_start_loss_weight=1.0" \
     --override "label_diffusion.epsilon_loss_weight=0.5" \
@@ -64,6 +62,7 @@ run_downstream() {
     --override "train.epochs=$epochs" \
     --override "train.batch_size=64" \
     --override "train.gradient_accumulation_steps=4" \
+    --override "wandb.enabled=false" \
     >"$task_log" 2>&1
 
   local run_dir
@@ -86,11 +85,26 @@ run_downstream() {
   echo "[$(date --iso-8601=seconds)] Completed $task_name"
 }
 
+if [[ "$TASK_GROUP" != "all" && "$TASK_GROUP" != "gpu0" && "$TASK_GROUP" != "fabwave" ]]; then
+  echo "TASK_GROUP must be 'all', 'gpu0', or 'fabwave'; got: $TASK_GROUP" >&2
+  exit 2
+fi
+
 pids=()
-run_downstream blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_diffloss_200.yaml" 100 & pids+=("$!")
-run_downstream fusion360seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_fusion360seg_diffloss_200.yaml" 100 & pids+=("$!")
-run_downstream mfcadpp_seg "${GPUS[2]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_diffloss_200.yaml" 100 & pids+=("$!")
-run_downstream tmcad_cls "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_tmcad_diffloss_200.yaml" 200 & pids+=("$!")
+if [[ "$TASK_GROUP" == "all" || "$TASK_GROUP" == "gpu0" ]]; then
+  (
+    run_downstream blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_diffloss_200.yaml" 200
+    run_downstream fabwave_cls "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml" 200
+  ) & pids+=("$!")
+else
+  run_downstream fabwave_cls "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml" 200 & pids+=("$!")
+fi
+
+if [[ "$TASK_GROUP" == "all" ]]; then
+  run_downstream fusion360seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_fusion360seg_diffloss_200.yaml" 200 & pids+=("$!")
+  run_downstream mfcadpp_seg "${GPUS[2]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_diffloss_200.yaml" 200 & pids+=("$!")
+  run_downstream tmcad_cls "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_tmcad_diffloss_200.yaml" 200 & pids+=("$!")
+fi
 
 status=0
 for pid in "${pids[@]}"; do
@@ -101,7 +115,5 @@ done
 if [[ "$status" -ne 0 ]]; then
   exit "$status"
 fi
-
-run_downstream fabwave_cls "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml" 200
 
 echo "[$(date --iso-8601=seconds)] Five x_start+0.5*epsilon DiffLoss experiments completed: $RUN_ROOT"

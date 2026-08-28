@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import torch
 from torch import nn
@@ -36,6 +37,43 @@ class MLP(nn.Module):
         return self.net(x)
 
 
+class FeedForward(nn.Module):
+    """SwiGLU feed-forward block used by the attention encoder variants."""
+
+    def __init__(self, hidden_dim: int, dropout: float, *, expansion: int = 4) -> None:
+        super().__init__()
+        inner_dim = hidden_dim * expansion
+        self.input_projection = nn.Linear(hidden_dim, inner_dim * 2)
+        self.dropout = nn.Dropout(dropout)
+        self.output_projection = nn.Linear(inner_dim, hidden_dim)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        values, gates = self.input_projection(inputs).chunk(2, dim=-1)
+        hidden = values * torch.nn.functional.silu(gates)
+        return self.output_projection(self.dropout(hidden))
+
+
+def segmented_softmax(
+    logits: torch.Tensor,
+    indexes: torch.Tensor,
+    num_segments: int,
+) -> torch.Tensor:
+    """Numerically stable softmax over rows sharing the same segment index."""
+    maxima = logits.new_full((num_segments, logits.shape[-1]), float("-inf"))
+    expanded_indexes = indexes.unsqueeze(-1).expand_as(logits)
+    maxima.scatter_reduce_(
+        0,
+        expanded_indexes,
+        logits,
+        reduce="amax",
+        include_self=True,
+    )
+    exponentials = torch.exp(logits - maxima[indexes])
+    denominators = logits.new_zeros((num_segments, logits.shape[-1]))
+    denominators.index_add_(0, indexes, exponentials)
+    return exponentials / denominators[indexes].clamp_min(1.0e-8)
+
+
 class GraphMessageLayer(nn.Module):
     def __init__(self, hidden_dim: int, dropout: float) -> None:
         super().__init__()
@@ -50,7 +88,12 @@ class GraphMessageLayer(nn.Module):
         self.norm_ffn = nn.LayerNorm(hidden_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, node_h: torch.Tensor, edge_h: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        node_h: torch.Tensor,
+        edge_h: torch.Tensor,
+        edge_index: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         if edge_index.numel() == 0:
             aggregated = torch.zeros_like(node_h)
         else:
@@ -64,10 +107,91 @@ class GraphMessageLayer(nn.Module):
 
         node_h = self.norm_msg(node_h + self.dropout(aggregated))
         node_h = self.norm_ffn(node_h + self.dropout(self.ffn(node_h)))
-        return node_h
+        return node_h, edge_h
+
+
+class EdgeAttentionLayer(nn.Module):
+    """Sparse multi-head attention with edge-conditioned keys, values and logits."""
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        dropout: float,
+        *,
+        num_heads: int,
+        update_edges: bool = False,
+    ) -> None:
+        super().__init__()
+        if hidden_dim % num_heads:
+            raise ValueError(
+                f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})."
+            )
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+        self.update_edges = update_edges
+        self.norm_attention = nn.LayerNorm(hidden_dim)
+        self.query = nn.Linear(hidden_dim, hidden_dim)
+        self.key = nn.Linear(hidden_dim, hidden_dim)
+        self.value = nn.Linear(hidden_dim, hidden_dim)
+        self.edge_key = nn.Linear(hidden_dim, hidden_dim)
+        self.edge_value = nn.Linear(hidden_dim, hidden_dim)
+        self.edge_bias = nn.Linear(hidden_dim, num_heads)
+        self.output_projection = nn.Linear(hidden_dim, hidden_dim)
+        self.norm_ffn = nn.LayerNorm(hidden_dim)
+        self.ffn = FeedForward(hidden_dim, dropout)
+        self.dropout = nn.Dropout(dropout)
+        self.edge_update = (
+            MLP(hidden_dim * 3, hidden_dim * 2, hidden_dim, dropout)
+            if update_edges
+            else None
+        )
+        self.edge_norm = nn.LayerNorm(hidden_dim) if update_edges else None
+
+    def forward(
+        self,
+        node_h: torch.Tensor,
+        edge_h: torch.Tensor,
+        edge_index: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if edge_index.numel() == 0:
+            attention_output = torch.zeros_like(node_h)
+        else:
+            src, dst = edge_index[0], edge_index[1]
+            normalized = self.norm_attention(node_h)
+            queries = self.query(normalized).view(
+                -1, self.num_heads, self.head_dim
+            )[dst]
+            keys = (
+                self.key(normalized)[src] + self.edge_key(edge_h)
+            ).view(-1, self.num_heads, self.head_dim)
+            values = (
+                self.value(normalized)[src] + self.edge_value(edge_h)
+            ).view(-1, self.num_heads, self.head_dim)
+            logits = (queries * keys).sum(dim=-1) / math.sqrt(self.head_dim)
+            logits = logits + self.edge_bias(edge_h)
+            weights = segmented_softmax(logits, dst, node_h.shape[0])
+            aggregated = node_h.new_zeros(
+                (node_h.shape[0], self.num_heads, self.head_dim)
+            )
+            aggregated.index_add_(0, dst, values * weights.unsqueeze(-1))
+            attention_output = self.output_projection(aggregated.flatten(1))
+
+        node_h = node_h + self.dropout(attention_output)
+        node_h = node_h + self.dropout(self.ffn(self.norm_ffn(node_h)))
+        if self.edge_update is not None and edge_index.numel() > 0:
+            src, dst = edge_index[0], edge_index[1]
+            edge_delta = self.edge_update(
+                torch.cat([node_h[src], node_h[dst], edge_h], dim=-1)
+            )
+            assert self.edge_norm is not None
+            edge_h = self.edge_norm(edge_h + self.dropout(edge_delta))
+        return node_h, edge_h
 
 
 class BRepGraphEncoder(nn.Module):
+    SUPPORTED_TYPES = {"ffn", "message_passing", "edge_update_attention"}
+    ENCODER_TYPE_ALIASES = {"ffn": "message_passing"}
+
     def __init__(
         self,
         face_cont_dim: int,
@@ -79,9 +203,18 @@ class BRepGraphEncoder(nn.Module):
         surface_type_vocab: int,
         edge_type_vocab: int,
         relation_type_vocab: int,
+        encoder_type: str = "message_passing",
+        num_heads: int = 4,
     ) -> None:
         super().__init__()
+        encoder_type = self.ENCODER_TYPE_ALIASES.get(encoder_type, encoder_type)
+        if encoder_type not in self.SUPPORTED_TYPES:
+            raise ValueError(
+                f"Unsupported encoder_type {encoder_type!r}; "
+                f"expected one of {sorted(self.SUPPORTED_TYPES)}."
+            )
         self.hidden_dim = hidden_dim
+        self.encoder_type = encoder_type
         self.surface_type_vocab = surface_type_vocab
         self.edge_type_vocab = edge_type_vocab
         self.relation_type_vocab = relation_type_vocab
@@ -93,7 +226,42 @@ class BRepGraphEncoder(nn.Module):
         self.edge_relation_emb = nn.Embedding(relation_type_vocab, hidden_dim)
         self.input_norm = nn.LayerNorm(hidden_dim)
         self.edge_norm = nn.LayerNorm(hidden_dim)
-        self.layers = nn.ModuleList([GraphMessageLayer(hidden_dim, dropout) for _ in range(num_layers)])
+        layer_type = GraphMessageLayer if encoder_type == "message_passing" else None
+        self.layers = nn.ModuleList(
+            [
+                layer_type(hidden_dim, dropout)
+                if layer_type is not None
+                else EdgeAttentionLayer(
+                    hidden_dim,
+                    dropout,
+                    num_heads=num_heads,
+                    update_edges=True,
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        config: dict[str, Any],
+        face_cont_dim: int,
+        edge_cont_dim: int,
+    ) -> "BRepGraphEncoder":
+        model_cfg = config["model"]
+        brep_cfg = config["brep"]
+        return cls(
+            face_cont_dim,
+            edge_cont_dim,
+            hidden_dim=int(model_cfg["hidden_dim"]),
+            num_layers=int(model_cfg["num_layers"]),
+            dropout=float(model_cfg["dropout"]),
+            surface_type_vocab=int(brep_cfg["surface_type_vocab"]),
+            edge_type_vocab=int(brep_cfg["edge_type_vocab"]),
+            relation_type_vocab=int(brep_cfg["relation_type_vocab"]),
+            encoder_type=str(model_cfg.get("encoder_type", "message_passing")),
+            num_heads=int(model_cfg.get("num_heads", 4)),
+        )
 
     def embed_edges(
         self,
@@ -120,6 +288,7 @@ class BRepGraphEncoder(nn.Module):
         edge_relation: torch.Tensor,
         *,
         time_h: torch.Tensor | None = None,
+        graph_ptr: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         face_surface_type = face_surface_type.clamp(0, self.surface_type_vocab - 1)
         node_h = self.face_cont_proj(face_cont) + self.surface_emb(face_surface_type)
@@ -128,5 +297,5 @@ class BRepGraphEncoder(nn.Module):
         node_h = self.input_norm(node_h)
         edge_h = self.embed_edges(edge_cont, edge_type, edge_relation)
         for layer in self.layers:
-            node_h = layer(node_h, edge_h, edge_index)
+            node_h, edge_h = layer(node_h, edge_h, edge_index)
         return node_h, edge_h

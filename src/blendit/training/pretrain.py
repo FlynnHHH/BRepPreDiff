@@ -30,6 +30,7 @@ from blendit.training.common import (
     save_checkpoint,
     setup_distributed,
 )
+from blendit.training.tracking import WandbTracker
 
 
 def run_epoch(
@@ -96,9 +97,17 @@ def main() -> None:
     distributed = setup_distributed(config)
     logger = None
     run_dir = None
+    tracker = WandbTracker()
     try:
         config = prepare_training_data(config, distributed)
         config, run_dir, logger = prepare_run(args, stage="pretrain", config=config, distributed=distributed)
+        tracker = WandbTracker.initialize(
+            config,
+            stage="pretrain",
+            run_dir=run_dir,
+            logger=logger,
+            is_main_process=distributed.is_main_process,
+        )
         device = resolve_device(config, distributed)
         logger.info(
             "device=%s distributed=%s rank=%d local_rank=%d backend=%s",
@@ -220,6 +229,8 @@ def main() -> None:
                         )
                         log_checkpoint_saved(logger, path, epoch)
 
+            tracker.log_epoch(epoch, train_metrics, val_metrics)
+
             if distributed.is_main_process and epoch % int(config["run"]["save_every_epochs"]) == 0:
                 metrics = val_metrics or train_metrics
                 path = Path(run_dir) / "checkpoints" / f"epoch_{epoch:04d}.pt"
@@ -259,7 +270,10 @@ def main() -> None:
         )
         raise
     finally:
-        cleanup_distributed(distributed)
+        try:
+            tracker.finish()
+        finally:
+            cleanup_distributed(distributed)
 
 
 if __name__ == "__main__":

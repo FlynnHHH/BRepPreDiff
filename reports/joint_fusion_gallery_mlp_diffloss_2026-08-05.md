@@ -40,7 +40,7 @@ JSON 本身应作为分割标签，而是无标签预训练配置把 `segs_dir` 
 ## 3. 联合预训练设置与结果
 
 - 模型：hidden dimension 128，4 个原始 GraphMessageLayer，dropout 0.1。
-- 预训练：geometry diffusion，1,000 diffusion timesteps，不启用 coarse-label head。
+- 预训练：geometry diffusion，1,000 diffusion timesteps。
 - 优化：AdamW，学习率 `1e-3`，weight decay `1e-4`，150 epochs。
 - 特征处理：per-graph normalization，`uv_grid_size: 10`。
 - 设备：4 × NVIDIA Titan RTX。
@@ -102,4 +102,3 @@ Fusion360Seg 微调明确使用 `/data/hhfeng/fusion360seg/s2.0.0/`；s2.0.1 只
 不会匹配任务 JSON 的目录。之后至少重新构建 Fusion360Rec/Fusion360Ass 缓存并重新
 执行联合预训练及四项微调。本次结果可作为流程验证和不完整语料基线，但不宜与完整
 七来源联合预训练结果直接等同。
-

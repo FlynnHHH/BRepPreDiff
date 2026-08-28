@@ -1,7 +1,7 @@
 data:
   steps_dir: /data/hhfeng/MFCAD++/step
   segs_dir: /data/hhfeng/MFCAD++/seg
-  cache_dir: data/cache/features/mfcad
+  cache_dir: /data/hhfeng/blendit/cache/features/mfcad
   prepare_on_start: false
   train_split: /data/hhfeng/MFCAD++/blendit_splits/train.txt
   val_split: /data/hhfeng/MFCAD++/blendit_splits/val.txt

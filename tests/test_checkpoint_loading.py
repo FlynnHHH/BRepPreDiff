@@ -8,7 +8,7 @@ import pytest
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reason="torch is not installed")
 
 
-def test_load_pretrain_checkpoint_for_finetune_maps_encoder_and_head(tmp_path):
+def test_load_pretrain_checkpoint_for_finetune_loads_encoder_only(tmp_path):
     import torch
 
     from blendit.config import feature_dims, load_experiment_config
@@ -23,12 +23,13 @@ def test_load_pretrain_checkpoint_for_finetune_maps_encoder_and_head(tmp_path):
     save_checkpoint(ckpt_path, model=pretrain, optimizer=None, epoch=3, config=config)
 
     segmenter = SegmentationModel(config, face_dim, edge_dim)
+    initial_head = segmenter.seg_head.net[0].weight.detach().clone()
     load_info = load_pretrain_checkpoint_for_finetune(ckpt_path, model=segmenter)
 
     assert any(key.startswith("encoder.") for key in load_info.loaded_keys)
-    assert any(key.startswith("seg_head.") for key in load_info.loaded_keys)
+    assert not any(key.startswith("seg_head.") for key in load_info.loaded_keys)
     assert torch.equal(segmenter.encoder.face_cont_proj.weight, pretrain.encoder.face_cont_proj.weight)
-    assert torch.equal(segmenter.seg_head.net[0].weight, pretrain.coarse_label_head.net[0].weight)
+    assert torch.equal(segmenter.seg_head.net[0].weight, initial_head)
 
 
 def test_load_pretrain_checkpoint_for_diffusion_finetune_loads_encoder_only(tmp_path):
@@ -52,37 +53,11 @@ def test_load_pretrain_checkpoint_for_diffusion_finetune_loads_encoder_only(tmp_
 
     assert any(key.startswith("encoder.") for key in load_info.loaded_keys)
     assert not any(key.startswith("diffusion_head.") for key in load_info.loaded_keys)
-    assert any("coarse_label_head." in key for key in load_info.skipped_keys)
     assert torch.equal(segmenter.encoder.face_cont_proj.weight, pretrain.encoder.face_cont_proj.weight)
     assert torch.equal(segmenter.diffusion_head.condition_projection.weight, initial_head)
 
 
-def test_load_no_coarse_pretrain_checkpoint_for_mlp_loads_encoder_only(tmp_path):
-    import torch
-
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import DiffusionPretrainModel, SegmentationModel
-    from blendit.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
-
-    pretrain_config = load_experiment_config("configs/pretrain_no_coarse.yaml")
-    finetune_config = load_experiment_config("configs/finetune.yaml")
-    face_dim, edge_dim = feature_dims(pretrain_config)
-    pretrain = DiffusionPretrainModel(pretrain_config, face_dim, edge_dim)
-    assert pretrain.coarse_label_head is None
-    ckpt_path = tmp_path / "pretrain_no_coarse.pt"
-    save_checkpoint(ckpt_path, model=pretrain, optimizer=None, epoch=100, config=pretrain_config)
-
-    segmenter = SegmentationModel(finetune_config, face_dim, edge_dim)
-    initial_head = segmenter.seg_head.net[0].weight.detach().clone()
-    load_info = load_pretrain_checkpoint_for_finetune(ckpt_path, model=segmenter)
-
-    assert any(key.startswith("encoder.") for key in load_info.loaded_keys)
-    assert not any(key.startswith("seg_head.") for key in load_info.loaded_keys)
-    assert torch.equal(segmenter.encoder.face_cont_proj.weight, pretrain.encoder.face_cont_proj.weight)
-    assert torch.equal(segmenter.seg_head.net[0].weight, initial_head)
-
-
-def test_classification_mlp_does_not_load_face_level_coarse_head(tmp_path):
+def test_classification_mlp_loads_pretrained_encoder_only(tmp_path):
     import torch
 
     from blendit.config import feature_dims, load_experiment_config
@@ -102,7 +77,6 @@ def test_classification_mlp_does_not_load_face_level_coarse_head(tmp_path):
 
     assert any(key.startswith("encoder.") for key in load_info.loaded_keys)
     assert not any(key.startswith("cls_head.") for key in load_info.loaded_keys)
-    assert not any("coarse_label_head." in key for key in load_info.skipped_keys)
     assert torch.equal(classifier.encoder.face_cont_proj.weight, pretrain.encoder.face_cont_proj.weight)
     assert torch.equal(classifier.cls_head.net[0].weight, initial_head)
 

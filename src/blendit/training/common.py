@@ -17,7 +17,6 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 
 from blendit.config import feature_dims, load_experiment_config, save_config
-from blendit.task import CLASSIFICATION
 from blendit.utils import create_run_dir, make_logger, seed_everything
 
 
@@ -106,6 +105,9 @@ def load_train_config(args: argparse.Namespace, stage: str) -> dict[str, Any]:
         args.override,
     )
     config["train"]["stage"] = stage
+    wandb_config = config.setdefault("wandb", {})
+    wandb_config.setdefault("enabled", True)
+    wandb_config.setdefault("project", "blendit")
     return config
 
 
@@ -488,18 +490,11 @@ def load_pretrain_checkpoint_for_finetune(
     model: torch.nn.Module,
     device: torch.device | str = "cpu",
 ) -> WeightLoadResult:
-    target_model = unwrap_model(model)
-    key_mappings = [("encoder.", "encoder.")]
-    # The coarse pretraining head is face-level supervision. Its hidden layer is
-    # a useful initialization for segmentation, but not for a graph-level
-    # classification head operating on pooled embeddings.
-    if getattr(target_model, "task", None) != CLASSIFICATION:
-        key_mappings.append(("coarse_label_head.", "seg_head."))
     return _load_mapped_weights(
         path,
         model=model,
         device=device,
-        key_mappings=tuple(key_mappings),
+        key_mappings=(("encoder.", "encoder."),),
     )
 
 
@@ -633,11 +628,10 @@ def log_config_summary(logger: Any, config: dict[str, Any]) -> None:
         train_cfg.get("distributed_timeout_seconds", DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS),
     )
     logger.info(
-        "config model.finetune_head=%s model.use_coarse_label_head=%s "
-        "label_diffusion.prediction_type=%s train.encoder_freeze_mode=%s "
+        "config model.finetune_head=%s label_diffusion.prediction_type=%s "
+        "train.encoder_freeze_mode=%s "
         "train.encoder_frozen_layers=%s",
         model_cfg.get("finetune_head", "n/a"),
-        model_cfg.get("use_coarse_label_head", True),
         label_diffusion_cfg.get("prediction_type", "n/a"),
         train_cfg.get("encoder_freeze_mode", "none"),
         train_cfg.get("encoder_frozen_layers", 0),

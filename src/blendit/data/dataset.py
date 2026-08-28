@@ -11,12 +11,13 @@ from typing import Any, Iterable
 import traceback
 
 import numpy as np
+import torch
 
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from blendit.config import load_config
+from blendit.config import feature_dims, load_config
 from blendit.data.classification import (
     extract_classification_arrays,
     match_classification_label,
@@ -50,6 +51,18 @@ class StepSegSample:
 class CachedSample:
     sample_id: str
     cache_path: Path
+
+
+def _project_occ_grid_v2_to_legacy(graph: BRepGraph, uv_grid_size: int) -> BRepGraph:
+    """Drop the v2 trim mask and edge grid while preserving legacy channels."""
+    face_base = graph.face_cont[:, :11]
+    face_grid = graph.face_cont[:, 11:].reshape(graph.num_faces, uv_grid_size**2, 7)
+    legacy_face_grid = face_grid[:, :, :6].reshape(graph.num_faces, uv_grid_size**2 * 6)
+    return replace(
+        graph,
+        face_cont=torch.cat([face_base, legacy_face_grid], dim=-1),
+        edge_cont=graph.edge_cont[:, :3],
+    )
 
 
 @dataclass(frozen=True)
@@ -456,14 +469,50 @@ class StepSegDataset(Dataset):
         return self._preprocess_graph(graph)
 
     def _preprocess_graph(self, graph: BRepGraph) -> BRepGraph:
+        feature_schema = str(self.config["brep"].get("feature_schema", "occ_grid_v2"))
+        uv_grid_size = int(self.config["brep"]["uv_grid_size"])
+        if feature_schema == "legacy":
+            edge_grid_size = int(self.config["brep"].get("edge_u_grid_size", uv_grid_size))
+            v2_dims = (11 + uv_grid_size**2 * 7, 3 + edge_grid_size * 6)
+            actual_dims = (int(graph.face_cont.shape[-1]), int(graph.edge_cont.shape[-1]))
+            if actual_dims == v2_dims:
+                graph = _project_occ_grid_v2_to_legacy(graph, uv_grid_size)
+        expected_face_dim, expected_edge_dim = feature_dims(self.config)
+        actual_dims = (int(graph.face_cont.shape[-1]), int(graph.edge_cont.shape[-1]))
+        if actual_dims != (expected_face_dim, expected_edge_dim):
+            raise ValueError(
+                f"Cached graph {graph.sample_id!r} uses face/edge dimensions {actual_dims}, "
+                f"but the configured OCC feature schema expects "
+                f"({expected_face_dim}, {expected_edge_dim}). Rebuild the feature cache."
+            )
+        if feature_schema == "legacy":
+            if self.feature_preprocessing_mode == "per_graph":
+                return normalize_graph_features(graph)
+            if self.feature_preprocessing_mode == "typewise_global":
+                assert self.global_feature_stats is not None
+                return typewise_global_standardize_graph_features(
+                    graph,
+                    self.global_feature_stats,
+                    uv_grid_size=int(self.config["brep"]["uv_grid_size"]),
+                    legacy=True,
+                )
+            return graph
+        edge_grid_size = int(
+            self.config["brep"].get("edge_u_grid_size", self.config["brep"]["uv_grid_size"])
+        )
         if self.feature_preprocessing_mode == "per_graph":
-            return normalize_graph_features(graph)
+            return normalize_graph_features(
+                graph,
+                uv_grid_size=int(self.config["brep"]["uv_grid_size"]),
+                edge_u_grid_size=edge_grid_size,
+            )
         if self.feature_preprocessing_mode == "typewise_global":
             assert self.global_feature_stats is not None
             return typewise_global_standardize_graph_features(
                 graph,
                 self.global_feature_stats,
                 uv_grid_size=int(self.config["brep"]["uv_grid_size"]),
+                edge_u_grid_size=edge_grid_size,
             )
         return graph
 
@@ -651,6 +700,17 @@ class MultiSourceDataset(Dataset):
                         f"Source {name!r} has brep.{key}={source_brep[key]}, "
                         f"expected {root_brep[key]}."
                     )
+            source_edge_grid = int(
+                source_brep.get("edge_u_grid_size", source_brep["uv_grid_size"])
+            )
+            root_edge_grid = int(
+                root_brep.get("edge_u_grid_size", root_brep["uv_grid_size"])
+            )
+            if source_edge_grid != root_edge_grid:
+                raise ValueError(
+                    f"Source {name!r} has brep.edge_u_grid_size={source_edge_grid}, "
+                    f"expected {root_edge_grid}."
+                )
 
             mapped_splits = _mapped_source_splits(source, split)
             for source_split in mapped_splits:
@@ -696,7 +756,23 @@ def build_dataloader(config: dict, split: str, shuffle: bool, distributed: bool 
             f"data.cache_dir={data_cfg.get('cache_dir')!r}, "
             f"and data.cache_dirs={data_cfg.get('cache_dirs')!r}."
         )
-    sampler = DistributedSampler(dataset, shuffle=shuffle) if distributed else None
+    configured_seed = config["train"].get("dataloader_seed")
+    loader_seed = None
+    generator = None
+    if configured_seed is not None:
+        split_offset = {"train": 0, "val": 1, "test": 2}.get(split, 3)
+        loader_seed = int(configured_seed) + split_offset
+        generator = torch.Generator()
+        generator.manual_seed(loader_seed)
+    sampler = (
+        DistributedSampler(
+            dataset,
+            shuffle=shuffle,
+            seed=loader_seed if loader_seed is not None else 0,
+        )
+        if distributed
+        else None
+    )
     return DataLoader(
         dataset,
         batch_size=int(config["train"]["batch_size"]),
@@ -705,4 +781,5 @@ def build_dataloader(config: dict, split: str, shuffle: bool, distributed: bool 
         num_workers=int(config["train"].get("num_workers", 0)),
         collate_fn=collate_graphs,
         pin_memory=False,
+        generator=generator,
     )

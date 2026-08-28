@@ -525,20 +525,8 @@ def experiments(baseline_run: str) -> list[Experiment]:
         config="configs/pretrain.yaml",
         run_name="suite_20260720_baseline_pretrain_resume",
         epochs=150,
-        factors={"coarse_label": True},
+        factors={},
         initial_run=baseline_run,
-    )
-    no_coarse_pretrain = Experiment(
-        name="ablation_no_coarse_pretrain",
-        stage="pretrain",
-        config="configs/pretrain_no_coarse.yaml",
-        run_name="suite_20260720_ablation_no_coarse_pretrain",
-        epochs=150,
-        factors={
-            "role": "ablation",
-            "ablated_factor": "coarse_label_pretraining",
-            "coarse_label": False,
-        },
     )
 
     finetunes = [
@@ -551,7 +539,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "baseline",
                 "ablated_factor": "none",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start_epsilon",
                 "x_start_loss_weight": 1.0,
@@ -574,7 +561,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "finetune_head",
-                "coarse_label": True,
                 "head": "mlp",
                 "prediction_type": "n/a",
                 "encoder_freeze": "none",
@@ -590,74 +576,12 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "prediction_type",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "epsilon",
                 "encoder_freeze": "none",
             },
             overrides=("label_diffusion.prediction_type=epsilon",),
             pretrain_source="baseline_pretrain",
-        ),
-        Experiment(
-            name="ablation_no_coarse_default",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_20260720_ablation_no_coarse_default",
-            epochs=100,
-            factors={
-                "role": "ablation",
-                "ablated_factor": "coarse_label_pretraining",
-                "coarse_label": False,
-                "head": "diffloss",
-                "prediction_type": "x_start_epsilon",
-                "x_start_loss_weight": 1.0,
-                "epsilon_loss_weight": 0.5,
-                "encoder_freeze": "none",
-            },
-            overrides=(
-                "model.use_coarse_label_head=false",
-                "label_diffusion.prediction_type=x_start_epsilon",
-                "label_diffusion.x_start_loss_weight=1.0",
-                "label_diffusion.epsilon_loss_weight=0.5",
-            ),
-            pretrain_source="ablation_no_coarse_pretrain",
-        ),
-        Experiment(
-            name="ablation_no_coarse_mlp_full",
-            stage="finetune",
-            config="configs/finetune.yaml",
-            run_name="suite_20260720_ablation_no_coarse_mlp_full",
-            epochs=100,
-            factors={
-                "role": "ablation",
-                "ablated_factor": "coarse_label_pretraining+finetune_head",
-                "coarse_label": False,
-                "head": "mlp",
-                "prediction_type": "n/a",
-                "encoder_freeze": "none",
-            },
-            overrides=("model.use_coarse_label_head=false",),
-            pretrain_source="ablation_no_coarse_pretrain",
-        ),
-        Experiment(
-            name="ablation_no_coarse_prediction_epsilon_full",
-            stage="finetune",
-            config="configs/finetune_diffloss.yaml",
-            run_name="suite_20260720_ablation_no_coarse_prediction_epsilon_full",
-            epochs=100,
-            factors={
-                "role": "ablation",
-                "ablated_factor": "coarse_label_pretraining+prediction_type",
-                "coarse_label": False,
-                "head": "diffloss",
-                "prediction_type": "epsilon",
-                "encoder_freeze": "none",
-            },
-            overrides=(
-                "model.use_coarse_label_head=false",
-                "label_diffusion.prediction_type=epsilon",
-            ),
-            pretrain_source="ablation_no_coarse_pretrain",
         ),
         Experiment(
             name="ablation_prediction_x_start_full",
@@ -668,7 +592,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "prediction_type",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start",
                 "encoder_freeze": "none",
@@ -685,7 +608,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "epsilon_loss_weight",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start_epsilon",
                 "x_start_loss_weight": 1.0,
@@ -708,7 +630,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "epsilon_loss_weight",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start_epsilon",
                 "x_start_loss_weight": 1.0,
@@ -731,7 +652,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "epsilon_loss_weight",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "x_start_epsilon",
                 "x_start_loss_weight": 1.0,
@@ -754,7 +674,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "finetune_head+encoder_freeze",
-                "coarse_label": True,
                 "head": "mlp",
                 "prediction_type": "n/a",
                 "encoder_freeze": "all",
@@ -771,7 +690,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "finetune_head+encoder_freeze",
-                "coarse_label": True,
                 "head": "mlp",
                 "prediction_type": "n/a",
                 "encoder_freeze": "partial",
@@ -789,7 +707,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "prediction_type+encoder_freeze",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "epsilon",
                 "encoder_freeze": "all",
@@ -806,7 +723,6 @@ def experiments(baseline_run: str) -> list[Experiment]:
             factors={
                 "role": "ablation",
                 "ablated_factor": "prediction_type+encoder_freeze",
-                "coarse_label": True,
                 "head": "diffloss",
                 "prediction_type": "epsilon",
                 "encoder_freeze": "partial",
@@ -820,7 +736,7 @@ def experiments(baseline_run: str) -> list[Experiment]:
             pretrain_source="baseline_pretrain",
         ),
     ]
-    return [baseline_pretrain, no_coarse_pretrain, *finetunes]
+    return [baseline_pretrain, *finetunes]
 
 
 def main() -> None:

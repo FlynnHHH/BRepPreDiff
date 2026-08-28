@@ -100,6 +100,101 @@ def test_mlp_classification_pools_faces_to_one_logit_per_graph():
     loss.backward()
 
 
+@pytest.mark.parametrize(
+    "pooling",
+    ["mean", "mean_max", "mean_std", "residual_attention"],
+)
+def test_classification_graph_pooling_variants_start_from_mean(pooling):
+    import torch
+
+    from blendit.models.classification import build_graph_pool, mean_graph_pool
+
+    config = _classification_config("mlp")
+    config["model"]["graph_pooling"] = pooling
+    batch, _, _ = _classification_batch(config)
+    face_embeddings = torch.randn(
+        batch.face_cont.shape[0],
+        config["model"]["hidden_dim"],
+        requires_grad=True,
+    )
+    graph_pool = build_graph_pool(config["model"])
+
+    pooled = graph_pool(face_embeddings, batch)
+    expected = mean_graph_pool(face_embeddings, batch)
+
+    assert pooled.shape == expected.shape == (2, config["model"]["hidden_dim"])
+    assert torch.allclose(pooled, expected, atol=1.0e-6)
+    pooled.square().mean().backward()
+    assert face_embeddings.grad is not None
+    has_parameter_gradient = any(
+        parameter.grad is not None for parameter in graph_pool.parameters()
+    )
+    assert has_parameter_gradient or pooling == "mean"
+
+
+def test_mean_std_pooling_is_finite_for_single_face_graph():
+    import torch
+
+    from blendit.data.graph import GraphBatch
+    from blendit.models.classification import MeanStatisticGraphPool
+
+    face_embeddings = torch.randn(1, 8, requires_grad=True)
+    batch = GraphBatch(
+        face_cont=torch.empty(1, 0),
+        face_surface_type=torch.zeros(1, dtype=torch.long),
+        edge_index=torch.empty(2, 0, dtype=torch.long),
+        edge_cont=torch.empty(0, 0),
+        edge_type=torch.empty(0, dtype=torch.long),
+        edge_relation=torch.empty(0, dtype=torch.long),
+        labels=torch.tensor([0]),
+        batch_index=torch.tensor([0]),
+        edge_batch_index=torch.empty(0, dtype=torch.long),
+        graph_ptr=torch.tensor([0, 1]),
+        sample_ids=["single"],
+    )
+
+    pooled = MeanStatisticGraphPool(8, 0.0, statistic="std")(face_embeddings, batch)
+
+    assert torch.isfinite(pooled).all()
+    pooled.square().mean().backward()
+    assert torch.isfinite(face_embeddings.grad).all()
+
+
+def test_classification_rejects_unknown_graph_pooling():
+    from blendit.models.classification import build_graph_pool
+
+    with pytest.raises(ValueError, match="Unsupported model.graph_pooling"):
+        build_graph_pool({"hidden_dim": 8, "dropout": 0.0, "graph_pooling": "median"})
+
+
+def test_missing_graph_pooling_keeps_legacy_mean_fallback():
+    from blendit.models.classification import MeanGraphPool, build_graph_pool
+
+    graph_pool = build_graph_pool({"hidden_dim": 8, "dropout": 0.0})
+
+    assert isinstance(graph_pool, MeanGraphPool)
+
+
+@pytest.mark.parametrize("pooling", ["mean_max", "mean_std", "residual_attention"])
+def test_pooling_ablation_preserves_mlp_head_initialization(pooling):
+    import torch
+
+    from blendit.models import build_classification_model
+
+    config = _classification_config("mlp")
+    _, face_dim, edge_dim = _classification_batch(config)
+    torch.manual_seed(123)
+    baseline = build_classification_model(config, face_dim, edge_dim)
+
+    variant_config = _classification_config("mlp")
+    variant_config["model"]["graph_pooling"] = pooling
+    torch.manual_seed(123)
+    variant = build_classification_model(variant_config, face_dim, edge_dim)
+
+    for name, baseline_tensor in baseline.cls_head.state_dict().items():
+        assert torch.equal(baseline_tensor, variant.cls_head.state_dict()[name])
+
+
 def test_task_specific_builders_reject_the_other_task():
     from blendit.models import build_classification_model, build_segmentation_model
 

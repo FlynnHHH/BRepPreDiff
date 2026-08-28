@@ -18,6 +18,7 @@ import torch
 
 from blendit.brep.occ_extractor import OccBRepExtractor
 from blendit.config import apply_overrides, feature_dims, load_experiment_config
+from blendit.data.dataset import _project_occ_grid_v2_to_legacy
 from blendit.data.graph import BRepGraph, collate_graphs, graph_from_arrays, normalize_graph_features
 from blendit.models import build_segmentation_model, predict_segmentation_probabilities
 from blendit.training.common import load_checkpoint
@@ -142,16 +143,25 @@ def _load_inference_config(
     data_config_path: str | Path | None,
     overrides: Sequence[str],
 ) -> dict[str, Any]:
+    checkpoint = _torch_load(checkpoint_path)
     if config_path is not None:
         config = load_experiment_config(config_path, data_config_path, list(overrides))
     else:
-        checkpoint = _torch_load(checkpoint_path)
         config = checkpoint.get("config") if isinstance(checkpoint, dict) else None
         if not isinstance(config, dict):
             raise ValueError(
                 "The checkpoint has no embedded config. Supply the training config with --config."
             )
         config = apply_overrides(config, list(overrides))
+    brep_cfg = config.setdefault("brep", {})
+    if "feature_schema" not in brep_cfg and isinstance(checkpoint, dict):
+        state = checkpoint.get("model", {})
+        face_weight = state.get("encoder.face_cont_proj.weight") if isinstance(state, dict) else None
+        if face_weight is not None:
+            grid_size = int(brep_cfg["uv_grid_size"])
+            input_dim = int(face_weight.shape[1])
+            legacy_dim = 11 + grid_size * grid_size * 6
+            brep_cfg["feature_schema"] = "legacy" if input_dim == legacy_dim else "occ_grid_v2"
     config.setdefault("data", {})["labels_required"] = False
     config["data"]["strict_label_count"] = False
     return config
@@ -195,8 +205,19 @@ def _extract_graph(extractor: OccBRepExtractor, config: dict[str, Any], job: Ste
             strict_label_count=False,
         )
     graph = graph_from_arrays(arrays, job.relative_path.with_suffix("").as_posix())
+    feature_schema = str(config["brep"].get("feature_schema", "occ_grid_v2"))
+    uv_grid_size = int(config["brep"]["uv_grid_size"])
+    if feature_schema == "legacy":
+        graph = _project_occ_grid_v2_to_legacy(graph, uv_grid_size)
     if bool(config.get("train", {}).get("normalize_per_graph", True)):
-        graph = normalize_graph_features(graph)
+        if feature_schema == "legacy":
+            graph = normalize_graph_features(graph)
+        else:
+            graph = normalize_graph_features(
+                graph,
+                uv_grid_size=uv_grid_size,
+                edge_u_grid_size=int(config["brep"].get("edge_u_grid_size", uv_grid_size)),
+            )
     return graph
 
 

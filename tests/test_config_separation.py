@@ -19,14 +19,13 @@ DATA_CONFIGS = (
 TRAINING_CONFIGS = (
     "configs/default.yaml",
     "configs/pretrain.yaml",
-    "configs/pretrain_no_coarse.yaml",
     "configs/finetune.yaml",
     "configs/finetune_diffloss.yaml",
     "configs/finetune_filletrec_diffloss.yaml",
     "configs/finetune_mfcad_baseline.yaml",
     "configs/finetune_mfcad_mlp.yaml",
     "configs/finetune_fusion360seg_mlp_full.yaml",
-    "configs/pretrain_joint_all_splits_no_coarse.yaml",
+    "configs/pretrain_joint_all_splits.yaml",
     "configs/finetune_joint_blendit_mlp.yaml",
     "configs/finetune_joint_blendit_diffloss.yaml",
     "configs/finetune_joint_tmcad_mlp.yaml",
@@ -88,3 +87,26 @@ def test_experiment_config_parses_list_override(tmp_path: Path):
     )
 
     assert config["train"]["class_weights"] == [0.67, 1.37, 0.96]
+
+
+def test_classification_training_configs_default_to_mean_max():
+    classification_configs = []
+    for path in sorted(Path("configs").glob("*.yaml")):
+        training_config = load_config(path)
+        configured_data_path = training_config.get("data_config")
+        if not configured_data_path:
+            continue
+        data_path = (path.parent / configured_data_path).resolve()
+        if load_config(data_path).get("task") != "cls":
+            continue
+        classification_configs.append(path)
+        assert training_config["model"].get("graph_pooling") == "mean_max", path
+
+    assert classification_configs
+
+
+def test_default_training_configs_use_edge_update_attention():
+    for path in ("configs/default.yaml", "configs/pretrain.yaml", "configs/finetune.yaml"):
+        model_config = load_config(path)["model"]
+        assert model_config["encoder_type"] == "edge_update_attention", path
+        assert model_config["num_heads"] == 4, path

@@ -14,6 +14,7 @@ model:
   dropout: 0.1
   num_classes: 43
   finetune_head: diffusion
+  graph_pooling: mean_max
 
 label_diffusion:
   target_encoding: bipolar_one_hot

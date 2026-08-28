@@ -1,7 +1,7 @@
 # Finetune baseline and ablation results
 
 Generated from the completed suite at `runs/finetune_suite/20260720-205223_full`.
-The suite completed on 2026-07-21 and contains one baseline plus 13 ablation experiments.
+The suite completed on 2026-07-21 and contains one baseline plus 10 retained ablation experiments.
 
 ## Evaluation protocol
 
@@ -27,16 +27,13 @@ The suite completed on 2026-07-21 and contains one baseline plus 13 ablation exp
 | **ablation_head_mlp_full** | 98 | **0.953323** | 0.981234 | **0.964880** | **0.933230** | 0.953749 | **+0.010268** |
 | ablation_mlp_encoder_all | 100 | 0.898494 | 0.960660 | 0.903100 | 0.828301 | 0.916718 | -0.051512 |
 | ablation_mlp_encoder_partial | 96 | 0.946666 | **0.981283** | 0.964395 | 0.932313 | **0.954352** | +0.009783 |
-| ablation_no_coarse_default | 53 | 0.941856 | 0.978581 | 0.953322 | 0.912154 | 0.951694 | -0.001290 |
-| ablation_no_coarse_mlp_full | 50 | 0.948962 | 0.979715 | 0.959861 | 0.923999 | 0.951844 | +0.005249 |
-| ablation_no_coarse_prediction_epsilon_full | 99 | 0.890819 | 0.952869 | 0.892967 | 0.812490 | 0.891036 | -0.061645 |
 | ablation_prediction_epsilon_full | 100 | 0.895533 | 0.956945 | 0.902749 | 0.827687 | 0.900921 | -0.051863 |
 | ablation_prediction_x_start_full | 87 | 0.942850 | 0.978605 | 0.959097 | 0.922722 | 0.947877 | +0.004485 |
 
 ## Baseline details
 
-The baseline uses coarse-label pretraining, the DiffLoss head, joint `x_start_epsilon`
-prediction with weights `1.0/0.5`, and a fully trainable encoder.
+The baseline uses the DiffLoss head, joint `x_start_epsilon` prediction with weights `1.0/0.5`,
+and a fully trainable encoder.
 
 | Metric | Value |
 |---|---:|
@@ -74,8 +71,6 @@ Baseline confusion matrix (rows are ground truth, columns are predictions):
   `0.964880`, improving on the baseline by 1.027 percentage points.
 - Partially freezing two encoder layers with the MLP head remains competitive at
   `0.964395` Macro-F1 and gives the highest transition F1 (`0.954352`).
-- Removing coarse-label pretraining slightly hurts the default DiffLoss baseline
-  (`-0.129` Macro-F1 points), while the no-coarse MLP variant still exceeds the baseline.
 - Predicting `x_start` alone improves test Macro-F1 by 0.448 points; predicting only
   `epsilon` reduces it by 5.186 points.
 - Changing the epsilon loss weight from the baseline value `0.5` to `0.1`, `0.25`, or

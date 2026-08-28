@@ -7,13 +7,18 @@ run:
   log_interval: 10
   save_every_epochs: 1
 
+wandb:
+  enabled: true
+  project: blendit
+
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
+  encoder_type: edge_update_attention
+  num_heads: 4
   time_dim: 128
   num_classes: 3
-  use_coarse_label_head: true
   finetune_head: mlp
 
 diffusion:
@@ -24,7 +29,6 @@ diffusion:
   recon_loss_weight: 0.5
   categorical_loss_weight: 0.5
   relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.2
 
 train:
   device: cuda
@@ -43,10 +47,3 @@ train:
   encoder_frozen_layers: 2
   class_weights: null
   dice_loss_weight: 0.3
-
-labels:
-  # Used only for coarse auxiliary supervision during pretraining.
-  coarse_soft_targets:
-    0: [0.90, 0.05, 0.05]
-    1: [0.05, 0.80, 0.15]
-    2: [0.05, 0.15, 0.80]

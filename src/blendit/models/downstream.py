@@ -24,19 +24,7 @@ class DownstreamEncoder(nn.Module):
 
     def __init__(self, config: dict[str, Any], face_cont_dim: int, edge_cont_dim: int) -> None:
         super().__init__()
-        model_cfg = config["model"]
-        brep_cfg = config["brep"]
-        hidden_dim = int(model_cfg["hidden_dim"])
-        self.encoder = BRepGraphEncoder(
-            face_cont_dim,
-            edge_cont_dim,
-            hidden_dim=hidden_dim,
-            num_layers=int(model_cfg["num_layers"]),
-            dropout=float(model_cfg["dropout"]),
-            surface_type_vocab=int(brep_cfg["surface_type_vocab"]),
-            edge_type_vocab=int(brep_cfg["edge_type_vocab"]),
-            relation_type_vocab=int(brep_cfg["relation_type_vocab"]),
-        )
+        self.encoder = BRepGraphEncoder.from_config(config, face_cont_dim, edge_cont_dim)
 
     def encode_faces(self, batch: GraphBatch) -> torch.Tensor:
         face_embeddings, _ = self.encoder(
@@ -46,6 +34,7 @@ class DownstreamEncoder(nn.Module):
             batch.edge_cont,
             batch.edge_type,
             batch.edge_relation,
+            graph_ptr=batch.graph_ptr,
         )
         return face_embeddings
 

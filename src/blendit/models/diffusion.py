@@ -312,33 +312,17 @@ class DiffusionPretrainModel(nn.Module):
         brep_cfg = config["brep"]
         hidden_dim = int(model_cfg["hidden_dim"])
         time_dim = int(model_cfg.get("time_dim", hidden_dim))
-        self.num_classes = int(model_cfg["num_classes"])
         self.time_dim = time_dim
-        self.use_coarse_label_head = bool(model_cfg.get("use_coarse_label_head", True))
 
         self.time_mlp = nn.Sequential(
             nn.Linear(time_dim, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, hidden_dim),
         )
-        self.encoder = BRepGraphEncoder(
-            face_cont_dim,
-            edge_cont_dim,
-            hidden_dim=hidden_dim,
-            num_layers=int(model_cfg["num_layers"]),
-            dropout=float(model_cfg["dropout"]),
-            surface_type_vocab=int(brep_cfg["surface_type_vocab"]),
-            edge_type_vocab=int(brep_cfg["edge_type_vocab"]),
-            relation_type_vocab=int(brep_cfg["relation_type_vocab"]),
-        )
+        self.encoder = BRepGraphEncoder.from_config(config, face_cont_dim, edge_cont_dim)
         self.face_noise_head = MLP(hidden_dim, hidden_dim, face_cont_dim, float(model_cfg["dropout"]))
         self.face_recon_head = MLP(hidden_dim, hidden_dim, face_cont_dim, float(model_cfg["dropout"]))
         self.surface_head = MLP(hidden_dim, hidden_dim, int(brep_cfg["surface_type_vocab"]), float(model_cfg["dropout"]))
-        self.coarse_label_head = (
-            MLP(hidden_dim, hidden_dim, self.num_classes, float(model_cfg["dropout"]))
-            if self.use_coarse_label_head
-            else None
-        )
 
         edge_context_dim = hidden_dim * 3
         self.edge_context = MLP(edge_context_dim, hidden_dim, hidden_dim, float(model_cfg["dropout"]))
@@ -363,14 +347,13 @@ class DiffusionPretrainModel(nn.Module):
             batch.edge_type,
             batch.edge_relation,
             time_h=time_h,
+            graph_ptr=batch.graph_ptr,
         )
         outputs = {
             "face_noise": self.face_noise_head(node_h),
             "face_recon": self.face_recon_head(node_h),
             "surface_logits": self.surface_head(node_h),
         }
-        if self.coarse_label_head is not None:
-            outputs["coarse_label_logits"] = self.coarse_label_head(node_h)
 
         if batch.edge_index.numel() == 0:
             outputs.update(
@@ -394,28 +377,6 @@ class DiffusionPretrainModel(nn.Module):
             }
         )
         return outputs
-
-
-def soft_cross_entropy(logits: torch.Tensor, soft_targets: torch.Tensor) -> torch.Tensor:
-    log_prob = F.log_softmax(logits, dim=-1)
-    return -(soft_targets * log_prob).sum(dim=-1).mean()
-
-
-def make_soft_targets(labels: torch.Tensor, config: dict[str, Any]) -> torch.Tensor:
-    num_classes = int(config["model"]["num_classes"])
-    ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
-    mapping = config["labels"].get("coarse_soft_targets", {})
-    soft = torch.zeros((labels.shape[0], num_classes), dtype=torch.float32, device=labels.device)
-    valid = labels != ignore_index
-    for cls in range(num_classes):
-        values = mapping.get(cls, mapping.get(str(cls)))
-        if values is None:
-            values = [0.0] * num_classes
-            values[cls] = 1.0
-        cls_mask = valid & (labels == cls)
-        if cls_mask.any():
-            soft[cls_mask] = torch.tensor(values, dtype=torch.float32, device=labels.device)
-    return soft, valid
 
 
 def compute_pretrain_loss(
@@ -445,15 +406,6 @@ def compute_pretrain_loss(
         losses["edge_type"] = zero
         losses["relation"] = zero
 
-    if "coarse_label_logits" in outputs and batch.labels is not None:
-        soft_targets, valid = make_soft_targets(batch.labels, config)
-        if valid.any():
-            losses["coarse_label"] = soft_cross_entropy(outputs["coarse_label_logits"][valid], soft_targets[valid])
-        else:
-            losses["coarse_label"] = batch.face_cont.new_tensor(0.0)
-    elif "coarse_label_logits" in outputs:
-        losses["coarse_label"] = batch.face_cont.new_tensor(0.0)
-
     noise_loss = losses["face_noise"] + losses["edge_noise"]
     recon_loss = losses["face_recon"] + losses["edge_recon"]
     categorical_loss = losses["surface"] + losses["edge_type"]
@@ -465,8 +417,6 @@ def compute_pretrain_loss(
         + float(diff_cfg["categorical_loss_weight"]) * categorical_loss
         + float(diff_cfg["relation_loss_weight"]) * relation_loss
     )
-    if "coarse_label" in losses:
-        total = total + float(diff_cfg["coarse_label_loss_weight"]) * losses["coarse_label"]
     metrics = {name: float(value.detach().cpu()) for name, value in losses.items()}
     metrics["total"] = float(total.detach().cpu())
     return total, metrics

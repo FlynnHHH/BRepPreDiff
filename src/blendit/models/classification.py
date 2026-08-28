@@ -36,12 +36,132 @@ def mean_graph_pool(face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.T
     num_graphs = len(batch.sample_ids)
     pooled = face_embeddings.new_zeros((num_graphs, face_embeddings.shape[-1]))
     pooled.index_add_(0, batch.batch_index, face_embeddings)
-    counts = (
-        torch.bincount(batch.batch_index, minlength=num_graphs)
+    counts = _graph_counts(face_embeddings, batch)
+    return pooled / counts.clamp_min(1.0)
+
+
+def _graph_counts(face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+    return (
+        torch.bincount(batch.batch_index, minlength=len(batch.sample_ids))
         .to(face_embeddings.dtype)
         .unsqueeze(-1)
     )
-    return pooled / counts.clamp_min(1.0)
+
+
+def _max_graph_pool(face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+    pooled = face_embeddings.new_full(
+        (len(batch.sample_ids), face_embeddings.shape[-1]),
+        -torch.inf,
+    )
+    graph_indices = batch.batch_index.unsqueeze(-1).expand_as(face_embeddings)
+    pooled.scatter_reduce_(
+        0,
+        graph_indices,
+        face_embeddings,
+        reduce="amax",
+        include_self=True,
+    )
+    return pooled
+
+
+def _std_graph_pool(face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+    mean = mean_graph_pool(face_embeddings, batch)
+    mean_square = face_embeddings.new_zeros(mean.shape)
+    mean_square.index_add_(0, batch.batch_index, face_embeddings.square())
+    mean_square = mean_square / _graph_counts(face_embeddings, batch).clamp_min(1.0)
+    return (mean_square - mean.square()).clamp_min(1.0e-12).sqrt()
+
+
+class MeanGraphPool(nn.Module):
+    def forward(self, face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+        return mean_graph_pool(face_embeddings, batch)
+
+
+class MeanStatisticGraphPool(nn.Module):
+    """Fuse mean pooling with a complementary max or standard-deviation statistic.
+
+    The residual projection is zero-initialized so fine-tuning starts from the exact
+    mean-pooling baseline instead of perturbing a pretrained encoder immediately.
+    """
+
+    def __init__(self, hidden_dim: int, dropout: float, statistic: str) -> None:
+        super().__init__()
+        if statistic not in {"max", "std"}:
+            raise ValueError(f"Unsupported graph statistic: {statistic!r}")
+        self.statistic = statistic
+        self.residual = nn.Sequential(
+            nn.LayerNorm(2 * hidden_dim),
+            nn.Linear(2 * hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        final_projection = self.residual[-1]
+        nn.init.zeros_(final_projection.weight)
+        nn.init.zeros_(final_projection.bias)
+
+    def forward(self, face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+        mean = mean_graph_pool(face_embeddings, batch)
+        if self.statistic == "max":
+            complement = _max_graph_pool(face_embeddings, batch)
+        else:
+            complement = _std_graph_pool(face_embeddings, batch)
+        return mean + self.residual(torch.cat((mean, complement), dim=-1))
+
+
+class ResidualAttentionGraphPool(nn.Module):
+    """Learn face importance without discarding the stable mean representation."""
+
+    def __init__(self, hidden_dim: int) -> None:
+        super().__init__()
+        self.score = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1),
+        )
+        final_score = self.score[-1]
+        nn.init.zeros_(final_score.weight)
+        nn.init.zeros_(final_score.bias)
+        # Begin with a conservative 20% residual-attention mixing coefficient.
+        self.mix_logit = nn.Parameter(torch.tensor(-1.3862944))
+
+    def forward(self, face_embeddings: torch.Tensor, batch: GraphBatch) -> torch.Tensor:
+        mean = mean_graph_pool(face_embeddings, batch)
+        logits = self.score(face_embeddings).squeeze(-1).clamp(min=-10.0, max=10.0)
+        graph_max = logits.new_full((len(batch.sample_ids),), -torch.inf)
+        graph_max.scatter_reduce_(
+            0,
+            batch.batch_index,
+            logits,
+            reduce="amax",
+            include_self=True,
+        )
+        weights = torch.exp(logits - graph_max[batch.batch_index])
+        denominators = logits.new_zeros((len(batch.sample_ids),))
+        denominators.index_add_(0, batch.batch_index, weights)
+        weights = weights / denominators[batch.batch_index].clamp_min(1.0e-8)
+        attended = face_embeddings.new_zeros(mean.shape)
+        attended.index_add_(0, batch.batch_index, face_embeddings * weights.unsqueeze(-1))
+        return mean + self.mix_logit.sigmoid() * (attended - mean)
+
+
+def build_graph_pool(model_cfg: dict[str, Any]) -> nn.Module:
+    hidden_dim = int(model_cfg["hidden_dim"])
+    dropout = float(model_cfg["dropout"])
+    pooling = str(model_cfg.get("graph_pooling", "mean")).lower()
+    if pooling == "mean":
+        return MeanGraphPool()
+    if pooling == "mean_max":
+        return MeanStatisticGraphPool(hidden_dim, dropout, statistic="max")
+    if pooling == "mean_std":
+        return MeanStatisticGraphPool(hidden_dim, dropout, statistic="std")
+    if pooling == "residual_attention":
+        return ResidualAttentionGraphPool(hidden_dim)
+    supported = ["mean", "mean_max", "mean_std", "residual_attention"]
+    raise ValueError(
+        f"Unsupported model.graph_pooling {pooling!r}; expected one of {supported}."
+    )
 
 
 class ClassificationModel(DownstreamEncoder):
@@ -58,9 +178,12 @@ class ClassificationModel(DownstreamEncoder):
             int(model_cfg["num_classes"]),
             float(model_cfg["dropout"]),
         )
+        # Construct the shared classification head before method-specific pooling
+        # modules so a fixed seed gives every pooling ablation the same head weights.
+        self.graph_pool = build_graph_pool(model_cfg)
 
     def forward(self, batch: GraphBatch) -> torch.Tensor:
-        return self.cls_head(mean_graph_pool(self.encode_faces(batch), batch))
+        return self.cls_head(self.graph_pool(self.encode_faces(batch), batch))
 
 
 class DiffusionClassificationModel(LabelDiffusionModel):
@@ -69,9 +192,10 @@ class DiffusionClassificationModel(LabelDiffusionModel):
     def __init__(self, config: dict[str, Any], face_cont_dim: int, edge_cont_dim: int) -> None:
         _require_classification(config)
         super().__init__(config, face_cont_dim, edge_cont_dim)
+        self.graph_pool = build_graph_pool(config["model"])
 
     def encode_tokens(self, batch: GraphBatch) -> torch.Tensor:
-        return mean_graph_pool(self.encode_faces(batch), batch)
+        return self.graph_pool(self.encode_faces(batch), batch)
 
     def token_counts(self, batch: GraphBatch) -> list[int]:
         return [1] * len(batch.sample_ids)
@@ -189,6 +313,10 @@ def compute_classification_loss(
 __all__ = [
     "ClassificationModel",
     "DiffusionClassificationModel",
+    "MeanGraphPool",
+    "MeanStatisticGraphPool",
+    "ResidualAttentionGraphPool",
+    "build_graph_pool",
     "build_classification_model",
     "classification_confusion_matrix",
     "classification_metrics_from_confusion_matrix",

@@ -12,8 +12,6 @@ model:
   num_layers: 4
   dropout: 0.1
   time_dim: 128
-  num_classes: 3
-  use_coarse_label_head: false
 
 diffusion:
   timesteps: 1000
@@ -23,7 +21,6 @@ diffusion:
   recon_loss_weight: 0.5
   categorical_loss_weight: 0.5
   relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.0
 
 train:
   device: cuda

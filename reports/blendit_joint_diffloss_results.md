@@ -1,10 +1,10 @@
-# Blendit 联合无 coarse-label 基模 DiffLoss 调参结果
+# Blendit 联合预训练基模 DiffLoss 调参结果
 
 生成日期：2026-07-24
 
 ## 结论
 
-使用 `all_splits_no_coarse` 联合自监督预训练基模，在同一 Blendit
+使用联合自监督预训练基模，在同一 Blendit
 train/validation/test 划分上，调优后的 DiffLoss 已超过现有 MLP 基线。
 
 | Head | Accuracy | Macro-F1 | Macro-IoU | Weighted-F1 | Weighted-IoU |
@@ -24,7 +24,7 @@ train/validation/test 划分上，调优后的 DiffLoss 已超过现有 MLP 基�
 ## 对照协议
 
 - 预训练 checkpoint：
-  `runs/pretrain/20260723-213828_joint_all_splits_no_coarse/checkpoints/last.pt`
+  `<joint-pretrain-run>/checkpoints/last.pt`
 - Blendit 数据：6,127 train / 766 validation / 766 test；
 - 测试集：41,459 faces；
 - MLP 对照：

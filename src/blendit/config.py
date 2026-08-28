@@ -98,6 +98,9 @@ def apply_overrides(config: dict[str, Any], overrides: list[str] | None) -> dict
 def feature_dims(config: dict[str, Any]) -> tuple[int, int]:
     """Return face and edge continuous feature dimensions."""
     grid = int(config["brep"]["uv_grid_size"])
-    face_dim = 11 + grid * grid * 6
-    edge_dim = 3
+    if str(config["brep"].get("feature_schema", "occ_grid_v2")) == "legacy":
+        return 11 + grid * grid * 6, 3
+    edge_grid = int(config["brep"].get("edge_u_grid_size", grid))
+    face_dim = 11 + grid * grid * 7
+    edge_dim = 3 + edge_grid * 6
     return face_dim, edge_dim

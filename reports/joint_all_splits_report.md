@@ -1,10 +1,10 @@
-# 四数据源联合无 coarse label 自监督预训练与微调报告
+# 四数据源联合自监督预训练与微调报告
 
 生成日期：2026-07-24
 
 ## 结论
 
-四数据源联合无 coarse-label 自监督预训练已完成 150 epochs，随后完成四项
+四数据源联合自监督预训练已完成 150 epochs，随后完成四项
 100-epoch MLP full 微调和完整 test split 精确评估。
 
 | 数据集 | Task | Accuracy | Macro-F1 | Macro-IoU | Weighted-IoU |
@@ -22,8 +22,6 @@
 - TMCAD、Fusion360Seg、MFCAD++ 的 train、validation、test 三个 split 全部参与
   自监督预训练；
 - 下游标签不会从 NPZ cache 中加载，联合 batch 的 `labels` 恒为 `None`；
-- 预训练模型不实例化 coarse-label head，
-  `coarse_label_loss_weight: 0.0`；
 - 自监督目标仅包含连续几何噪声/重建、surface type、edge type 和 topology
   relation；
 - 四个来源均使用 `uv_grid_size: 10`，encoder 输入维度一致。
@@ -64,14 +62,12 @@ clean split 排除。其余三个来源的 split 与现有完整 cache 一一对
 | Optimizer | AdamW |
 | Learning rate / weight decay | `1e-3` / `1e-4` |
 | Gradient clipping | 1.0 |
-| Coarse-label head | 禁用 |
-| Coarse-label loss | 0.0 |
 | GPU / global batch | 4 × TITAN RTX 24 GB / 2,048 graphs |
 | 运行时间 | 约 1 小时 39 分 |
 | 最终 total loss | 1.33085 |
 | 数据配置 | `data/pretrain_joint_all_splits.yaml` |
-| 训练配置 | `configs/pretrain_joint_all_splits_no_coarse.yaml` |
-| 运行目录 | `runs/pretrain/20260723-213828_joint_all_splits_no_coarse` |
+| 训练配置 | `configs/pretrain_joint_all_splits.yaml` |
+| 运行目录 | `<joint-pretrain-run>` |
 
 ### 下游微调
 
@@ -93,9 +89,8 @@ size 为 256。
 - 从 Blendit、TMCAD、Fusion360Seg、MFCAD++ test 各抽一个图组成真实混合 batch：
   156 faces、748 edges。
 - 混合 batch 的 `labels is None`。
-- `model.coarse_label_head is None`。
 - loss 仅含 `face_noise`、`face_recon`、`surface`、`edge_noise`、`edge_recon`、
-  `edge_type`、`relation` 和 `total`，无 coarse-label 项。
+  `edge_type`、`relation` 和 `total`。
 - CPU 前向、反向和梯度计算成功，检查 batch 的总 loss 为 `6.772156`。
 - 完整测试结果：`89 passed`。
 
@@ -125,9 +120,8 @@ F1 仍达到 0.957636。
 
 ## 与仓库既有结果的参考比较
 
-下表只用于提供量级参考，不是严格受控消融。既有 Blendit 行来自无 coarse-label
-MLP 实验；其余既有结果使用原 Blendit-only、带 coarse-label 的预训练 encoder。
-本次实验还让 test 几何参与了无标签预训练，因此不能把差异完全归因于联合数据。
+下表只用于提供量级参考，不是严格受控消融。本次实验还让 test 几何参与了无标签
+预训练，因此不能把差异完全归因于联合数据。
 
 | 数据集 | Δ Accuracy | Δ Macro-F1 | Δ Macro-IoU |
 |---|---:|---:|---:|
@@ -136,16 +130,16 @@ MLP 实验；其余既有结果使用原 Blendit-only、带 coarse-label 的预�
 | Fusion360Seg | +0.231 pp | -0.578 pp | -0.643 pp |
 | MFCAD++ | +0.138 pp | +0.198 pp | +0.371 pp |
 
-联合无 coarse-label 预训练对 Blendit 和 MFCAD++ 的三项聚合指标均有提升；对
+联合预训练对 Blendit 和 MFCAD++ 的三项聚合指标均有提升；对
 Fusion360Seg 的 Accuracy 有小幅提升，但 Macro-F1/IoU 略降；TMCAD 三项指标均
-略降。由于协议同时改变了数据构成、coarse head 和 test 几何可见性，这里只报告
-观察结果，不作单因素因果结论。
+略降。由于协议同时改变了数据构成和 test 几何可见性，这里只报告观察结果，不作
+单因素因果结论。
 
 ## 产物与校验
 
 | 产物 | 路径 | SHA-256 |
 |---|---|---|
-| 联合预训练 `last.pt` | `runs/pretrain/20260723-213828_joint_all_splits_no_coarse/checkpoints/last.pt` | `1689ab00fe1d9e110b6a38f052a773a241b2765dd7c5addee1cef28fc8e3d464` |
+| 联合预训练 `last.pt` | `<joint-pretrain-run>/checkpoints/last.pt` | `1689ab00fe1d9e110b6a38f052a773a241b2765dd7c5addee1cef28fc8e3d464` |
 | Blendit `best.pt` | `runs/finetune/20260723-232008_joint_blendit_mlp/checkpoints/best.pt` | `f1a234cbe402eb788c8eaafd84e1c641f6d755dabd325a6864c99a3b3f5c4bb3` |
 | TMCAD `best.pt` | `runs/finetune/20260723-232049_joint_tmcad_mlp/checkpoints/best.pt` | `02adcfb2db6451bb0f30af65ad674a3a4f65248309dc1b2ceca4f42d524a4c01` |
 | Fusion360Seg `best.pt` | `runs/finetune/20260723-232129_joint_fusion360seg_mlp/checkpoints/best.pt` | `7a748af4f499a5d2a92082c820f83887c80af29eb9dcbb92bee952b6492c35b6` |
@@ -166,11 +160,11 @@ Fusion360Seg 的 Accuracy 有小幅提升，但 Macro-F1/IoU 略降；TMCAD 三�
 /home/hhfeng/miniconda3/envs/blendit/bin/torchrun \
   --standalone --nproc_per_node=4 \
   -m blendit.training.pretrain \
-  --config configs/pretrain_joint_all_splits_no_coarse.yaml
+  --config configs/pretrain_joint_all_splits.yaml
 ```
 
 ```bash
-PRETRAIN=runs/pretrain/20260723-213828_joint_all_splits_no_coarse/checkpoints/last.pt
+PRETRAIN=<joint-pretrain-run>/checkpoints/last.pt
 ```
 
 四项微调可分别在四张卡上并行执行；下面是一项命令示例，替换 GPU ID 和 config

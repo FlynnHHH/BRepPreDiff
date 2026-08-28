@@ -59,7 +59,7 @@ echo "[$(date --iso-8601=seconds)] Preparing Fusion360Seg s2.0.1"
 prepare_and_filter \
   data/fusion360seg_s2_0_1_pretrain.yaml \
   fusion360seg_s2_0_1 \
-  data/cache/features/fusion360seg_s2_0_1_invalid.jsonl \
+  /data/hhfeng/blendit/cache/features/fusion360seg_s2_0_1_invalid.jsonl \
   data/splits/fusion360seg_train.txt \
   data/splits/fusion360seg_val.txt \
   data/splits/fusion360seg_test.txt
@@ -68,7 +68,7 @@ echo "[$(date --iso-8601=seconds)] Preparing Fusion360Rec r1.0.1"
 prepare_and_filter \
   data/fusion360rec_r1_0_1_pretrain.yaml \
   fusion360rec_r1_0_1 \
-  data/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl \
+  /data/hhfeng/blendit/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl \
   data/splits/fusion360rec_r1_0_1_train_raw.txt \
   data/splits/fusion360rec_r1_0_1_val_raw.txt \
   data/splits/fusion360rec_r1_0_1_test_raw.txt
@@ -77,7 +77,7 @@ echo "[$(date --iso-8601=seconds)] Preparing Fusion360Ass j1.0.0"
 prepare_and_filter \
   data/fusion360ass_j1_0_0_pretrain.yaml \
   fusion360ass_j1_0_0 \
-  data/cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl \
+  /data/hhfeng/blendit/cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl \
   data/splits/fusion360ass_j1_0_0_train_raw.txt \
   data/splits/fusion360ass_j1_0_0_val_raw.txt \
   data/splits/fusion360ass_j1_0_0_test_raw.txt

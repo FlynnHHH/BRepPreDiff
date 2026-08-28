@@ -52,7 +52,7 @@ train:
   validate_every_epochs: 1
   selection_metric: acc
   resume: null
-  pretrain_checkpoint: runs/pretrain/20260723-213828_joint_all_splits_no_coarse/checkpoints/last.pt
+  pretrain_checkpoint: null
   encoder_freeze_mode: none
   encoder_frozen_layers: 2
   class_weights: [0.67, 1.37, 0.96]

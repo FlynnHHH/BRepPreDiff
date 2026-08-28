@@ -62,17 +62,35 @@ class GraphBatch:
         )
 
 
-def normalize_graph_features(graph: BRepGraph, eps: float = 1.0e-6) -> BRepGraph:
+def normalize_graph_features(
+    graph: BRepGraph,
+    eps: float = 1.0e-6,
+    *,
+    uv_grid_size: int | None = None,
+    edge_u_grid_size: int | None = None,
+) -> BRepGraph:
     face = graph.face_cont
     edge = graph.edge_cont
     face_mean = face.mean(dim=0, keepdim=True)
     face_std = face.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
     face = (face - face_mean) / face_std
+    if uv_grid_size is not None:
+        face_grid = graph.face_cont[:, 11:].reshape(graph.num_faces, uv_grid_size**2, 7)
+        normalized_grid = face[:, 11:].reshape(graph.num_faces, uv_grid_size**2, 7)
+        # The trimming mask is categorical and must remain exactly zero or one.
+        normalized_grid[:, :, 6] = face_grid[:, :, 6]
 
     if edge.numel() > 0:
         edge_mean = edge.mean(dim=0, keepdim=True)
         edge_std = edge.std(dim=0, keepdim=True, unbiased=False).clamp_min(eps)
         edge = (edge - edge_mean) / edge_std
+        if edge_u_grid_size is not None:
+            edge_grid = graph.edge_cont[:, 3:].reshape(-1, edge_u_grid_size, 6)
+            normalized_edge_grid = edge[:, 3:].reshape(-1, edge_u_grid_size, 6)
+            tangents = edge_grid[:, :, 3:6]
+            normalized_edge_grid[:, :, 3:6] = tangents / tangents.norm(
+                dim=-1, keepdim=True
+            ).clamp_min(eps)
     return BRepGraph(
         face_cont=face,
         face_surface_type=graph.face_surface_type,
@@ -118,6 +136,8 @@ def typewise_global_standardize_graph_features(
     stats: GlobalFeatureStats,
     *,
     uv_grid_size: int,
+    edge_u_grid_size: int | None = None,
+    legacy: bool = False,
     eps: float = 1.0e-6,
 ) -> BRepGraph:
     """Apply global z-scores except to directional/bounded feature channels."""
@@ -139,24 +159,43 @@ def typewise_global_standardize_graph_features(
     face[:, 4:7] = center_normals / center_normals.norm(
         dim=-1, keepdim=True
     ).clamp_min(eps)
+    grid_channels = 6 if legacy else 7
     grid_input = graph.face_cont[:, 11:].reshape(
-        graph.num_faces, uv_grid_size * uv_grid_size, 6
+        graph.num_faces, uv_grid_size * uv_grid_size, grid_channels
     )
     grid_output = face[:, 11:].reshape(
-        graph.num_faces, uv_grid_size * uv_grid_size, 6
+        graph.num_faces, uv_grid_size * uv_grid_size, grid_channels
     )
     grid_normals = grid_input[:, :, 3:6]
     grid_output[:, :, 3:6] = grid_normals / grid_normals.norm(
         dim=-1, keepdim=True
     ).clamp_min(eps)
+    if not legacy:
+        grid_output[:, :, 6] = grid_input[:, :, 6]
 
-    edge = graph.edge_cont.clone()
+    edge = (
+        graph.edge_cont.clone()
+        if legacy
+        else (graph.edge_cont - stats.edge_mean) / stats.edge_std.clamp_min(eps)
+    )
     if edge.numel() > 0:
         # edge_cont = [log1p(length), angle/pi, normal dot product]. Only the
         # unbounded length channel needs a fitted global z-score.
-        edge[:, 0] = (edge[:, 0] - stats.edge_mean[0]) / stats.edge_std[0].clamp_min(eps)
-        edge[:, 1] = edge[:, 1].clamp(0.0, 1.0)
-        edge[:, 2] = edge[:, 2].clamp(-1.0, 1.0)
+        edge[:, 0] = (graph.edge_cont[:, 0] - stats.edge_mean[0]) / stats.edge_std[
+            0
+        ].clamp_min(eps)
+        edge[:, 1] = graph.edge_cont[:, 1].clamp(0.0, 1.0)
+        edge[:, 2] = graph.edge_cont[:, 2].clamp(-1.0, 1.0)
+        resolved_edge_grid_size = edge_u_grid_size or uv_grid_size
+        if not legacy:
+            edge_grid_input = graph.edge_cont[:, 3:].reshape(
+                -1, resolved_edge_grid_size, 6
+            )
+            edge_grid_output = edge[:, 3:].reshape(-1, resolved_edge_grid_size, 6)
+            edge_tangents = edge_grid_input[:, :, 3:6]
+            edge_grid_output[:, :, 3:6] = edge_tangents / edge_tangents.norm(
+                dim=-1, keepdim=True
+            ).clamp_min(eps)
 
     return BRepGraph(
         face_cont=face,

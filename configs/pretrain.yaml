@@ -1,5 +1,7 @@
 seed: 42
-data_config: ../data/pretrain.yaml
+# Default encoder pretraining uses the seven-source transductive corpus and
+# the OCC-grid-v2 schema (711 face features / 63 edge features).
+data_config: ../data/pretrain_joint_fusion_gallery_filtered_fabwave_all_splits.yaml
 
 run:
   name: pretrain
@@ -7,13 +9,17 @@ run:
   log_interval: 10
   save_every_epochs: 5
 
+wandb:
+  enabled: true
+  project: blendit
+
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
+  encoder_type: edge_update_attention
+  num_heads: 4
   time_dim: 128
-  num_classes: 3
-  use_coarse_label_head: true
 
 diffusion:
   timesteps: 1000
@@ -23,12 +29,12 @@ diffusion:
   recon_loss_weight: 0.5
   categorical_loss_weight: 0.5
   relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.2
 
 train:
   device: cuda
   epochs: 150
-  batch_size: 512
+  # Per-rank batch size for the default four-GPU launch (global batch 256).
+  batch_size: 64
   num_workers: 16
   normalize_per_graph: true
   lr: 1.0e-3
@@ -37,10 +43,3 @@ train:
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
   resume: null
-
-labels:
-  # Used only for coarse auxiliary supervision during pretraining.
-  coarse_soft_targets:
-    0: [0.90, 0.05, 0.05]
-    1: [0.05, 0.80, 0.15]
-    2: [0.05, 0.15, 0.80]

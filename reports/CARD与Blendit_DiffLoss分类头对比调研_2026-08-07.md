@@ -234,7 +234,7 @@ $$
 它没有独立的 $f_\phi(\mathbf x)$ 分类器，也没有一个先由 CE 训练、再作为扩散均值锚点
 的类别概率向量。
 
-Blendit 的预训练 checkpoint 对分类任务只加载 `encoder.*`，不会把 coarse label head
+Blendit 的预训练 checkpoint 对分类任务只加载 `encoder.*`，不会把预训练任务 head
 映射到图级分类头。因此：
 
 - CARD 预训练分类器提供类别概率先验；

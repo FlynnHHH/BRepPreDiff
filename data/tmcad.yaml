@@ -3,7 +3,7 @@ task: cls
 data:
   steps_dir: /data/hhfeng/TMCAD
   labels_dir: /data/hhfeng/TMCAD
-  cache_dir: data/cache/features/tmcad
+  cache_dir: /data/hhfeng/blendit/cache/features/tmcad
   prepare_on_start: false
   # Clean splits omit the 11 source STEP files that OCC cannot parse safely.
   train_split: data/splits/tmcad_train.txt
@@ -14,7 +14,7 @@ data:
   strict_label_count: true
   overwrite_cache: false
   cache_num_workers: 16
-  invalid_log: data/cache/features/tmcad_invalid.jsonl
+  invalid_log: /data/hhfeng/blendit/cache/features/tmcad_invalid.jsonl
 
 brep:
   # Matches the available Blendit pretraining checkpoint.

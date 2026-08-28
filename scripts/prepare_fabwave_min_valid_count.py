@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--min-count", type=int, default=10)
     parser.add_argument("--dataset-root", default="/data/hhfeng/FabWave")
-    parser.add_argument("--source-cache", default="data/cache/features/fabwave_no_rotary_shaft")
+    parser.add_argument("--source-cache", default="/data/hhfeng/blendit/cache/features/fabwave_no_rotary_shaft")
     parser.add_argument("--source-class-map", default="data/splits/fabwave_no_rotary_shaft_class_map.json")
     parser.add_argument(
         "--source-split-pattern",
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-cache",
-        default="data/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10",
+        default="/data/hhfeng/blendit/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10",
     )
     parser.add_argument(
         "--output-labels",

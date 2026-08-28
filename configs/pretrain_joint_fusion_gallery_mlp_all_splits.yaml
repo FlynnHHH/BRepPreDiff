@@ -1,5 +1,5 @@
 seed: 42
-data_config: ../data/pretrain_joint_fusion_gallery_all_splits.yaml
+data_config: ../data/pretrain_joint_fusion_gallery_filtered_fabwave_all_splits.yaml
 
 run:
   name: joint_fusion_gallery_mlp_all_splits
@@ -9,13 +9,12 @@ run:
   show_progress: false
 
 model:
-  # Original Blendit encoder: four GraphMessageLayer blocks with MLP/FFN updates.
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
+  encoder_type: edge_update_attention
+  num_heads: 4
   time_dim: 128
-  num_classes: 3
-  use_coarse_label_head: false
 
 diffusion:
   timesteps: 1000
@@ -23,15 +22,14 @@ diffusion:
   beta_end: 0.02
   noise_loss_weight: 1.0
   recon_loss_weight: 0.5
-  categorical_loss_weight: 0.5
-  relation_loss_weight: 0.3
-  coarse_label_loss_weight: 0.0
+  categorical_loss_weight: 0.0
+  relation_loss_weight: 0.0
 
 train:
   device: cuda
   require_cuda: true
   epochs: 150
-  batch_size: 512
+  batch_size: 128
   num_workers: 16
   normalize_per_graph: true
   lr: 1.0e-3
@@ -40,4 +38,3 @@ train:
   distributed_timeout_seconds: 120
   validate_every_epochs: 1
   resume: null
-

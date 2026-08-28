@@ -54,13 +54,24 @@ def _remap_labels(
 def _occ_imports() -> SimpleNamespace:
     try:
         from OCC.Core.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+        from OCC.Core.BRepClass import BRepClass_FaceClassifier
         from OCC.Core.BRepLProp import BRepLProp_SLProps
         from OCC.Core.GProp import GProp_GProps
         from OCC.Core.IFSelect import IFSelect_RetDone
         from OCC.Core.STEPControl import STEPControl_Reader
-        from OCC.Core.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_REVERSED
-        from OCC.Core.TopTools import TopTools_IndexedDataMapOfShapeListOfShape, TopTools_IndexedMapOfShape
+        from OCC.Core.TopAbs import (
+            TopAbs_EDGE,
+            TopAbs_FACE,
+            TopAbs_IN,
+            TopAbs_ON,
+            TopAbs_REVERSED,
+        )
+        from OCC.Core.TopTools import (
+            TopTools_IndexedDataMapOfShapeListOfShape,
+            TopTools_IndexedMapOfShape,
+        )
         from OCC.Core.TopoDS import topods
+        from OCC.Core.gp import gp_Pnt2d
     except ImportError as exc:
         raise ImportError(
             "pythonocc-core is required for STEP feature extraction. "
@@ -114,17 +125,21 @@ def _occ_imports() -> SimpleNamespace:
     return SimpleNamespace(
         BRepAdaptor_Curve=BRepAdaptor_Curve,
         BRepAdaptor_Surface=BRepAdaptor_Surface,
+        BRepClass_FaceClassifier=BRepClass_FaceClassifier,
         BRepLProp_SLProps=BRepLProp_SLProps,
         GProp_GProps=GProp_GProps,
         IFSelect_RetDone=IFSelect_RetDone,
         STEPControl_Reader=STEPControl_Reader,
         TopAbs_EDGE=TopAbs_EDGE,
         TopAbs_FACE=TopAbs_FACE,
+        TopAbs_IN=TopAbs_IN,
+        TopAbs_ON=TopAbs_ON,
         TopAbs_REVERSED=TopAbs_REVERSED,
         TopExp=top_exp,
         TopTools_IndexedDataMapOfShapeListOfShape=TopTools_IndexedDataMapOfShapeListOfShape,
         TopTools_IndexedMapOfShape=TopTools_IndexedMapOfShape,
         topods=topods,
+        gp_Pnt2d=gp_Pnt2d,
         surface_properties=brepgprop_SurfaceProperties,
         linear_properties=brepgprop_LinearProperties,
         uv_bounds=uv_bounds_fn,
@@ -139,6 +154,9 @@ class OccBRepExtractor:
         self.occ = _occ_imports()
         brep_cfg = config["brep"]
         self.grid_size = int(brep_cfg.get("uv_grid_size", 4))
+        self.edge_grid_size = int(brep_cfg.get("edge_u_grid_size", self.grid_size))
+        if self.grid_size < 1 or self.edge_grid_size < 1:
+            raise ValueError("brep.uv_grid_size and brep.edge_u_grid_size must be positive.")
         self.precision = float(brep_cfg.get("occ_precision", 1.0e-6))
         self.smooth_angle = math.radians(float(brep_cfg.get("smooth_angle_degrees", 5.0)))
         self.surface_vocab = int(brep_cfg.get("surface_type_vocab", 32))
@@ -214,6 +232,7 @@ class OccBRepExtractor:
                 point, normal, _ = self._sample_surface(adaptor, face, float(u), float(v))
                 grid_values.extend(point.tolist())
                 grid_values.extend(normal.tolist())
+                grid_values.append(float(self._uv_is_on_face(face, float(u), float(v))))
 
         continuous = np.concatenate(
             [
@@ -252,7 +271,24 @@ class OccBRepExtractor:
             return -1.0, 1.0, -1.0, 1.0
         return umin, umax, vmin, vmax
 
-    def _sample_surface(self, adaptor, face, u: float, v: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _uv_is_on_face(self, face, u: float, v: float) -> bool:
+        """Return whether a UV sample belongs to the trimmed face (boundary included)."""
+        try:
+            uv = self.occ.gp_Pnt2d(u, v)
+            try:
+                classifier = self.occ.BRepClass_FaceClassifier(face, uv, self.precision)
+            except TypeError:
+                classifier = self.occ.BRepClass_FaceClassifier()
+                classifier.Perform(face, uv, self.precision)
+            state = classifier.State()
+            return state == self.occ.TopAbs_IN or state == self.occ.TopAbs_ON
+        except Exception:
+            # A failed classifier must not silently mark an unverified point valid.
+            return False
+
+    def _sample_surface(
+        self, adaptor, face, u: float, v: float
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         point = np.zeros(3, dtype=np.float32)
         normal = np.zeros(3, dtype=np.float32)
         curv = np.zeros(4, dtype=np.float32)
@@ -312,13 +348,14 @@ class OccBRepExtractor:
 
             length = self._edge_length(edge)
             edge_type_id = self._bounded_category(self._edge_type(edge), self.edge_vocab)
+            edge_grid = self._sample_edge_grid(edge)
             for i, j in itertools.combinations(unique_face_ids, 2):
                 n_i = face_normals[i]
                 n_j = face_normals[j]
                 dot = float(np.clip(np.dot(n_i, n_j), -1.0, 1.0))
                 angle = float(math.acos(dot))
                 relation = 1 if angle <= self.smooth_angle else 2
-                attrs = [math.log1p(max(length, 0.0)), angle / math.pi, dot]
+                attrs = [math.log1p(max(length, 0.0)), angle / math.pi, dot, *edge_grid]
                 for src, dst in ((i, j), (j, i)):
                     directed_edges.append((src, dst))
                     edge_cont.append(attrs)
@@ -328,7 +365,7 @@ class OccBRepExtractor:
         if not directed_edges:
             return {
                 "edge_index": np.empty((2, 0), dtype=np.int64),
-                "edge_cont": np.empty((0, 3), dtype=np.float32),
+                "edge_cont": np.empty((0, 3 + 6 * self.edge_grid_size), dtype=np.float32),
                 "edge_type": np.empty((0,), dtype=np.int64),
                 "edge_relation": np.empty((0,), dtype=np.int64),
             }
@@ -353,6 +390,42 @@ class OccBRepExtractor:
             return int(adaptor.GetType())
         except Exception:
             return 0
+
+    def _sample_edge_grid(self, edge) -> list[float]:
+        """Uniformly sample XYZ and a unit tangent along a B-Rep edge."""
+        values: list[float] = []
+        try:
+            adaptor = self.occ.BRepAdaptor_Curve(edge)
+            first = float(adaptor.FirstParameter())
+            last = float(adaptor.LastParameter())
+            if not math.isfinite(first) or not math.isfinite(last) or last < first:
+                raise ValueError("Edge has an invalid parameter range.")
+            parameters = np.linspace(first, last, self.edge_grid_size, dtype=np.float64)
+        except Exception:
+            return [0.0] * (6 * self.edge_grid_size)
+
+        for parameter in parameters:
+            point = np.zeros(3, dtype=np.float32)
+            tangent = np.zeros(3, dtype=np.float32)
+            try:
+                pnt = adaptor.Value(float(parameter))
+                derivative = adaptor.DN(float(parameter), 1)
+                point = np.array([pnt.X(), pnt.Y(), pnt.Z()], dtype=np.float32)
+                tangent = np.array(
+                    [derivative.X(), derivative.Y(), derivative.Z()], dtype=np.float32
+                )
+                tangent_norm = float(np.linalg.norm(tangent))
+                if math.isfinite(tangent_norm) and tangent_norm > self.precision:
+                    tangent /= tangent_norm
+                else:
+                    tangent.fill(0.0)
+            except Exception:
+                pass
+            point = np.nan_to_num(point, nan=0.0, posinf=0.0, neginf=0.0)
+            tangent = np.nan_to_num(tangent, nan=0.0, posinf=0.0, neginf=0.0)
+            values.extend(point.tolist())
+            values.extend(tangent.tolist())
+        return values
 
     def _read_labels(
         self,

@@ -37,7 +37,7 @@ split，但训练时不加载任何下游标签。
 
 - Encoder：初始 Blendit 4-layer MLP/FFN GraphMessageLayer。
 - Hidden dimension：128；dropout：0.1；`uv_grid_size: 10`。
-- Geometry diffusion timesteps：1,000；不启用 coarse-label head。
+- Geometry diffusion timesteps：1,000。
 - Optimizer：AdamW；学习率 `1e-3`；weight decay `1e-4`。
 - Epochs：150；每卡 batch size 512；全局 batch size 2,048。
 - DDP：4 × NVIDIA Titan RTX；每卡每 epoch 164 batches。
@@ -109,4 +109,3 @@ split，但训练时不加载任何下游标签。
 `runs/launch_logs/joint_fusion_gallery_unlabeled_v2_tmux.log`。
 
 数据准备、预训练、微调和测试评估总耗时约 3 小时 45 分钟（11:03–14:48）。
-

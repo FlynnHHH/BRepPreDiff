@@ -46,6 +46,7 @@ from blendit.training.common import (
     setup_distributed,
     unwrap_model,
 )
+from blendit.training.tracking import WandbTracker
 from blendit.task import task_label, task_type
 
 
@@ -78,8 +79,16 @@ def run_epoch(
         leave=False,
         disable=not show_progress,
     )
-    for batch in iterator:
-        if train:
+    accumulation_steps = max(1, int(config["train"].get("gradient_accumulation_steps", 1)))
+    total_batches = len(dataloader)
+    for batch_index, batch in enumerate(iterator):
+        window_start = batch_index - (batch_index % accumulation_steps)
+        window_size = min(accumulation_steps, total_batches - window_start)
+        should_step = (
+            (batch_index + 1) % accumulation_steps == 0
+            or batch_index + 1 == total_batches
+        )
+        if train and batch_index % accumulation_steps == 0:
             optimizer.zero_grad(set_to_none=True)
         batch = batch.to(device)
         check_finite_batch(batch)
@@ -113,11 +122,16 @@ def run_epoch(
                 validation_confusion.add_(finetune_confusion_matrix(probabilities, batch, config))
             check_finite_loss(loss, metrics, batch.sample_ids)
             if train:
-                loss.backward()
-                grad_clip = float(config["train"].get("grad_clip_norm", 0.0) or 0.0)
-                if grad_clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip, error_if_nonfinite=True)
-                optimizer.step()
+                (loss / window_size).backward()
+                if should_step:
+                    grad_clip = float(config["train"].get("grad_clip_norm", 0.0) or 0.0)
+                    if grad_clip > 0:
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(),
+                            grad_clip,
+                            error_if_nonfinite=True,
+                        )
+                    optimizer.step()
         meter.update(metrics)
         if show_progress:
             iterator.set_postfix(total=f"{metrics['total']:.4f}", acc=f"{metrics['acc']:.3f}")
@@ -179,9 +193,17 @@ def main() -> None:
     distributed = setup_distributed(config)
     logger = None
     run_dir = None
+    tracker = WandbTracker()
     try:
         config = prepare_training_data(config, distributed)
         config, run_dir, logger = prepare_run(args, stage="finetune", config=config, distributed=distributed)
+        tracker = WandbTracker.initialize(
+            config,
+            stage="finetune",
+            run_dir=run_dir,
+            logger=logger,
+            is_main_process=distributed.is_main_process,
+        )
         device = resolve_device(config, distributed)
         logger.info(
             "device=%s distributed=%s rank=%d local_rank=%d backend=%s",
@@ -334,6 +356,8 @@ def main() -> None:
                         )
                         log_checkpoint_saved(logger, path, epoch)
 
+            tracker.log_epoch(epoch, train_metrics, val_metrics)
+
             if distributed.is_main_process and epoch % int(config["run"]["save_every_epochs"]) == 0:
                 metrics = val_metrics or train_metrics
                 path = Path(run_dir) / "checkpoints" / f"epoch_{epoch:04d}.pt"
@@ -373,7 +397,10 @@ def main() -> None:
         )
         raise
     finally:
-        cleanup_distributed(distributed)
+        try:
+            tracker.finish()
+        finally:
+            cleanup_distributed(distributed)
 
 
 if __name__ == "__main__":

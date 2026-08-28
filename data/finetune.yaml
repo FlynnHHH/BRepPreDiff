@@ -1,12 +1,12 @@
 data:
   steps_dir: /data/hhfeng/blendit/finetune/step
   segs_dir: /data/hhfeng/blendit/finetune/seg
-  cache_dir: data/cache/features/finetune
+  cache_dir: /data/hhfeng/blendit/cache/features/finetune
   prepare_on_start: false
   cache_dirs:
-    train: data/cache/features/finetune/train
-    val: data/cache/features/finetune/val
-    test: data/cache/features/finetune/val
+    train: /data/hhfeng/blendit/cache/features/finetune/train
+    val: /data/hhfeng/blendit/cache/features/finetune/val
+    test: /data/hhfeng/blendit/cache/features/finetune/val
   train_split: data/splits/finetune_train.txt
   val_split: data/splits/finetune_val.txt
   test_split: data/splits/finetune_test.txt

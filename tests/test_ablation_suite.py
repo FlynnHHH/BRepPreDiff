@@ -30,7 +30,6 @@ def test_ablation_suite_has_one_default_baseline_and_labels_every_alternative():
     assert baselines[0].factors == {
         "role": "baseline",
         "ablated_factor": "none",
-        "coarse_label": True,
         "head": "diffloss",
         "prediction_type": "x_start_epsilon",
         "x_start_loss_weight": 1.0,

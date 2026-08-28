@@ -1,7 +1,7 @@
 data:
   steps_dir: /data/hhfeng/fusion360seg/s2.0.1/breps/step
   segs_dir: /data/hhfeng/fusion360seg/s2.0.1/breps/seg
-  cache_dir: data/cache/features/fusion360seg_s2_0_1
+  cache_dir: /data/hhfeng/blendit/cache/features/fusion360seg_s2_0_1
   prepare_on_start: false
   train_split: data/splits/fusion360seg_s2_0_1_train_clean.txt
   val_split: data/splits/fusion360seg_s2_0_1_val_clean.txt
@@ -11,7 +11,7 @@ data:
   strict_label_count: false
   overwrite_cache: false
   cache_num_workers: 16
-  invalid_log: data/cache/features/fusion360seg_s2_0_1_invalid.jsonl
+  invalid_log: /data/hhfeng/blendit/cache/features/fusion360seg_s2_0_1_invalid.jsonl
 
 brep:
   uv_grid_size: 10

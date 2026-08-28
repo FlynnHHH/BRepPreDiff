@@ -13,7 +13,7 @@ PRETRAIN_SEGS_DIR="${PRETRAIN_SEGS_DIR:-${ABC_ROOT}/seg}"
 FINETUNE_FLAT_DIR="${FINETUNE_FLAT_DIR:-${ABC_ROOT}/all_flat}"
 
 SPLIT_DIR="${SPLIT_DIR:-${PROJECT_DIR}/data/abc_splits}"
-CACHE_ROOT="${CACHE_ROOT:-${PROJECT_DIR}/data/cache/abc_features}"
+CACHE_ROOT="${CACHE_ROOT:-/data/hhfeng/blendit/cache/abc_features}"
 PRETRAIN_CACHE_DIR="${PRETRAIN_CACHE_DIR:-${CACHE_ROOT}/pretrain}"
 FINETUNE_CACHE_DIR="${FINETUNE_CACHE_DIR:-${CACHE_ROOT}/finetune}"
 INVALID_DIR="${INVALID_DIR:-${CACHE_ROOT}/invalid}"

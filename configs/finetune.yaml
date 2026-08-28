@@ -7,16 +7,22 @@ run:
   log_interval: 10
   save_every_epochs: 1
 
+wandb:
+  enabled: true
+  project: blendit
+
 model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
+  encoder_type: edge_update_attention
+  num_heads: 4
   num_classes: 3
   finetune_head: mlp
 
 train:
   device: cuda
-  epochs: 100
+  epochs: 200
   batch_size: 512
   num_workers: 16
   normalize_per_graph: true

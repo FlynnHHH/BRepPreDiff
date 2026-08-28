@@ -2,7 +2,7 @@ data:
   steps_dir: /data/hhfeng/fusion360rec/r1.0.1/reconstruction
   # Deliberately isolated from co-located reconstruction JSON metadata.
   segs_dir: data/no_labels/fusion360rec_r1_0_1
-  cache_dir: data/cache/features/fusion360rec_r1_0_1_unlabeled
+  cache_dir: /data/hhfeng/blendit/cache/features/fusion360rec_r1_0_1_unlabeled
   prepare_on_start: false
   train_split: data/splits/fusion360rec_r1_0_1_train_clean.txt
   val_split: data/splits/fusion360rec_r1_0_1_val_clean.txt
@@ -14,7 +14,7 @@ data:
   strict_label_count: false
   overwrite_cache: false
   cache_num_workers: 16
-  invalid_log: data/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl
+  invalid_log: /data/hhfeng/blendit/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl
 
 brep:
   uv_grid_size: 10

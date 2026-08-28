@@ -13,10 +13,12 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from blendit.brep.occ_extractor import OccBRepExtractor, _occ_imports, _parse_label_map, _remap_labels
-from blendit.config import feature_dims, load_experiment_config
+from blendit.config import feature_dims
+from blendit.data.dataset import _project_occ_grid_v2_to_legacy
 from blendit.data.graph import BRepGraph, collate_graphs, load_graph_npz, normalize_graph_features, save_graph_npz
 from blendit.models import build_segmentation_model, predict_segmentation_probabilities
-from blendit.training.common import load_checkpoint, resolve_device
+from blendit.inference.step_to_seg import _load_inference_config, write_seg_file
+from blendit.training.common import load_checkpoint, resolve_device, seed_everything
 from blendit.training.evaluate import classification_metrics_from_confusion
 
 
@@ -506,8 +508,21 @@ class FinetuneInferenceDataset(Dataset):
                 sample_id=sample.sample_id,
             )
 
+        uv_grid_size = int(self.config["brep"]["uv_grid_size"])
+        feature_schema = str(self.config["brep"].get("feature_schema", "occ_grid_v2"))
+        if feature_schema == "legacy":
+            graph = _project_occ_grid_v2_to_legacy(graph, uv_grid_size)
         if self.normalize_per_graph:
-            graph = normalize_graph_features(graph)
+            if feature_schema == "legacy":
+                graph = normalize_graph_features(graph)
+            else:
+                graph = normalize_graph_features(
+                    graph,
+                    uv_grid_size=uv_grid_size,
+                    edge_u_grid_size=int(
+                        self.config["brep"].get("edge_u_grid_size", uv_grid_size)
+                    ),
+                )
         return graph
 
 
@@ -635,18 +650,39 @@ def write_step_prediction_ply(
     linear_deflection: float,
     angular_deflection: float,
 ) -> PlyStats:
+    return write_step_prediction_plys(
+        step_path,
+        [(output_path, face_classes, color_map)],
+        linear_deflection=linear_deflection,
+        angular_deflection=angular_deflection,
+    )[0]
+
+
+def write_step_prediction_plys(
+    step_path: Path,
+    outputs: list[tuple[Path, np.ndarray, dict[int, tuple[int, int, int]]]],
+    *,
+    linear_deflection: float,
+    angular_deflection: float,
+) -> list[PlyStats]:
+    """Write multiple face-color PLYs while reading and meshing the STEP only once."""
+    if not outputs:
+        return []
     occ = _mesh_occ_imports()
     shape = _read_step_shape(occ, step_path)
     _mesh_shape(occ, shape, linear_deflection, angular_deflection)
     face_map = _indexed_faces(occ, shape)
     num_faces = _map_size(face_map)
-    if int(face_classes.shape[0]) != num_faces:
-        raise ValueError(
-            f"Prediction face count mismatch for {step_path}: "
-            f"predictions={face_classes.shape[0]} STEP faces={num_faces}"
-        )
+    for _, face_classes, _ in outputs:
+        if int(face_classes.shape[0]) != num_faces:
+            raise ValueError(
+                f"Prediction face count mismatch for {step_path}: "
+                f"predictions={face_classes.shape[0]} STEP faces={num_faces}"
+            )
 
-    vertices: list[tuple[float, float, float, int, int, int]] = []
+    vertices_by_output: list[list[tuple[float, float, float, int, int, int]]] = [
+        [] for _ in outputs
+    ]
     ply_faces: list[tuple[int, int, int]] = []
     skipped_faces = 0
 
@@ -661,14 +697,18 @@ def write_step_prediction_ply(
         transform = location.Transformation()
         nodes = triangulation.Nodes() if hasattr(triangulation, "Nodes") else None
         triangles = triangulation.Triangles() if hasattr(triangulation, "Triangles") else None
-        color = color_map.get(int(face_classes[face_index - 1]), INPUT_COLOR)
+        colors = [
+            color_map.get(int(face_classes[face_index - 1]), INPUT_COLOR)
+            for _, face_classes, color_map in outputs
+        ]
         local_to_global: dict[int, int] = {}
 
         for node_index in range(1, int(triangulation.NbNodes()) + 1):
             point = _triangulation_node(triangulation, nodes, node_index)
             x, y, z = _transformed_xyz(point, transform)
-            local_to_global[node_index] = len(vertices)
-            vertices.append((x, y, z, color[0], color[1], color[2]))
+            local_to_global[node_index] = len(vertices_by_output[0])
+            for vertices, color in zip(vertices_by_output, colors):
+                vertices.append((x, y, z, color[0], color[1], color[2]))
 
         reverse = face.Orientation() == occ.TopAbs_REVERSED
         for triangle_index in range(1, int(triangulation.NbTriangles()) + 1):
@@ -678,8 +718,11 @@ def write_step_prediction_ply(
                 j, k = k, j
             ply_faces.append((local_to_global[i], local_to_global[j], local_to_global[k]))
 
-    _write_ascii_ply(output_path, vertices, ply_faces)
-    return PlyStats(vertices=len(vertices), faces=len(ply_faces), skipped_faces=skipped_faces)
+    stats: list[PlyStats] = []
+    for (output_path, _, _), vertices in zip(outputs, vertices_by_output):
+        _write_ascii_ply(output_path, vertices, ply_faces)
+        stats.append(PlyStats(vertices=len(vertices), faces=len(ply_faces), skipped_faces=skipped_faces))
+    return stats
 
 
 def _class_counts(prediction: np.ndarray) -> dict[str, int]:
@@ -832,7 +875,11 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a finetuned Blendit segmentation model and export EBF/VBF highlighted PLY files for the viewer."
     )
-    parser.add_argument("--config", default="configs/finetune.yaml")
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Optional YAML config. By default the checkpoint's embedded config is used.",
+    )
     parser.add_argument(
         "--data-config",
         default=None,
@@ -851,6 +898,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seg-root", default=None, help="Base directory for relative --seg-list or --seg paths.")
     parser.add_argument("--cache-dir", default=None, help="Optional feature cache directory. Direct STEP mode only writes cache when this is set.")
     parser.add_argument("--output-dir", default="tools/visualize/results")
+    parser.add_argument(
+        "--seg-output-dir",
+        default=None,
+        help="Optional directory for predicted SEG files (NonTransition=0, VBF=6, EBF=4).",
+    )
     parser.add_argument("--manifest-name", default="prediction_manifest.json")
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=0)
@@ -876,11 +928,20 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    config = load_experiment_config(args.config, args.data_config, args.override)
+    config = _load_inference_config(
+        Path(args.checkpoint).expanduser().resolve(),
+        args.config,
+        args.data_config,
+        args.override,
+    )
     config["data"]["labels_required"] = False
     config["data"]["strict_label_count"] = False
     if args.device:
         config["train"]["device"] = args.device
+
+    # Match the standard evaluation entry point so CUDA kernels and any model
+    # initialization performed before checkpoint loading are reproducible.
+    seed_everything(int(config.get("seed", 42)))
 
     direct_step_input = bool(args.step or args.step_dir or args.step_list)
     if direct_step_input:
@@ -911,6 +972,9 @@ def main() -> None:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    seg_output_dir = Path(args.seg_output_dir) if args.seg_output_dir else None
+    if seg_output_dir is not None:
+        seg_output_dir.mkdir(parents=True, exist_ok=True)
     sample_by_id = {sample.sample_id: sample for sample in samples}
     batch_size = int(args.batch_size or config["train"].get("batch_size", 1))
 
@@ -938,7 +1002,7 @@ def main() -> None:
     manifest: dict[str, Any] = {
         "checkpoint": str(args.checkpoint),
         "checkpoint_epoch": checkpoint_epoch,
-        "config": str(args.config),
+        "config": str(args.config) if args.config else None,
         "input_mode": "step" if direct_step_input else "split",
         "split": None if direct_step_input else args.split,
         "split_file": None if direct_step_input else str(args.split_file or config["data"].get(f"{args.split}_split")),
@@ -951,6 +1015,7 @@ def main() -> None:
         "seg_list": args.seg_list,
         "seg_root": args.seg_root,
         "sample_prefix": args.sample_prefix,
+        "seg_output_dir": str(seg_output_dir) if seg_output_dir else None,
         "task": "binary_transition" if args.binary_transition else "three_class_transition",
         "positive_class": (
             "Transition" if args.binary_transition and model_num_classes == 2
@@ -1006,6 +1071,7 @@ def main() -> None:
                 stem = _safe_output_stem(sample_id)
                 input_ply = output_dir / f"{stem}_instance_pred_rgb.ply"
                 semantic_ply = output_dir / f"{stem}_semantic_pred.ply"
+                predicted_seg = seg_output_dir / f"{stem}.seg" if seg_output_dir else None
 
                 if args.skip_existing and semantic_ply.exists() and (args.no_input_ply or input_ply.exists()):
                     continue
@@ -1022,23 +1088,23 @@ def main() -> None:
                     else raw_gt_classes
                 )
                 color_map = BINARY_CLASS_COLORS if args.binary_transition else CLASS_COLORS
+                ply_outputs = []
                 if not args.no_input_ply:
-                    input_stats = write_step_prediction_ply(
-                        sample.step_path,
-                        input_ply,
-                        gt_classes if gt_classes is not None else np.zeros_like(display_pred),
-                        color_map=color_map,
-                        linear_deflection=float(args.linear_deflection),
-                        angular_deflection=float(args.angular_deflection),
+                    ply_outputs.append(
+                        (input_ply, gt_classes if gt_classes is not None else np.zeros_like(display_pred), color_map)
                     )
-                semantic_stats = write_step_prediction_ply(
+                ply_outputs.append((semantic_ply, display_pred, color_map))
+                ply_stats = write_step_prediction_plys(
                     sample.step_path,
-                    semantic_ply,
-                    display_pred,
-                    color_map=color_map,
+                    ply_outputs,
                     linear_deflection=float(args.linear_deflection),
                     angular_deflection=float(args.angular_deflection),
                 )
+                if not args.no_input_ply:
+                    input_stats = ply_stats[0]
+                semantic_stats = ply_stats[-1]
+                if predicted_seg is not None:
+                    write_seg_file(predicted_seg, sample_pred)
 
                 binary_metrics = None
                 multiclass_metrics = None
@@ -1065,6 +1131,7 @@ def main() -> None:
                     "cache_path": str(sample.cache_path) if sample.cache_path else None,
                     "input_ply": input_ply.name if not args.no_input_ply else None,
                     "semantic_ply": semantic_ply.name,
+                    "predicted_seg": str(predicted_seg) if predicted_seg else None,
                     "faces": int(sample_pred.shape[0]),
                     "gt_available": sample.seg_path is not None,
                     "gt_class_counts": (

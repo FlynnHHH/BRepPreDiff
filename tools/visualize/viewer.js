@@ -37,22 +37,32 @@ const PREDICTION_MANIFEST_SOURCES = [
   {
     key: "finetune-test",
     filename: "finetune_test_manifest.json",
-    metricsTitle: "Blendit baseline on finetune_test",
+    metricsTitle: "BlendIt expanded-data default MLP on official test split",
     metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
-    modelName: "Blendit baseline",
+    modelName: "BlendIt expanded-data default MLP",
     visualizationNumClasses: 3,
-    gtTitle: "finetune_test 三分类 GT",
-    predictionTitle: "Blendit NonTransition / VBF / EBF 预测"
+    gtTitle: "BlendIt test split 三分类 GT",
+    predictionTitle: "扩充数据默认 MLP · NonTransition / VBF / EBF 预测"
   },
   {
     key: "blendit-best-lxy",
     filename: "blendit_best_lxy_manifest.json",
-    metricsTitle: "Blendit best MLP on testset_lxy",
+    metricsTitle: "BlendIt official-test best MLP on testset_lxy",
     metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
-    modelName: "Blendit best MLP",
+    modelName: "BlendIt expanded-data best MLP",
     visualizationNumClasses: 3,
     gtTitle: "testset_lxy SEG 三分类 GT",
-    predictionTitle: "Blendit 最优 MLP 三分类预测"
+    predictionTitle: "BlendIt 官方 test 最优 MLP 三分类预测"
+  },
+  {
+    key: "cjq-step-numeric",
+    filename: "cjq_step_numeric_manifest.json",
+    metricsTitle: "BlendIt best MLP on cjq step_numeric",
+    metricsSubtitle: "无 GT，仅展示三分类预测",
+    modelName: "BlendIt expanded-data best MLP",
+    visualizationNumClasses: 3,
+    gtTitle: "cjq step_numeric 原始模型（无 GT）",
+    predictionTitle: "BlendIt 官方 test 最优 MLP 三分类预测"
   },
   {
     key: "filletrec",
@@ -749,6 +759,7 @@ function datasetForSample(sampleName) {
   }
   if (sampleName.startsWith("filletrec__")) return "filletrec";
   if (sampleName.startsWith("blendit_best_lxy__")) return "blendit-best-lxy";
+  if (sampleName.startsWith("cjq_step_numeric__")) return "cjq-step-numeric";
   // Once the finetune-test manifest is available, omit stale duplicate PLYs
   // left by earlier path-deduplication runs (Ex9/Ex14 hash suffixes).
   return predictionManifests.has("finetune-test") ? "untracked" : "finetune-test";
@@ -892,8 +903,14 @@ function renderCards() {
     {
       key: "blendit-best-lxy",
       title: "Blendit Best · testset_lxy",
-      description: "现有最优三分类 MLP（test Macro-F1 0.964880）在 testset_lxy 上的 SEG GT / 预测对比",
+      description: "官方 test Macro-F1 0.968617 的扩充数据最优 MLP，在 testset_lxy 上的 SEG GT / 预测对比",
       pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "blendit-best-lxy")
+    },
+    {
+      key: "cjq-step-numeric",
+      title: "BlendIt Best · cjq step_numeric",
+      description: "3,993 个无 GT STEP：左侧原始模型，右侧为最优微调 MLP 的三分类预测",
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "cjq-step-numeric")
     },
     {
       key: "filletrec",
