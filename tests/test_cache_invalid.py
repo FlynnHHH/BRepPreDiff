@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from blendit.config import load_config
-from blendit.data.dataset import NonFiniteCacheError, StepSegDataset, _save_occ_cache
+from brepprediff.config import load_config
+from brepprediff.data.dataset import NonFiniteCacheError, StepSegDataset, _save_occ_cache
 
 
 def test_nonfinite_occ_cache_is_discarded_before_write(tmp_path: Path):
@@ -75,7 +75,7 @@ def test_cache_build_discards_nonfinite_occ_output_and_logs_failure(tmp_path: Pa
         def extract(self, *args, **kwargs):
             return {"face_cont": np.array([[np.nan]], dtype=np.float32)}
 
-    monkeypatch.setattr("blendit.brep.occ_extractor.OccBRepExtractor", FakeExtractor)
+    monkeypatch.setattr("brepprediff.brep.occ_extractor.OccBRepExtractor", FakeExtractor)
     dataset = StepSegDataset(config, split="train", source_mode=True)
     cache_path = dataset.samples[0].cache_path
 

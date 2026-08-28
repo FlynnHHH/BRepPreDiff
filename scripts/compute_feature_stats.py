@@ -9,8 +9,8 @@ from pathlib import Path
 
 import torch
 
-from blendit.config import load_experiment_config
-from blendit.data.dataset import build_dataloader
+from brepprediff.config import load_experiment_config
+from brepprediff.data.dataset import build_dataloader
 
 
 class RunningMoments:

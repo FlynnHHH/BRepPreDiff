@@ -1,4 +1,4 @@
-name: blendit
+name: brepprediff
 
 channels:
   - pytorch

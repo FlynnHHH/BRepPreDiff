@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 WORKERS="${WORKERS:-16}"
 LOG_DIR="${LOG_DIR:-runs/launch_logs}"
@@ -39,27 +39,27 @@ prepare_and_filter() {
   done
 
   # Extraction failures are recorded and removed from the clean splits below.
-  if ! "$PYTHON_BIN" -m blendit.data.load_data \
+  if ! "$PYTHON_BIN" -m brepprediff.data.load_data \
       --config "$config" --workers "$WORKERS" "${raw_overrides[@]}"; then
     echo "Initial preparation found invalid STEP files for $prefix; filtering them."
   fi
 
   for index in "${!split_names[@]}"; do
-    "$PYTHON_BIN" -m blendit.data.load_data filter-split \
+    "$PYTHON_BIN" -m brepprediff.data.load_data filter-split \
       --split "${raw_splits[$index]}" \
       --invalid-log "$invalid_log" \
       --output "data/splits/${prefix}_${split_names[$index]}_clean.txt" \
       --removed-output "data/splits/${prefix}_${split_names[$index]}_invalid.txt"
   done
 
-  "$PYTHON_BIN" -m blendit.data.load_data --config "$config" --workers "$WORKERS"
+  "$PYTHON_BIN" -m brepprediff.data.load_data --config "$config" --workers "$WORKERS"
 }
 
 echo "[$(date --iso-8601=seconds)] Preparing Fusion360Seg s2.0.1"
 prepare_and_filter \
   data/fusion360seg_s2_0_1_pretrain.yaml \
   fusion360seg_s2_0_1 \
-  /data/hhfeng/blendit/cache/features/fusion360seg_s2_0_1_invalid.jsonl \
+  /data/hhfeng/brepprediff/cache/features/fusion360seg_s2_0_1_invalid.jsonl \
   data/splits/fusion360seg_train.txt \
   data/splits/fusion360seg_val.txt \
   data/splits/fusion360seg_test.txt
@@ -68,7 +68,7 @@ echo "[$(date --iso-8601=seconds)] Preparing Fusion360Rec r1.0.1"
 prepare_and_filter \
   data/fusion360rec_r1_0_1_pretrain.yaml \
   fusion360rec_r1_0_1 \
-  /data/hhfeng/blendit/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl \
+  /data/hhfeng/brepprediff/cache/features/fusion360rec_r1_0_1_unlabeled_invalid.jsonl \
   data/splits/fusion360rec_r1_0_1_train_raw.txt \
   data/splits/fusion360rec_r1_0_1_val_raw.txt \
   data/splits/fusion360rec_r1_0_1_test_raw.txt
@@ -77,19 +77,19 @@ echo "[$(date --iso-8601=seconds)] Preparing Fusion360Ass j1.0.0"
 prepare_and_filter \
   data/fusion360ass_j1_0_0_pretrain.yaml \
   fusion360ass_j1_0_0 \
-  /data/hhfeng/blendit/cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl \
+  /data/hhfeng/brepprediff/cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl \
   data/splits/fusion360ass_j1_0_0_train_raw.txt \
   data/splits/fusion360ass_j1_0_0_val_raw.txt \
   data/splits/fusion360ass_j1_0_0_test_raw.txt
 
 echo "[$(date --iso-8601=seconds)] Validating FabWave cache"
-"$PYTHON_BIN" -m blendit.data.load_data --config data/fabwave.yaml --workers "$WORKERS"
+"$PYTHON_BIN" -m brepprediff.data.load_data --config data/fabwave.yaml --workers "$WORKERS"
 
 PRETRAIN_NAME="joint_fusion_gallery_mlp_all_unlabeled_${PIPELINE_TAG}"
 echo "[$(date --iso-8601=seconds)] Starting four-GPU joint pretraining: $PRETRAIN_NAME"
 CUDA_VISIBLE_DEVICES="$GPU_IDS" "$PYTHON_BIN" -m torch.distributed.run \
   --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config configs/pretrain_joint_fusion_gallery_mlp_all_splits.yaml \
   --override "run.name=${PRETRAIN_NAME}"
 
@@ -117,7 +117,7 @@ for index in "${!names[@]}"; do
   fine_name="${name}_diffloss_${PIPELINE_TAG}"
   fine_log="$LOG_DIR/${PIPELINE_TAG}_${name}_diffloss.log"
   echo "[$(date --iso-8601=seconds)] Starting $name DiffLoss on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=${fine_name}" \
     --override "train.pretrain_checkpoint=${PRETRAIN_CHECKPOINT}" \
@@ -150,7 +150,7 @@ for index in "${!names[@]}"; do
     echo "Best checkpoint not found for $name: $fine_run" >&2
     exit 1
   fi
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$fine_run/checkpoints/best.pt" \
     --split test \
     --output "$fine_run/test_metrics.json" \

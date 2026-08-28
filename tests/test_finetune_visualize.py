@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from blendit.inference.finetune_visualize import (
+from brepprediff.inference.finetune_visualize import (
     _binary_classification_metrics,
     _binary_transition_classes,
     _build_samples,
@@ -13,7 +13,7 @@ from blendit.inference.finetune_visualize import (
 )
 
 
-def test_blendit_vbf_and_ebf_map_to_binary_transition():
+def test_brepprediff_vbf_and_ebf_map_to_binary_transition():
     classes = np.asarray([0, 1, 2, 0, 2], dtype=np.int64)
     assert _binary_transition_classes(classes).tolist() == [0, 1, 1, 0, 1]
 

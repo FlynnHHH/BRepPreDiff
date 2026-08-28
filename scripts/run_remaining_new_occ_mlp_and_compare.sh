@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 RUN_TAG="${RUN_TAG:-new_occ_all_mlp_200_$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/new_occ_features_downstreams}"
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-$ROOT_DIR/runs/pretrain/20260818-173143_new_occ_features_edge_update_resume_e095_20260818-1729/checkpoints/last.pt}"
@@ -48,7 +48,7 @@ run_mlp() {
   local task_log="$LOG_DIR/${task_name}.log"
 
   echo "[$(date --iso-8601=seconds)] starting $task_name MLP on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -66,7 +66,7 @@ run_mlp() {
 
   local run_dir
   run_dir="$(latest_run "*_${run_name}")"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$run_dir/checkpoints/best.pt" \
     --split test --output "$run_dir/test_metrics.json" \
     --batch-size 64 --num-workers 8 --device cuda \
@@ -79,7 +79,7 @@ run_mlp mfcadpp_seg 2 "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" & pids
 run_mlp fusion360seg 3 "$ROOT_DIR/configs/finetune_joint_fusion360seg_mlp.yaml" & pids+=("$!")
 (
   wait_for_test_metrics "*_edge_update_fabwave_cls_diffloss_xse_$FAB_DIFF_TAG" "$FAB_DIFF_LOG"
-  run_mlp blendit_seg 0 "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml"
+  run_mlp brepprediff_seg 0 "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml"
 ) & pids+=("$!")
 (
   wait_for_test_metrics "*_edge_update_fabwave_cls_mlp_$FAB_MLP_TAG" "$FAB_MLP_LOG"
@@ -97,13 +97,13 @@ fi
 
 FAB_MLP_RUN="$(latest_run "*_edge_update_fabwave_cls_mlp_$FAB_MLP_TAG")"
 FAB_DIFF_RUN="$(latest_run "*_edge_update_fabwave_cls_diffloss_xse_$FAB_DIFF_TAG")"
-BLENDIT_MLP_RUN="$(latest_run "*_edge_update_blendit_seg_mlp_$RUN_TAG")"
+BREPPREDIFF_MLP_RUN="$(latest_run "*_edge_update_brepprediff_seg_mlp_$RUN_TAG")"
 FUSION_MLP_RUN="$(latest_run "*_edge_update_fusion360seg_mlp_$RUN_TAG")"
 MFCAD_MLP_RUN="$(latest_run "*_edge_update_mfcadpp_seg_mlp_$RUN_TAG")"
 TMCAD_MLP_RUN="$(latest_run "*_edge_update_tmcad_cls_mlp_$RUN_TAG")"
 
 "$PYTHON_BIN" "$ROOT_DIR/scripts/compare_new_occ_all_heads.py" \
-  --pair BlendIt "$BLENDIT_MLP_RUN" "$RUN_ROOT/finetune/20260818-211021_edge_update_blendit_seg_diffloss_xse_new_occ_diffloss_200_gpu0_20260818-1953" \
+  --pair BRepPreDiff "$BREPPREDIFF_MLP_RUN" "$RUN_ROOT/finetune/20260818-211021_edge_update_brepprediff_seg_diffloss_xse_new_occ_diffloss_200_gpu0_20260818-1953" \
   --pair Fusion360Seg "$FUSION_MLP_RUN" "$RUN_ROOT/finetune/20260818-194812_edge_update_fusion360seg_diffloss_xse_new_occ_diffloss_200_20260818-195000" \
   --pair MFCAD++ "$MFCAD_MLP_RUN" "$RUN_ROOT/finetune/20260818-194812_edge_update_mfcadpp_seg_diffloss_xse_new_occ_diffloss_200_20260818-195000" \
   --pair TMCAD "$TMCAD_MLP_RUN" "$RUN_ROOT/finetune/20260818-194812_edge_update_tmcad_cls_diffloss_xse_new_occ_diffloss_200_20260818-195000" \

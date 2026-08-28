@@ -11,7 +11,7 @@ run:
 
 wandb:
   enabled: true
-  project: blendit
+  project: brepprediff
 
 model:
   hidden_dim: 128

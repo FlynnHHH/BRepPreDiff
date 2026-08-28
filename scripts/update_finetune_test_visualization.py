@@ -134,7 +134,7 @@ def main() -> None:
     command = [
         str(Path(sys.executable).resolve()),
         "-m",
-        "blendit.inference.finetune_visualize",
+        "brepprediff.inference.finetune_visualize",
         "--config",
         str(config_path),
         "--checkpoint",

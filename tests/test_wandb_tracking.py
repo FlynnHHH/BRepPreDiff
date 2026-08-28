@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
-from blendit.training.tracking import WandbTracker
+from brepprediff.training.tracking import WandbTracker
 
 
 class FakeRun:
@@ -44,7 +44,7 @@ def test_wandb_tracker_logs_train_and_validation_loss_curves(tmp_path, monkeypat
     config = {
         "wandb": {
             "enabled": True,
-            "project": "blendit-tests",
+            "project": "brepprediff-tests",
             "entity": "test-team",
             "tags": ["smoke"],
         },
@@ -65,7 +65,7 @@ def test_wandb_tracker_logs_train_and_validation_loss_curves(tmp_path, monkeypat
     )
 
     assert len(init_calls) == 1
-    assert init_calls[0]["project"] == "blendit-tests"
+    assert init_calls[0]["project"] == "brepprediff-tests"
     assert init_calls[0]["name"] == "run-name"
     assert init_calls[0]["job_type"] == "finetune"
     assert init_calls[0]["dir"] == str(tmp_path / "run-name")

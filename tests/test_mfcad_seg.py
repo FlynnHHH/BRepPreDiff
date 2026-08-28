@@ -5,14 +5,14 @@ import re
 
 import pytest
 
-import blendit.data.mfcad_seg as mfcad_seg
-from blendit.data.mfcad_seg import (
+import brepprediff.data.mfcad_seg as mfcad_seg
+from brepprediff.data.mfcad_seg import (
     MFCAD_CLASS_NAMES,
     MFCAD_FEATURE_CLASSES,
     MFCAD_SEGMENTATION_CLASSES,
     MFCAD_STOCK_LABEL,
     convert_mfcad_dataset,
-    write_blendit_split_files,
+    write_brepprediff_split_files,
 )
 
 
@@ -66,7 +66,7 @@ def test_convert_dataset_preserves_split_layout_and_validates_existing(
     assert second.unchanged == 1
 
 
-def test_write_blendit_split_files_adds_split_prefix(tmp_path: Path) -> None:
+def test_write_brepprediff_split_files_adds_split_prefix(tmp_path: Path) -> None:
     dataset_root = tmp_path / "MFCAD++"
     step_root = dataset_root / "step"
     _write_step(step_root / "train" / "7.step", [24])
@@ -74,10 +74,10 @@ def test_write_blendit_split_files_adds_split_prefix(tmp_path: Path) -> None:
     dataset_root.mkdir(exist_ok=True)
     (dataset_root / "train.txt").write_text("12\n7\n", encoding="utf-8")
 
-    outputs = write_blendit_split_files(
+    outputs = write_brepprediff_split_files(
         dataset_root,
         step_root,
-        dataset_root / "blendit_splits",
+        dataset_root / "brepprediff_splits",
         splits=["train"],
     )
 

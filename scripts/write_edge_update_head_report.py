@@ -25,8 +25,8 @@ class Experiment:
 
 
 EXPERIMENTS = (
-    Experiment("Blendit", "3-class face segmentation", "MLP", "20260807-200941_edge_update_blendit_seg_20260807-123259", 100),
-    Experiment("Blendit", "3-class face segmentation", "DiffLoss", "*_edge_update_blendit_seg_diffloss_20260808-head-complements-titan", 100),
+    Experiment("BRepPreDiff", "3-class face segmentation", "MLP", "20260807-200941_edge_update_brepprediff_seg_20260807-123259", 100),
+    Experiment("BRepPreDiff", "3-class face segmentation", "DiffLoss", "*_edge_update_brepprediff_seg_diffloss_20260808-head-complements-titan", 100),
     Experiment("Fusion360Seg s2.0.0", "8-class face segmentation", "MLP", "20260807-200941_edge_update_fusion360seg_20260807-123259", 100),
     Experiment("Fusion360Seg s2.0.0", "8-class face segmentation", "DiffLoss", "*_edge_update_fusion360seg_diffloss_20260808-head-complements-titan", 100),
     Experiment("MFCAD++", "25-class face segmentation", "MLP", "20260807-200941_edge_update_mfcadpp_seg_20260807-123259", 100),

@@ -62,7 +62,7 @@ standard configured-class metric so it matches the saved evaluator output.
 
 - Dataset config: `data/fabwave.yaml`
 - Class map: `data/splits/fabwave_class_map.json`
-- Invalid STEP audit: `/data/hhfeng/blendit/cache/features/fabwave_invalid.jsonl`
+- Invalid STEP audit: `/data/hhfeng/brepprediff/cache/features/fabwave_invalid.jsonl`
 - MLP checkpoint:
   `runs/finetune/20260804-152415_joint_fabwave_mlp/checkpoints/best.pt`
 - MLP metrics:

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 PRETRAIN_RUN="${PRETRAIN_RUN:-$ROOT_DIR/runs/pretrain/20260820-163406_new_occ_seven_source_edge_update_20260820-151913}"
 PRETRAIN_CHECKPOINT="$PRETRAIN_RUN/checkpoints/last.pt"
@@ -93,7 +93,7 @@ run_downstream() {
     )
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune "${args[@]}" \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune "${args[@]}" \
     >"$task_log" 2>&1
 
   local run_dir checkpoint
@@ -104,7 +104,7 @@ run_downstream() {
     return 1
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \
@@ -115,12 +115,12 @@ run_downstream() {
   echo "[$(date --iso-8601=seconds)] completed dataset=$dataset head=$head run=$run_dir"
 }
 
-# One queue per GPU avoids oversubscription. FabWave follows the two BlendIt
+# One queue per GPU avoids oversubscription. FabWave follows the two BRepPreDiff
 # jobs on GPU 0 because its classification runs are comparatively short.
 pids=()
 (
-  run_downstream blendit_seg mlp "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml"
-  run_downstream blendit_seg diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_diffloss_200.yaml"
+  run_downstream brepprediff_seg mlp "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml"
+  run_downstream brepprediff_seg diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_diffloss_200.yaml"
   run_downstream fabwave_cls mlp "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml"
   run_downstream fabwave_cls diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml"
 ) & pids+=("$!")
@@ -148,8 +148,8 @@ if [[ "$status" -ne 0 ]]; then
   exit "$status"
 fi
 
-blendit_mlp="$(latest_run "*_seven_source_711_blendit_seg_mlp_200_$RUN_TAG")"
-blendit_diff="$(latest_run "*_seven_source_711_blendit_seg_diffloss_200_$RUN_TAG")"
+brepprediff_mlp="$(latest_run "*_seven_source_711_brepprediff_seg_mlp_200_$RUN_TAG")"
+brepprediff_diff="$(latest_run "*_seven_source_711_brepprediff_seg_diffloss_200_$RUN_TAG")"
 fusion_mlp="$(latest_run "*_seven_source_711_fusion360seg_mlp_200_$RUN_TAG")"
 fusion_diff="$(latest_run "*_seven_source_711_fusion360seg_diffloss_200_$RUN_TAG")"
 mfcad_mlp="$(latest_run "*_seven_source_711_mfcadpp_seg_mlp_200_$RUN_TAG")"
@@ -160,7 +160,7 @@ fabwave_mlp="$(latest_run "*_seven_source_711_fabwave_cls_mlp_200_$RUN_TAG")"
 fabwave_diff="$(latest_run "*_seven_source_711_fabwave_cls_diffloss_200_$RUN_TAG")"
 
 "$PYTHON_BIN" "$ROOT_DIR/scripts/compare_new_occ_all_heads.py" \
-  --pair BlendIt "$blendit_mlp" "$blendit_diff" \
+  --pair BRepPreDiff "$brepprediff_mlp" "$brepprediff_diff" \
   --pair Fusion360Seg "$fusion_mlp" "$fusion_diff" \
   --pair MFCAD++ "$mfcad_mlp" "$mfcad_diff" \
   --pair TMCAD "$tmcad_mlp" "$tmcad_diff" \

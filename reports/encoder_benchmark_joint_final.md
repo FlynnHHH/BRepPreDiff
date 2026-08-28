@@ -1,13 +1,13 @@
-# BlendIt Encoder 联合数据预训练最终报告
+# BRepPreDiff Encoder 联合数据预训练最终报告
 
 > 生成日期：2026-08-07  
 > 实验完成：2026-07-31 03:06（Asia/Shanghai）  
-> 环境：`blendit` Conda，4 × NVIDIA TITAN RTX（24 GB）  
+> 环境：`brepprediff` Conda，4 × NVIDIA TITAN RTX（24 GB）
 > 规模：7 种 Encoder × 4 个下游任务，共 28 个测试结果
 
 ## 1. 核心结论
 
-- **Edge Update Attention 是联合预训练下的综合最佳方案**：取得 Blendit 全部三个最佳指标、Fusion360Seg 最佳 Macro-F1/mIoU，并在 TMCAD 上取得最高 Accuracy。
+- **Edge Update Attention 是联合预训练下的综合最佳方案**：取得 BRepPreDiff 全部三个最佳指标、Fusion360Seg 最佳 Macro-F1/mIoU，并在 TMCAD 上取得最高 Accuracy。
 - **Hybrid Transformer 仍最适合 MFCAD++**：Accuracy 99.43%、Macro-F1 99.09%、mIoU 98.21%，三项均为该任务最高。
 - 联合预训练对 **TMCAD Baseline** 收益明显：Accuracy 相比单语料预训练提高 1.29 pp；但收益并不在所有架构上稳定出现，SwiGLU、Edge Attention 和 Hybrid 的 TMCAD Accuracy 反而下降。
 - Fusion360Seg 的最佳 Accuracy 为 Attention Pooling 的 92.88%，最佳 Macro-F1/mIoU 则来自 Edge Update（86.87%/77.93%）。
@@ -19,7 +19,7 @@
 
 | 数据组成 | 图数量 | 占比 |
 |---|---:|---:|
-| Blendit train | 172,287 | 61.86% |
+| BRepPreDiff train | 172,287 | 61.86% |
 | TMCAD train/val/test | 10,886 | 3.91% |
 | Fusion360Seg train/val/test | 35,680 | 12.81% |
 | MFCAD++ train/val/test | 59,665 | 21.42% |
@@ -73,14 +73,14 @@ SwiGLU 保留 Baseline 的消息构造、邻居均值和四层拓扑感受野，
 
 | 数据集 | 最佳 Accuracy | 最佳 Macro-F1 | 最佳 mIoU |
 |---|---|---|---|
-| Blendit（3 类面分割） | Edge Update Attention **98.22%** | Edge Update Attention **96.49%** | Edge Update Attention **93.31%** |
+| BRepPreDiff（3 类面分割） | Edge Update Attention **98.22%** | Edge Update Attention **96.49%** | Edge Update Attention **93.31%** |
 | Fusion360Seg（8 类面分割） | Attention Pooling **92.88%** | Edge Update Attention **86.87%** | Edge Update Attention **77.93%** |
 | MFCAD++（25 类面分割） | Hybrid Transformer **99.43%** | Hybrid Transformer **99.09%** | Hybrid Transformer **98.21%** |
 | TMCAD（10 类图分类） | Edge Update Attention **84.45%** | Baseline 4-layer FFN **84.04%** | Baseline 4-layer FFN **73.22%** |
 
 ## 4. 联合预训练完整结果
 
-### 4.1 Blendit（3 类面分割）
+### 4.1 BRepPreDiff（3 类面分割）
 
 | Variant | Accuracy (%) | ΔAcc vs Joint Baseline | Macro-F1 (%) | ΔF1 | mIoU (%) | ΔmIoU |
 |---|---:|---:|---:|---:|---:|---:|
@@ -134,31 +134,31 @@ SwiGLU 保留 Baseline 的消息构造、邻居均值和四层拓扑感受野，
 
 | Variant | 数据集 | ΔAccuracy (pp) | ΔMacro-F1 (pp) | ΔmIoU (pp) |
 |---|---|---:|---:|---:|
-| Baseline 4-layer FFN | Blendit（3 类面分割） | +0.07 | +0.14 | +0.26 |
+| Baseline 4-layer FFN | BRepPreDiff（3 类面分割） | +0.07 | +0.14 | +0.26 |
 | Baseline 4-layer FFN | Fusion360Seg（8 类面分割） | +0.24 | -0.53 | -0.50 |
 | Baseline 4-layer FFN | MFCAD++（25 类面分割） | -0.02 | -0.01 | -0.02 |
 | Baseline 4-layer FFN | TMCAD（10 类图分类） | +1.29 | +1.35 | +1.88 |
-| SwiGLU FFN | Blendit（3 类面分割） | +0.02 | -0.05 | -0.09 |
+| SwiGLU FFN | BRepPreDiff（3 类面分割） | +0.02 | -0.05 | -0.09 |
 | SwiGLU FFN | Fusion360Seg（8 类面分割） | +0.04 | -0.53 | -0.50 |
 | SwiGLU FFN | MFCAD++（25 类面分割） | +0.01 | +0.04 | +0.09 |
 | SwiGLU FFN | TMCAD（10 类图分类） | -0.83 | -0.75 | -0.83 |
-| Edge Attention | Blendit（3 类面分割） | -0.15 | -0.51 | -0.94 |
+| Edge Attention | BRepPreDiff（3 类面分割） | -0.15 | -0.51 | -0.94 |
 | Edge Attention | Fusion360Seg（8 类面分割） | -0.16 | +0.91 | +0.88 |
 | Edge Attention | MFCAD++（25 类面分割） | +0.02 | +0.04 | +0.07 |
 | Edge Attention | TMCAD（10 类图分类） | -1.01 | -0.96 | -1.38 |
-| Edge Update Attention | Blendit（3 类面分割） | +0.01 | +0.08 | +0.15 |
+| Edge Update Attention | BRepPreDiff（3 类面分割） | +0.01 | +0.08 | +0.15 |
 | Edge Update Attention | Fusion360Seg（8 类面分割） | +0.30 | +0.97 | +1.21 |
 | Edge Update Attention | MFCAD++（25 类面分割） | +0.02 | +0.05 | +0.09 |
 | Edge Update Attention | TMCAD（10 类图分类） | +0.46 | +0.34 | +0.14 |
-| Hybrid Transformer | Blendit（3 类面分割） | -0.06 | +0.03 | +0.05 |
+| Hybrid Transformer | BRepPreDiff（3 类面分割） | -0.06 | +0.03 | +0.05 |
 | Hybrid Transformer | Fusion360Seg（8 类面分割） | -0.02 | +0.33 | +0.37 |
 | Hybrid Transformer | MFCAD++（25 类面分割） | +0.07 | +0.10 | +0.19 |
 | Hybrid Transformer | TMCAD（10 类图分类） | -1.01 | -1.19 | -1.53 |
-| Global Transformer | Blendit（3 类面分割） | +0.15 | +0.04 | +0.05 |
+| Global Transformer | BRepPreDiff（3 类面分割） | +0.15 | +0.04 | +0.05 |
 | Global Transformer | Fusion360Seg（8 类面分割） | +0.13 | +0.99 | +0.91 |
 | Global Transformer | MFCAD++（25 类面分割） | -0.05 | -0.02 | -0.05 |
 | Global Transformer | TMCAD（10 类图分类） | +1.20 | +1.20 | +1.30 |
-| Attention Pooling | Blendit（3 类面分割） | +0.07 | +0.14 | +0.26 |
+| Attention Pooling | BRepPreDiff（3 类面分割） | +0.07 | +0.14 | +0.26 |
 | Attention Pooling | Fusion360Seg（8 类面分割） | +0.45 | +1.20 | +1.45 |
 | Attention Pooling | MFCAD++（25 类面分割） | -0.02 | +0.00 | +0.01 |
 | Attention Pooling | TMCAD（10 类图分类） | -0.28 | -0.29 | -0.45 |
@@ -167,7 +167,7 @@ SwiGLU 保留 Baseline 的消息构造、邻居均值和四层拓扑感受野，
 
 | 数据集 | 单语料最佳 Acc | 联合最佳 Acc | ΔAcc | 单语料最佳 mIoU | 联合最佳 mIoU | ΔmIoU |
 |---|---:|---:|---:|---:|---:|---:|
-| Blendit（3 类面分割） | 98.21 | 98.22 | +0.01 | 93.20 | 93.31 | +0.12 |
+| BRepPreDiff（3 类面分割） | 98.21 | 98.22 | +0.01 | 93.20 | 93.31 | +0.12 |
 | Fusion360Seg（8 类面分割） | 92.80 | 92.88 | +0.08 | 77.22 | 77.93 | +0.71 |
 | MFCAD++（25 类面分割） | 99.36 | 99.43 | +0.07 | 98.01 | 98.21 | +0.19 |
 | TMCAD（10 类图分类） | 84.45 | 84.45 | +0.00 | 73.47 | 73.22 | -0.25 |
@@ -176,7 +176,7 @@ SwiGLU 保留 Baseline 的消息构造、邻居均值和四层拓扑感受野，
 
 | 数据集 | 联合实验最佳方案 | Acc (%) | BRep2Shape Acc (%) | ΔAcc | mIoU (%) | BRep2Shape IoU (%) | ΔIoU |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Blendit（3 类面分割） | Edge Update Attention | 98.22 | — | — | 93.31 | — | — |
+| BRepPreDiff（3 类面分割） | Edge Update Attention | 98.22 | — | — | 93.31 | — | — |
 | Fusion360Seg（8 类面分割） | Attention Pooling（Acc）/ Edge Update Attention（mIoU） | 92.88 | 96.88 | -4.00 | 77.93 | 83.77 | -5.84 |
 | MFCAD++（25 类面分割） | Hybrid Transformer | 99.43 | 99.35 | +0.08 | 98.21 | 98.02 | +0.19 |
 | TMCAD（10 类图分类） | Edge Update Attention（Acc）/ Baseline 4-layer FFN（mIoU） | 84.45 | 84.72 | -0.27 | 73.22 | — | — |

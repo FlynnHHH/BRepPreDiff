@@ -4,14 +4,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/blendit-encoder-edge-update}"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/brepprediff-encoder-edge-update}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/edge_update_new_joint}"
 LOG_ROOT="${LOG_ROOT:-$ROOT_DIR/runs/launch_logs/edge_update_new_joint_$RUN_TAG}"
 
-if [[ ! -d "$EDGE_WORKTREE/src/blendit" ]]; then
+if [[ ! -d "$EDGE_WORKTREE/src/brepprediff" ]]; then
   echo "Edge Update worktree not found: $EDGE_WORKTREE" >&2
   exit 2
 fi
@@ -42,7 +42,7 @@ PRETRAIN_NAME="edge_update_new_joint_${RUN_TAG}"
 echo "[$(date --iso-8601=seconds)] Starting Edge Update Attention pretraining: $PRETRAIN_NAME"
 CUDA_VISIBLE_DEVICES="$GPU_IDS" "$PYTHON_BIN" -m torch.distributed.run \
   --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config "$ROOT_DIR/configs/pretrain_joint_fusion_gallery_mlp_all_splits.yaml" \
   --data-config "$ROOT_DIR/data/pretrain_joint_fusion_gallery_filtered_fabwave_all_splits.yaml" \
   --override "run.name=$PRETRAIN_NAME" \
@@ -68,7 +68,7 @@ run_downstream() {
   local task_log="$LOG_ROOT/${task_name}.log"
 
   echo "[$(date --iso-8601=seconds)] Starting downstream task $task_name on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$fine_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -88,7 +88,7 @@ run_downstream() {
     return 1
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$fine_run/test_metrics.json" \
@@ -101,7 +101,7 @@ run_downstream() {
 
 # Segmentation uses MLP; classification uses DiffLoss.
 pids=()
-run_downstream blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" & pids+=("$!")
+run_downstream brepprediff_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" & pids+=("$!")
 run_downstream fusion360seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_fusion360seg_mlp.yaml" & pids+=("$!")
 run_downstream mfcadpp_seg "${GPUS[2]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" & pids+=("$!")
 run_downstream tmcad_cls "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_tmcad_diffloss_200.yaml" & pids+=("$!")

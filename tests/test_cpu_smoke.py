@@ -9,12 +9,12 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 
 
 def test_cpu_smoke_forward_backward():
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.training.smoke import synthetic_graph
-    from blendit.data.graph import collate_graphs
-    from blendit.models import DiffusionPretrainModel, DiffusionSchedule, SegmentationModel
-    from blendit.models.diffusion import compute_pretrain_loss
-    from blendit.models.segmentation import compute_segmentation_loss
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.training.smoke import synthetic_graph
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import DiffusionPretrainModel, DiffusionSchedule, SegmentationModel
+    from brepprediff.models.diffusion import compute_pretrain_loss
+    from brepprediff.models.segmentation import compute_segmentation_loss
 
     import torch
 

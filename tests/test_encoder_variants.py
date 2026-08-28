@@ -12,8 +12,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_ffn_encoder_type_alias_selects_message_passing():
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models.encoder import BRepGraphEncoder, GraphMessageLayer
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models.encoder import BRepGraphEncoder, GraphMessageLayer
 
     config = load_experiment_config(
         "configs/pretrain.yaml",
@@ -29,10 +29,10 @@ def test_ffn_encoder_type_alias_selects_message_passing():
 def test_edge_update_attention_mean_max_classification_forward_backward():
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.data.graph import collate_graphs
-    from blendit.models import ClassificationModel
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import ClassificationModel
+    from brepprediff.training.smoke import synthetic_graph
 
     config = load_experiment_config("configs/finetune_tmcad_mlp.yaml")
     config["model"].update(
@@ -64,10 +64,10 @@ def test_edge_update_attention_mean_max_classification_forward_backward():
 def test_edge_update_attention_changes_edge_embeddings():
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.data.graph import collate_graphs
-    from blendit.models.encoder import BRepGraphEncoder
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models.encoder import BRepGraphEncoder
+    from brepprediff.training.smoke import synthetic_graph
 
     config = load_experiment_config("configs/finetune_tmcad_mlp.yaml")
     config["model"].update(

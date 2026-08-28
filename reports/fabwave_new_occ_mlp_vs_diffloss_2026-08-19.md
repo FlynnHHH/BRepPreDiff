@@ -15,5 +15,5 @@ accuracy 选择 best checkpoint。差值定义为 `DiffLoss - MLP`。
 
 Accuracy winner: **Tie**.
 
-- MLP run: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-105531_edge_update_fabwave_cls_mlp_new_occ_fabwave_mlp_200_20260819-1040`; best.pt SHA-256 `a776993142068e596669f139d8434aee31f3d7351be5a445d1284c72d249e1f1`
-- DiffLoss run: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-104736_edge_update_fabwave_cls_diffloss_xse_new_occ_fabwave_diffloss_200_20260819-103615`; best.pt SHA-256 `fc4c8dd436b2ced5263ba4e82d954e73c76a15ac859d8b065330f7774fd1dbe6`
+- MLP run: `runs/new_occ_features_downstreams/finetune/20260819-105531_edge_update_fabwave_cls_mlp_new_occ_fabwave_mlp_200_20260819-1040`; best.pt SHA-256 `a776993142068e596669f139d8434aee31f3d7351be5a445d1284c72d249e1f1`
+- DiffLoss run: `runs/new_occ_features_downstreams/finetune/20260819-104736_edge_update_fabwave_cls_diffloss_xse_new_occ_fabwave_diffloss_200_20260819-103615`; best.pt SHA-256 `fc4c8dd436b2ced5263ba4e82d954e73c76a15ac859d8b065330f7774fd1dbe6`

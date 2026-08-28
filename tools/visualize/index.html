@@ -3,24 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Blendit EBF/VBF Viewer</title>
+  <title>BRepPreDiff EBF/VBF Viewer</title>
   <link rel="stylesheet" href="./styles.css?v=1">
 </head>
 <body>
   <main class="page">
     <header class="page-header">
       <div>
-        <h1>Blendit results</h1>
-        <p>在同一页面分区查看 Blendit 与 FilletRec 的 GT/预测对比</p>
+        <h1>BRepPreDiff results</h1>
+        <p>在同一页面分区查看 BRepPreDiff 与 FilletRec 的 GT/预测对比</p>
       </div>
       <div class="header-tools">
         <label class="dataset-filter">
           <span>数据集</span>
           <select id="datasetFilter">
             <option value="all">全部</option>
-            <option value="finetune-test" selected>BlendIt Best · Official Test Split</option>
-            <option value="blendit-best-lxy">BlendIt Best · testset_lxy</option>
-            <option value="cjq-step-numeric">BlendIt Best · cjq step_numeric</option>
+            <option value="finetune-test" selected>BRepPreDiff Best · Official Test Split</option>
+            <option value="brepprediff-best-lxy">BRepPreDiff Best · testset_lxy</option>
+            <option value="cjq-step-numeric">BRepPreDiff Best · cjq step_numeric</option>
             <option value="filletrec">FilletRec Test Set</option>
             <option value="filletrec-model-filletrec-testset">filletrec on filletrec testset</option>
             <option value="filletrec-ourtestset">filletrec on ourtestset</option>
@@ -39,7 +39,7 @@
 
     <section id="metricsSummary" class="metrics-summary" aria-label="测试集指标" hidden></section>
 
-    <section id="modelGrid" class="model-grid" aria-label="Blendit results grid"></section>
+    <section id="modelGrid" class="model-grid" aria-label="BRepPreDiff results grid"></section>
   </main>
 
   <script type="importmap">

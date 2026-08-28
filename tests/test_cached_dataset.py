@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 import torch
 
-from blendit.config import load_config
-from blendit.data.dataset import StepSegDataset, build_dataloader
-from blendit.data.graph import save_graph_npz
+from brepprediff.config import load_config
+from brepprediff.data.dataset import StepSegDataset, build_dataloader
+from brepprediff.data.graph import save_graph_npz
 
 
 def _write_cache(path: Path) -> None:

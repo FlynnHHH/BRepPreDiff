@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-runs/pretrain/20260805-113103_joint_fusion_gallery_mlp_all_unlabeled_20260805-unlabeled-v2/checkpoints/last.pt}"
 TAG="${TAG:-20260806-max-acc}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
@@ -39,7 +39,7 @@ for index in "${!names[@]}"; do
   run_name="${name}_mlp_200_${TAG}"
   log_path="$LOG_DIR/${run_name}.train.log"
   echo "[$(date --iso-8601=seconds)] Starting $name MLP training on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "train.epochs=200" \
@@ -73,7 +73,7 @@ for index in "${!names[@]}"; do
     exit 1
   fi
   echo "[$(date --iso-8601=seconds)] Starting $name test evaluation on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \

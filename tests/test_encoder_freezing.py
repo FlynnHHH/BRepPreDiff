@@ -13,9 +13,9 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
     [("none", 0), ("all", 4), ("partial", 2)],
 )
 def test_encoder_freeze_strategies(mode, expected_frozen_layers):
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import SegmentationModel
-    from blendit.training.common import configure_encoder_finetuning, set_frozen_encoder_eval
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import SegmentationModel
+    from brepprediff.training.common import configure_encoder_finetuning, set_frozen_encoder_eval
 
     config = load_experiment_config("configs/finetune.yaml")
     config["train"]["encoder_freeze_mode"] = mode
@@ -50,9 +50,9 @@ def test_encoder_freeze_strategies(mode, expected_frozen_layers):
 
 
 def test_partial_encoder_freeze_rejects_invalid_layer_count():
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import SegmentationModel
-    from blendit.training.common import configure_encoder_finetuning
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import SegmentationModel
+    from brepprediff.training.common import configure_encoder_finetuning
 
     config = load_experiment_config("configs/finetune.yaml")
     config["train"]["encoder_freeze_mode"] = "partial"
@@ -64,9 +64,9 @@ def test_partial_encoder_freeze_rejects_invalid_layer_count():
 
 
 def test_finetune_optimizer_supports_separate_encoder_and_head_learning_rates():
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import SegmentationModel
-    from blendit.training.finetune import build_optimizer
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import SegmentationModel
+    from brepprediff.training.finetune import build_optimizer
 
     config = load_experiment_config("configs/finetune.yaml")
     config["train"]["encoder_lr"] = 1.0e-4
@@ -92,9 +92,9 @@ def test_finetune_optimizer_supports_separate_encoder_and_head_learning_rates():
 
 
 def test_finetune_optimizer_honors_equal_explicit_group_learning_rates():
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import SegmentationModel
-    from blendit.training.finetune import build_optimizer
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import SegmentationModel
+    from brepprediff.training.finetune import build_optimizer
 
     config = load_experiment_config("configs/finetune.yaml")
     config["train"]["encoder_lr"] = 1.0e-4

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from blendit.data.load_data import filter_split
+from brepprediff.data.load_data import filter_split
 
 
 def test_filter_split_removes_invalid_step_entries(tmp_path: Path):

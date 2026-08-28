@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from blendit.brep.occ_extractor import _parse_label_map, _remap_labels
-from blendit.brep.occ_extractor import OccBRepExtractor
+from brepprediff.brep.occ_extractor import _parse_label_map, _remap_labels
+from brepprediff.brep.occ_extractor import OccBRepExtractor
 
 
 def test_brepdit_raw_seg_labels_map_to_three_classes():

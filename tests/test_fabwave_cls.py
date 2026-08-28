@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from blendit.data.fabwave_cls import discover_fabwave, prepare_fabwave_classification
+from brepprediff.data.fabwave_cls import discover_fabwave, prepare_fabwave_classification
 
 
 def _step(path: Path) -> None:

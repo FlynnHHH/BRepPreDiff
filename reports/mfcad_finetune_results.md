@@ -9,7 +9,7 @@ Run date: 2026-07-21
 - Official splits: 41,766 train / 8,950 validation / 8,949 test models
 - Test faces: 268,982
 - Feature cache: 59,665 validated NPZ graphs, `uv_grid_size: 10`
-- Initialization: Blendit 150-epoch pretrained encoder at
+- Initialization: BRepPreDiff 150-epoch pretrained encoder at
   `runs/pretrain/20260720-212145_pretrain_resume_20260720_205223/checkpoints/last.pt`
 - Fine-tuning: 100 epochs, two GPUs per method, batch size 256 per GPU, AdamW, learning rate `3e-4`
 - Checkpoint selection: highest validation Macro-F1

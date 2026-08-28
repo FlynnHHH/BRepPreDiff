@@ -4,11 +4,11 @@ from pathlib import Path
 
 import numpy as np
 
-from blendit.config import load_config
-from blendit.data.dataset import StepSegDataset
-from blendit.data.graph import save_graph_npz
-from blendit.data.load_data import prepare_data, prepare_split_files
-from blendit.training.common import DistributedContext, prepare_training_data
+from brepprediff.config import load_config
+from brepprediff.data.dataset import StepSegDataset
+from brepprediff.data.graph import save_graph_npz
+from brepprediff.data.load_data import prepare_data, prepare_split_files
+from brepprediff.training.common import DistributedContext, prepare_training_data
 
 
 def _write_valid_cache(path: Path) -> None:
@@ -111,7 +111,7 @@ def test_non_main_rank_waits_without_a_long_collective(tmp_path: Path, monkeypat
         }
     }
     prepared_config = {"data": {"cache_dir": str(tmp_path / "prepared_cache")}}
-    marker = tmp_path / ".blendit_coord" / "prepare_test-token.ready"
+    marker = tmp_path / ".brepprediff_coord" / "prepare_test-token.ready"
     broadcast_calls = []
 
     def fake_broadcast(values, src):
@@ -127,7 +127,7 @@ def test_non_main_rank_waits_without_a_long_collective(tmp_path: Path, monkeypat
         raise AssertionError("non-main rank must not prepare data")
 
     monkeypatch.setattr("torch.distributed.broadcast_object_list", fake_broadcast)
-    monkeypatch.setattr("blendit.data.load_data.prepare_data", unexpected_prepare)
+    monkeypatch.setattr("brepprediff.data.load_data.prepare_data", unexpected_prepare)
 
     result = prepare_training_data(
         config,
@@ -144,7 +144,7 @@ def test_training_skips_data_preparation_by_default(tmp_path: Path, monkeypatch,
     def unexpected_prepare(*args, **kwargs):
         raise AssertionError("prepare_data must be opt-in during training startup")
 
-    monkeypatch.setattr("blendit.data.load_data.prepare_data", unexpected_prepare)
+    monkeypatch.setattr("brepprediff.data.load_data.prepare_data", unexpected_prepare)
 
     result = prepare_training_data(config)
 

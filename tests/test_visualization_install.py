@@ -8,7 +8,7 @@ import sys
 
 def _load_module():
     script_path = Path(__file__).parents[1] / "scripts" / "update_finetune_test_visualization.py"
-    spec = importlib.util.spec_from_file_location("blendit_visualization_install", script_path)
+    spec = importlib.util.spec_from_file_location("brepprediff_visualization_install", script_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module

@@ -3,14 +3,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/blendit-encoder-edge-update}"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/brepprediff-encoder-edge-update}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/edge_update_new_joint}"
 LOG_ROOT="${LOG_ROOT:-$ROOT_DIR/runs/launch_logs/edge_update_seg_heads_extend200_$RUN_TAG}"
 
-if [[ ! -d "$EDGE_WORKTREE/src/blendit" ]]; then
+if [[ ! -d "$EDGE_WORKTREE/src/brepprediff" ]]; then
   echo "Edge Update worktree not found: $EDGE_WORKTREE" >&2
   exit 2
 fi
@@ -52,7 +52,7 @@ run_extension() {
   fi
 
   echo "[$(date --iso-8601=seconds)] Starting $task_name/$variant epochs 101-200 on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$source_config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -69,7 +69,7 @@ run_extension() {
     return 1
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \
@@ -81,18 +81,18 @@ run_extension() {
 }
 
 # Balance each GPU by expected runtime: three MFCAD++ jobs, three Fusion360Seg
-# jobs, and three short Blendit jobs are distributed as four sequential queues.
+# jobs, and three short BRepPreDiff jobs are distributed as four sequential queues.
 (
   run_extension mfcadpp mlp "${GPUS[0]}" "20260807-200941_edge_update_mfcadpp_seg_20260807-123259"
-  run_extension blendit mlp "${GPUS[0]}" "20260807-200941_edge_update_blendit_seg_20260807-123259"
+  run_extension brepprediff mlp "${GPUS[0]}" "20260807-200941_edge_update_brepprediff_seg_20260807-123259"
 ) & worker0=$!
 (
   run_extension mfcadpp xstart "${GPUS[1]}" "20260808-163205_edge_update_mfcadpp_seg_diffloss_20260808-head-complements-titan"
-  run_extension blendit xstart "${GPUS[1]}" "20260808-163205_edge_update_blendit_seg_diffloss_20260808-head-complements-titan"
+  run_extension brepprediff xstart "${GPUS[1]}" "20260808-163205_edge_update_brepprediff_seg_diffloss_20260808-head-complements-titan"
 ) & worker1=$!
 (
   run_extension mfcadpp xse "${GPUS[2]}" "20260808-183835_edge_update_mfcadpp_seg_diffloss_xse_20260808-xse-titan"
-  run_extension blendit xse "${GPUS[2]}" "20260808-183835_edge_update_blendit_seg_diffloss_xse_20260808-xse-titan"
+  run_extension brepprediff xse "${GPUS[2]}" "20260808-183835_edge_update_brepprediff_seg_diffloss_xse_20260808-xse-titan"
 ) & worker2=$!
 (
   run_extension fusion360seg mlp "${GPUS[3]}" "20260807-200941_edge_update_fusion360seg_20260807-123259"

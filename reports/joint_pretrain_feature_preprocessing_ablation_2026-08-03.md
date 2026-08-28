@@ -39,7 +39,7 @@
 | 面 | 17,180,451 |
 | 有向边 | 86,749,482 |
 
-该联合配置属于 transductive 自监督协议：Blendit 使用 train；TMCAD、Fusion360Seg 和 MFCAD++ 的 train/val/test 几何均被映射到预训练 `train`，但不加载标签。因此本结果不能直接当作严格 inductive 数据隔离协议下的结论。
+该联合配置属于 transductive 自监督协议：BRepPreDiff 使用 train；TMCAD、Fusion360Seg 和 MFCAD++ 的 train/val/test 几何均被映射到预训练 `train`，但不加载标签。因此本结果不能直接当作严格 inductive 数据隔离协议下的结论。
 
 ## 三种预处理方法
 
@@ -113,7 +113,7 @@ x' = \frac{x - \mu_{graph}}{\max(\sigma_{graph}, 10^{-6})}
 
 ### 当前证据不能回答的问题
 
-- 是否提高 Blendit、Fusion360Seg、MFCAD++ 面分割的 Accuracy、Macro-F1 和 mIoU。
+- 是否提高 BRepPreDiff、Fusion360Seg、MFCAD++ 面分割的 Accuracy、Macro-F1 和 mIoU。
 - 是否提高 TMCAD 图分类性能。
 - 是否在严格排除下游 val/test 几何的 inductive 预训练协议下仍然成立。
 - 类型化全局统计对不同 CAD 单位制、异常曲率及新数据域的鲁棒性。

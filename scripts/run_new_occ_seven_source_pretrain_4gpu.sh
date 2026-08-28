@@ -4,8 +4,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
-BLENDIT_CACHE_BIN="${BLENDIT_CACHE_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/blendit-cache}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
+BREPPREDIFF_CACHE_BIN="${BREPPREDIFF_CACHE_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/brepprediff-cache}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_NAME="new_occ_seven_source_edge_update_${RUN_TAG}"
@@ -28,8 +28,8 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Python executable not found: $PYTHON_BIN" >&2
   exit 2
 fi
-if [[ ! -x "$BLENDIT_CACHE_BIN" ]]; then
-  echo "blendit-cache executable not found: $BLENDIT_CACHE_BIN" >&2
+if [[ ! -x "$BREPPREDIFF_CACHE_BIN" ]]; then
+  echo "brepprediff-cache executable not found: $BREPPREDIFF_CACHE_BIN" >&2
   exit 2
 fi
 
@@ -42,7 +42,7 @@ cache_configs=(
 for config in "${cache_configs[@]}"; do
   for split in train val test; do
     echo "[$(date --iso-8601=seconds)] rebuilding OCC-grid-v2 cache config=$config split=$split"
-    "$BLENDIT_CACHE_BIN" \
+    "$BREPPREDIFF_CACHE_BIN" \
       --config "$config" \
       --split "$split" \
       --workers 16 \
@@ -59,7 +59,7 @@ done
 echo "[$(date --iso-8601=seconds)] starting run=$RUN_NAME gpu_ids=$GPU_IDS"
 CUDA_VISIBLE_DEVICES="$GPU_IDS" "$PYTHON_BIN" -m torch.distributed.run \
   --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config "$ROOT_DIR/configs/pretrain.yaml" \
   --override "run.name=$RUN_NAME" \
   --override "run.show_progress=false" \

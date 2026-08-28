@@ -13,7 +13,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def _classification_config(head: str):
-    from blendit.config import load_experiment_config
+    from brepprediff.config import load_experiment_config
 
     config = load_experiment_config(f"configs/finetune_tmcad_{head}.yaml")
     config["model"]["hidden_dim"] = 32
@@ -30,9 +30,9 @@ def _classification_config(head: str):
 def _classification_batch(config):
     import torch
 
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.training.smoke import synthetic_graph
 
     face_dim, edge_dim = feature_dims(config)
     graphs = [
@@ -45,7 +45,7 @@ def _classification_batch(config):
 
 
 def test_read_class_label_validates_one_hot(tmp_path):
-    from blendit.data.classification import read_class_label
+    from brepprediff.data.classification import read_class_label
 
     path = tmp_path / "part.cls"
     path.write_text("0 0 1 0\n", encoding="utf-8")
@@ -59,7 +59,7 @@ def test_read_class_label_validates_one_hot(tmp_path):
 
 
 def test_pair_step_cls_paths_uses_relative_layout(tmp_path):
-    from blendit.training.evaluate import pair_step_seg_paths
+    from brepprediff.training.evaluate import pair_step_seg_paths
 
     step_root = tmp_path / "steps"
     label_root = tmp_path / "labels"
@@ -81,7 +81,7 @@ def test_pair_step_cls_paths_uses_relative_layout(tmp_path):
 def test_mlp_classification_pools_faces_to_one_logit_per_graph():
     import torch
 
-    from blendit.models import (
+    from brepprediff.models import (
         ClassificationModel,
         build_classification_model,
         compute_classification_loss,
@@ -107,7 +107,7 @@ def test_mlp_classification_pools_faces_to_one_logit_per_graph():
 def test_classification_graph_pooling_variants_start_from_mean(pooling):
     import torch
 
-    from blendit.models.classification import build_graph_pool, mean_graph_pool
+    from brepprediff.models.classification import build_graph_pool, mean_graph_pool
 
     config = _classification_config("mlp")
     config["model"]["graph_pooling"] = pooling
@@ -135,8 +135,8 @@ def test_classification_graph_pooling_variants_start_from_mean(pooling):
 def test_mean_std_pooling_is_finite_for_single_face_graph():
     import torch
 
-    from blendit.data.graph import GraphBatch
-    from blendit.models.classification import MeanStatisticGraphPool
+    from brepprediff.data.graph import GraphBatch
+    from brepprediff.models.classification import MeanStatisticGraphPool
 
     face_embeddings = torch.randn(1, 8, requires_grad=True)
     batch = GraphBatch(
@@ -161,14 +161,14 @@ def test_mean_std_pooling_is_finite_for_single_face_graph():
 
 
 def test_classification_rejects_unknown_graph_pooling():
-    from blendit.models.classification import build_graph_pool
+    from brepprediff.models.classification import build_graph_pool
 
     with pytest.raises(ValueError, match="Unsupported model.graph_pooling"):
         build_graph_pool({"hidden_dim": 8, "dropout": 0.0, "graph_pooling": "median"})
 
 
 def test_missing_graph_pooling_keeps_legacy_mean_fallback():
-    from blendit.models.classification import MeanGraphPool, build_graph_pool
+    from brepprediff.models.classification import MeanGraphPool, build_graph_pool
 
     graph_pool = build_graph_pool({"hidden_dim": 8, "dropout": 0.0})
 
@@ -179,7 +179,7 @@ def test_missing_graph_pooling_keeps_legacy_mean_fallback():
 def test_pooling_ablation_preserves_mlp_head_initialization(pooling):
     import torch
 
-    from blendit.models import build_classification_model
+    from brepprediff.models import build_classification_model
 
     config = _classification_config("mlp")
     _, face_dim, edge_dim = _classification_batch(config)
@@ -196,7 +196,7 @@ def test_pooling_ablation_preserves_mlp_head_initialization(pooling):
 
 
 def test_task_specific_builders_reject_the_other_task():
-    from blendit.models import build_classification_model, build_segmentation_model
+    from brepprediff.models import build_classification_model, build_segmentation_model
 
     classification_config = _classification_config("mlp")
     _, face_dim, edge_dim = _classification_batch(classification_config)
@@ -212,7 +212,7 @@ def test_task_specific_builders_reject_the_other_task():
 def test_diffloss_classification_trains_and_samples_graph_tokens():
     import torch
 
-    from blendit.models import (
+    from brepprediff.models import (
         DiffusionClassificationModel,
         build_classification_model,
         compute_classification_label_diffusion_loss,

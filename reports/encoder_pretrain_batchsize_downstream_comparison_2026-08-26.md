@@ -32,8 +32,8 @@ mIoU 同时列出以观察分割质量。
 
 | Task | Head | BS64 Acc | BS32 Acc | ΔAcc | BS64 mIoU | BS32 mIoU | ΔmIoU | Acc winner |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| BlendIt | MLP | 98.8571 | 98.7502 | -0.1069 | 94.5522 | 93.7644 | -0.7878 | BS64 |
-| BlendIt | DiffLoss | 98.8338 | 98.7590 | -0.0748 | 94.3293 | 94.1108 | -0.2185 | BS64 |
+| BRepPreDiff | MLP | 98.8571 | 98.7502 | -0.1069 | 94.5522 | 93.7644 | -0.7878 | BS64 |
+| BRepPreDiff | DiffLoss | 98.8338 | 98.7590 | -0.0748 | 94.3293 | 94.1108 | -0.2185 | BS64 |
 | Fusion360Seg | MLP | 95.8492 | 96.0322 | +0.1830 | 83.5425 | 82.7660 | -0.7765 | BS32 |
 | Fusion360Seg | DiffLoss | 95.9971 | 95.8596 | -0.1375 | 82.8839 | 82.8296 | -0.0543 | BS64 |
 | MFCAD++ | MLP | 99.4089 | 99.4345 | +0.0256 | 98.1886 | 98.2574 | +0.0688 | BS32 |
@@ -52,7 +52,7 @@ mIoU 同时列出以观察分割质量。
 - BS32 的明确收益集中在 Fusion360Seg/MLP（+0.1830 pp）以及 MFCAD++ 两个 head
   （+0.0256 / +0.0435 pp）；BS64 在 TMCAD 上更稳，尤其 DiffLoss 高 0.4600 pp。
 - FabWave 已饱和，两种 encoder、两种 head 的 accuracy 都是 97.9540%，无法区分。
-- 每个任务中 accuracy 最优组合：BlendIt=BS64/MLP 98.8571%，
+- 每个任务中 accuracy 最优组合：BRepPreDiff=BS64/MLP 98.8571%，
   Fusion360Seg=BS32/MLP 96.0322%，MFCAD++=BS32/DiffLoss 99.4494%，
   TMCAD=BS64/DiffLoss 83.0727%，FabWave 四者并列 97.9540%。
 

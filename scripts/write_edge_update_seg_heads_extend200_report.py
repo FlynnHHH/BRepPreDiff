@@ -26,9 +26,9 @@ class Pair:
 
 
 PAIRS = (
-    Pair("Blendit", "MLP", "20260807-200941_edge_update_blendit_seg_20260807-123259", "*_edge_update_extend200_blendit_mlp_20260810-seg200-titan"),
-    Pair("Blendit", "DiffLoss x_start", "20260808-163205_edge_update_blendit_seg_diffloss_20260808-head-complements-titan", "*_edge_update_extend200_blendit_xstart_20260810-seg200-titan"),
-    Pair("Blendit", "DiffLoss x_start+0.5eps", "20260808-183835_edge_update_blendit_seg_diffloss_xse_20260808-xse-titan", "*_edge_update_extend200_blendit_xse_20260810-seg200-titan"),
+    Pair("BRepPreDiff", "MLP", "20260807-200941_edge_update_brepprediff_seg_20260807-123259", "*_edge_update_extend200_brepprediff_mlp_20260810-seg200-titan"),
+    Pair("BRepPreDiff", "DiffLoss x_start", "20260808-163205_edge_update_brepprediff_seg_diffloss_20260808-head-complements-titan", "*_edge_update_extend200_brepprediff_xstart_20260810-seg200-titan"),
+    Pair("BRepPreDiff", "DiffLoss x_start+0.5eps", "20260808-183835_edge_update_brepprediff_seg_diffloss_xse_20260808-xse-titan", "*_edge_update_extend200_brepprediff_xse_20260810-seg200-titan"),
     Pair("Fusion360Seg s2.0.0", "MLP", "20260807-200941_edge_update_fusion360seg_20260807-123259", "*_edge_update_extend200_fusion360seg_mlp_20260810-seg200-titan"),
     Pair("Fusion360Seg s2.0.0", "DiffLoss x_start", "20260808-163205_edge_update_fusion360seg_diffloss_20260808-head-complements-titan", "*_edge_update_extend200_fusion360seg_xstart_20260810-seg200-titan"),
     Pair("Fusion360Seg s2.0.0", "DiffLoss x_start+0.5eps", "20260808-183835_edge_update_fusion360seg_diffloss_xse_20260808-xse-titan", "*_edge_update_extend200_fusion360seg_xse_20260810-seg200-titan"),
@@ -116,7 +116,7 @@ def main() -> None:
         "# Edge Update Attention：三种分割 Head 延续至 200 Epochs",
         "",
         f"> 生成日期：{date.today().isoformat()}  ",
-        "> 任务：Blendit、Fusion360Seg、MFCAD++  ",
+        "> 任务：BRepPreDiff、Fusion360Seg、MFCAD++  ",
         "> Head：MLP、DiffLoss x_start、DiffLoss x_start+0.5epsilon  ",
         "> 方法：从各自 epoch-100 `last.pt` 继承模型和 AdamW optimizer，继续训练 epochs 101-200；按 validation accuracy 在完整 epochs 1-200 中重新选择全局 best。",
         "",

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 chcp 65001 >nul
-set "ENV_NAME=blendit-infer"
+set "ENV_NAME=brepprediff-infer"
 set "CONDA_CMD="
 if defined CONDA_EXE if exist "%CONDA_EXE%" set "CONDA_CMD=%CONDA_EXE%"
 if not defined CONDA_CMD for /f "delims=" %%I in ('where conda 2^>nul') do if not defined CONDA_CMD set "CONDA_CMD=%%I"

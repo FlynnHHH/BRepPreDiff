@@ -1,5 +1,5 @@
 [project]
-name = "blendit"
+name = "brepprediff"
 version = "0.1.0"
 description = "B-Rep diffusion pretraining for CAD segmentation and classification."
 readme = "README.md"
@@ -29,25 +29,25 @@ dev = [
 ]
 
 [project.scripts]
-blendit-cache = "blendit.data.load_data:cache_main"
-blendit-prepare-data = "blendit.data.load_data:main"
-blendit-prepare-tmcad-cls = "blendit.data.tmcad_cls:main"
-blendit-prepare-fabwave-cls = "blendit.data.fabwave_cls:main"
-blendit-filter-split = "blendit.data.load_data:filter_split_main"
-blendit-scan-cache = "blendit.data.load_data:scan_cache_main"
-blendit-infer-visual = "blendit.inference.finetune_visualize:main"
-blendit-infer-seg = "blendit.inference.step_to_seg:main"
-blendit-pretrain = "blendit.training.pretrain:main"
-blendit-finetune = "blendit.training.finetune:main"
-blendit-evaluate = "blendit.training.evaluate:main"
-blendit-smoke = "blendit.training.smoke:main"
+brepprediff-cache = "brepprediff.data.load_data:cache_main"
+brepprediff-prepare-data = "brepprediff.data.load_data:main"
+brepprediff-prepare-tmcad-cls = "brepprediff.data.tmcad_cls:main"
+brepprediff-prepare-fabwave-cls = "brepprediff.data.fabwave_cls:main"
+brepprediff-filter-split = "brepprediff.data.load_data:filter_split_main"
+brepprediff-scan-cache = "brepprediff.data.load_data:scan_cache_main"
+brepprediff-infer-visual = "brepprediff.inference.finetune_visualize:main"
+brepprediff-infer-seg = "brepprediff.inference.step_to_seg:main"
+brepprediff-pretrain = "brepprediff.training.pretrain:main"
+brepprediff-finetune = "brepprediff.training.finetune:main"
+brepprediff-evaluate = "brepprediff.training.evaluate:main"
+brepprediff-smoke = "brepprediff.training.smoke:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/blendit"]
+packages = ["src/brepprediff"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

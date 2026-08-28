@@ -5,13 +5,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
-TORCHRUN_BIN="${TORCHRUN_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/torchrun}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
+TORCHRUN_BIN="${TORCHRUN_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/torchrun}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 LOG_DIR="${LOG_DIR:-runs/launch_logs}"
 
 if [[ ! -x "$PYTHON_BIN" || ! -x "$TORCHRUN_BIN" ]]; then
-  echo "Blendit Python/torchrun executable is unavailable." >&2
+  echo "BRepPreDiff Python/torchrun executable is unavailable." >&2
   exit 2
 fi
 
@@ -47,7 +47,7 @@ for index in "${!configs[@]}"; do
   echo "$(date --iso-8601=seconds) starting $name log=$log_file" | tee -a "$summary_log"
   if CUDA_VISIBLE_DEVICES="$GPU_IDS" OMP_NUM_THREADS=1 "$TORCHRUN_BIN" \
     --standalone --nproc_per_node=4 \
-    -m blendit.training.pretrain --config "$config" >"$log_file" 2>&1; then
+    -m brepprediff.training.pretrain --config "$config" >"$log_file" 2>&1; then
     echo "$(date --iso-8601=seconds) completed $name" | tee -a "$summary_log"
   else
     result=$?

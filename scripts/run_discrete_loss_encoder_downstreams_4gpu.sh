@@ -5,7 +5,7 @@
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/discrete_loss_encoder_ablation}"
@@ -51,7 +51,7 @@ run_experiment() {
   local task_log="$LOG_ROOT/${dataset}_${variant}.log"
 
   echo "[$(date --iso-8601=seconds)] Starting dataset=$dataset variant=$variant gpu=$gpu"
-  if ! CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  if ! CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -77,7 +77,7 @@ run_experiment() {
     return 1
   fi
 
-  if ! CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  if ! CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$best_checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \
@@ -104,7 +104,7 @@ run_pair() {
 
 run_gpu0_pairs() {
   local status=0
-  run_pair blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" || status=1
+  run_pair brepprediff_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" || status=1
   run_pair fabwave_cls "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml" || status=1
   return "$status"
 }

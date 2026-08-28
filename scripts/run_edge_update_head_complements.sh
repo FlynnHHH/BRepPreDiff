@@ -4,15 +4,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/blendit-encoder-edge-update}"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+EDGE_WORKTREE="${EDGE_WORKTREE:-/tmp/brepprediff-encoder-edge-update}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/edge_update_new_joint}"
 LOG_ROOT="${LOG_ROOT:-$ROOT_DIR/runs/launch_logs/edge_update_head_complements_$RUN_TAG}"
 PRETRAIN_CHECKPOINT="${PRETRAIN_CHECKPOINT:-$RUN_ROOT/pretrain/20260807-123426_edge_update_new_joint_20260807-123259/checkpoints/last.pt}"
 
-if [[ ! -d "$EDGE_WORKTREE/src/blendit" ]]; then
+if [[ ! -d "$EDGE_WORKTREE/src/brepprediff" ]]; then
   echo "Edge Update worktree not found: $EDGE_WORKTREE" >&2
   exit 2
 fi
@@ -50,7 +50,7 @@ run_downstream() {
   local task_log="$LOG_ROOT/${task_name}.log"
 
   echo "[$(date --iso-8601=seconds)] Starting $task_name on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -71,7 +71,7 @@ run_downstream() {
     return 1
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \
@@ -85,7 +85,7 @@ run_downstream() {
 # Match the established task-specific budgets: segmentation 100 epochs and
 # classification 200 epochs. All runs select best.pt by validation accuracy.
 pids=()
-run_downstream blendit_seg_diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_diffloss_200.yaml" 100 & pids+=("$!")
+run_downstream brepprediff_seg_diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_diffloss_200.yaml" 100 & pids+=("$!")
 run_downstream fusion360seg_diffloss "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_fusion360seg_diffloss_200.yaml" 100 & pids+=("$!")
 run_downstream mfcadpp_seg_diffloss "${GPUS[2]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_diffloss_200.yaml" 100 & pids+=("$!")
 run_downstream tmcad_cls_mlp "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_tmcad_mlp.yaml" 200 & pids+=("$!")

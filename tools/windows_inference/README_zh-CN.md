@@ -1,4 +1,4 @@
-# Blendit Windows STEP 面分类推理程序
+# BRepPreDiff Windows STEP 面分类推理程序
 
 本程序扫描给定路径中的 `.step` / `.stp` 文件，为每个 STEP 面预测类别，并生成同名 `.seg` 文件。
 
@@ -17,18 +17,18 @@
 - 首次安装依赖时需要联网
 - 推理默认使用 CPU，不要求 NVIDIA 显卡
 
-建议将压缩包解压到不含特殊符号的短路径，例如 `D:\Blendit-Inference`。输入路径可以包含中文；程序会自动兼容部分 OpenCascade 对中文或超长路径的限制。
+建议将压缩包解压到不含特殊符号的短路径，例如 `D:\BRepPreDiff-Inference`。输入路径可以包含中文；程序会自动兼容部分 OpenCascade 对中文或超长路径的限制。
 
 ## 2. 首次安装
 
 双击 `install_env.bat`，或在 Anaconda Prompt 中运行：
 
 ```bat
-cd /d D:\Blendit-Inference
+cd /d D:\BRepPreDiff-Inference
 install_env.bat
 ```
 
-脚本会创建名为 `blendit-infer` 的独立 Conda 环境。以后推理不需要重复安装。
+脚本会创建名为 `brepprediff-infer` 的独立 Conda 环境。以后推理不需要重复安装。
 
 ## 3. 推理
 
@@ -74,7 +74,7 @@ run_inference.bat "D:\data\part_a.step"
 ## 5. 高级命令
 
 ```bat
-conda run --no-capture-output -n blendit-infer python app\launcher.py "D:\data\step_models" --batch-size 2 --skip-existing
+conda run --no-capture-output -n brepprediff-infer python app\launcher.py "D:\data\step_models" --batch-size 2 --skip-existing
 ```
 
 常用选项：

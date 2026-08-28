@@ -14,7 +14,7 @@ def main() -> int:
         raise FileNotFoundError(f"程序文件不完整，缺少模型：{checkpoint}")
 
     sys.path.insert(0, str(source_dir))
-    from blendit.inference.step_to_seg import main as infer_main
+    from brepprediff.inference.step_to_seg import main as infer_main
 
     return infer_main([*sys.argv[1:], "--checkpoint", str(checkpoint)])
 

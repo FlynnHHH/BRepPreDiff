@@ -1,13 +1,13 @@
-# BlendIt 四层 Encoder 改进实验最终报告
+# BRepPreDiff 四层 Encoder 改进实验最终报告
 
 > 生成日期：2026-07-30  
-> 运行环境：`blendit` Conda、4 × NVIDIA TITAN RTX（24 GB）  
+> 运行环境：`brepprediff` Conda、4 × NVIDIA TITAN RTX（24 GB）
 > 结果范围：7 种 Encoder × 4 个数据集，共 28 个独立测试结果
 
 ## 1. 结论摘要
 
-- **Edge Attention 是综合首选**：在 TMCAD 分类上达到最高 Accuracy 84.45%，较 Baseline 提升 1.38 pp；同时取得 Blendit 最高 Macro-F1 和 mIoU。
-- **Edge Update Attention 最适合 Blendit Accuracy**：达到 98.21%，并在 MFCAD++ 上取得 99.33% Accuracy / 97.94% mIoU。
+- **Edge Attention 是综合首选**：在 TMCAD 分类上达到最高 Accuracy 84.45%，较 Baseline 提升 1.38 pp；同时取得 BRepPreDiff 最高 Macro-F1 和 mIoU。
+- **Edge Update Attention 最适合 BRepPreDiff Accuracy**：达到 98.21%，并在 MFCAD++ 上取得 99.33% Accuracy / 97.94% mIoU。
 - **Hybrid Transformer 最适合 MFCAD++**：达到全实验最高的 99.36% Accuracy、98.99% Macro-F1 和 98.01% mIoU。
 - **Fusion360Seg 没有从复杂注意力中稳定获益**：SwiGLU 的 Accuracy 最高（92.80%），但 Baseline 的 Macro-F1（86.44%）和 mIoU（77.22%）最高。
 - **纯 Global Transformer 明显退化**：四个数据集均弱于 Baseline；当前对超大图采用的稀疏全局近似不足以替代局部 B-Rep 拓扑归纳偏置。
@@ -35,14 +35,14 @@ Global Transformer 对不超过 128 个面的图使用精确全局注意力；�
 
 | 数据集 | 最佳 Accuracy | 最佳 Macro-F1 | 最佳 mIoU |
 |---|---|---|---|
-| Blendit（3 类面分割） | Edge Update Attention **98.21%** | Edge Attention **96.42%** | Edge Attention **93.20%** |
+| BRepPreDiff（3 类面分割） | Edge Update Attention **98.21%** | Edge Attention **96.42%** | Edge Attention **93.20%** |
 | Fusion360Seg（8 类面分割） | SwiGLU FFN **92.80%** | Baseline 4-layer FFN **86.44%** | Baseline 4-layer FFN **77.22%** |
 | MFCAD++（25 类面分割） | Hybrid Transformer **99.36%** | Hybrid Transformer **98.99%** | Hybrid Transformer **98.01%** |
 | TMCAD（10 类图分类） | Edge Attention **84.45%** | Edge Attention **84.19%** | Edge Attention **73.47%** |
 
 ## 4. 各数据集完整结果
 
-### 4.1 Blendit（3 类面分割）
+### 4.1 BRepPreDiff（3 类面分割）
 
 | Variant | Accuracy (%) | ΔAcc vs Baseline (pp) | Macro-F1 (%) | ΔF1 (pp) | mIoU (%) | ΔmIoU (pp) |
 |---|---:|---:|---:|---:|---:|---:|
@@ -96,14 +96,14 @@ BRep2Shape 数值取自论文主表。该比较用于定位量级，不是严格
 
 | 数据集 | 本实验最佳方案 | 本实验 Acc (%) | BRep2Shape Acc (%) | ΔAcc (pp) | 本实验 mIoU (%) | BRep2Shape IoU (%) | ΔIoU (pp) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Blendit（3 类面分割） | Edge Update Attention（Acc）/ Edge Attention（mIoU） | 98.21 | — | — | 93.20 | — | — |
+| BRepPreDiff（3 类面分割） | Edge Update Attention（Acc）/ Edge Attention（mIoU） | 98.21 | — | — | 93.20 | — | — |
 | Fusion360Seg（8 类面分割） | SwiGLU FFN（Acc）/ Baseline 4-layer FFN（mIoU） | 92.80 | 96.88 | -4.08 | 77.22 | 83.77 | -6.55 |
 | MFCAD++（25 类面分割） | Hybrid Transformer | 99.36 | 99.35 | +0.01 | 98.01 | 98.02 | -0.01 |
 | TMCAD（10 类图分类） | Edge Attention | 84.45 | 84.72 | -0.27 | 73.47 | — | — |
 
 比较限制：
 
-- BRep2Shape 没有报告 Blendit 三分类 transition segmentation，因此 Blendit 无法比较。
+- BRep2Shape 没有报告 BRepPreDiff 三分类 transition segmentation，因此 BRepPreDiff 无法比较。
 - BRep2Shape 使用约 250k 预训练样本和不同的几何解析/tokenizer；本实验预训练缓存为 172,287 个图。
 - 本地 TMCAD 有效样本数与 BRep2Shape 论文不同，Accuracy 差值不能解释为纯架构收益。
 - 论文报告的 IoU 与本实验 Macro-IoU 在实现细节上可能不完全相同；表中仅作数值参考。
@@ -112,9 +112,9 @@ BRep2Shape 数值取自论文主表。该比较用于定位量级，不是严格
 
 ## 6. 方案选择建议
 
-1. 默认 Encoder 建议采用 **Edge Attention**。它在图分类任务上收益最大，同时保持 Blendit 分割的领先表现，结构复杂度也低于全局 Transformer。
+1. 默认 Encoder 建议采用 **Edge Attention**。它在图分类任务上收益最大，同时保持 BRepPreDiff 分割的领先表现，结构复杂度也低于全局 Transformer。
 2. 如果核心目标是 MFCAD++ 特征识别，采用 **Hybrid Transformer**；其局部注意力保留拓扑归纳偏置，最后一层全局交互补充跨区域信息。
-3. 如果核心目标是 Blendit transition face Accuracy，可采用 **Edge Update Attention**；但其显存峰值更敏感，建议保留 `128 × 4` 或更小 micro-batch。
+3. 如果核心目标是 BRepPreDiff transition face Accuracy，可采用 **Edge Update Attention**；但其显存峰值更敏感，建议保留 `128 × 4` 或更小 micro-batch。
 4. Fusion360Seg 优先保留 Baseline，或在只关注 Accuracy 时采用轻量 **SwiGLU**。
 5. 不建议继续投入当前 **Global Transformer** 和 **Attention Pooling** 实现，除非先修改稀疏全局 token 设计或引入层次化/区域级 token。
 

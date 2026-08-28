@@ -17,7 +17,7 @@
 
 ## 2. 共享预训练基础
 
-预训练使用 334,036 个可解析 STEP，包含 Blendit、TMCAD、Fusion360Seg s2.0.1、
+预训练使用 334,036 个可解析 STEP，包含 BRepPreDiff、TMCAD、Fusion360Seg s2.0.1、
 MFCAD++、Fusion360Rec r1.0.1、Fusion360Ass j1.0.0 和 FabWave 的配置内全部
 train/val/test geometry。
 
@@ -27,7 +27,7 @@ train/val/test geometry。
 
 SHA-256：`f9e39e2a22d65d50318f031ce1cdf76c6a399ce41f7eb25d05f9523a067c52b9`
 
-预训练 encoder 为初始 Blendit 4-layer MLP/FFN GraphMessageLayer。这里的“MLP 微调”
+预训练 encoder 为初始 BRepPreDiff 4-layer MLP/FFN GraphMessageLayer。这里的“MLP 微调”
 表示 downstream head 也使用 MLP，而不是 DiffLoss label-diffusion head。
 
 ## 3. 微调协议

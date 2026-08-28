@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 
-PACKAGE_NAME = "Blendit-Windows-Inference"
+PACKAGE_NAME = "BRepPreDiff-Windows-Inference"
 ASSET_FILES = (
     "environment-windows.yml",
     "install_env.bat",
@@ -34,9 +34,9 @@ def _sha256(path: Path) -> str:
 
 def build_package(repo_root: Path, checkpoint: Path, output_dir: Path) -> tuple[Path, Path]:
     asset_dir = repo_root / "tools" / "windows_inference"
-    source_dir = repo_root / "src" / "blendit"
+    source_dir = repo_root / "src" / "brepprediff"
     if not source_dir.is_dir():
-        raise FileNotFoundError(f"Missing Blendit source directory: {source_dir}")
+        raise FileNotFoundError(f"Missing BRepPreDiff source directory: {source_dir}")
     if not checkpoint.is_file():
         raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint}")
     for filename in (*ASSET_FILES, "launcher.py"):
@@ -56,7 +56,7 @@ def build_package(repo_root: Path, checkpoint: Path, output_dir: Path) -> tuple[
     shutil.copy2(asset_dir / "launcher.py", app_dir / "launcher.py")
     shutil.copytree(
         source_dir,
-        app_dir / "src" / "blendit",
+        app_dir / "src" / "brepprediff",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
     )
     packaged_checkpoint = model_dir / "best.pt"
@@ -85,7 +85,7 @@ def build_package(repo_root: Path, checkpoint: Path, output_dir: Path) -> tuple[
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the Blendit source-based Windows inference ZIP.")
+    parser = argparse.ArgumentParser(description="Build the BRepPreDiff source-based Windows inference ZIP.")
     parser.add_argument("--checkpoint", default=None, help="Finetune best.pt to include. Defaults to the newest best.pt.")
     parser.add_argument("--output-dir", default="dist", help="Package output directory.")
     args = parser.parse_args()

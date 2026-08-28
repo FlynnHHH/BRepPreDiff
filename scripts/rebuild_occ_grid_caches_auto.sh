@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_BIN="/home/hhfeng/miniconda3/bin/conda"
-CONDA_ENV="blendit"
+CONDA_ENV="brepprediff"
 
 # Prevent each OCC cache process from spawning its own BLAS/OpenMP pool.
 export OMP_NUM_THREADS=1
@@ -42,7 +42,7 @@ run_split() {
   fi
   echo "[$(date --iso-8601=seconds)] config=$config split=$split workers=$workers free_gb=$free_gb"
   nice -n 5 "$CONDA_BIN" run --no-capture-output -n "$CONDA_ENV" \
-    blendit-cache \
+    brepprediff-cache \
     --config "$config" \
     --split "$split" \
     --workers "$workers" \

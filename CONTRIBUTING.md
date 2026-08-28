@@ -1,12 +1,12 @@
-# Contributing to Blendit
+# Contributing to BRepPreDiff
 
-Thank you for improving Blendit.
+Thank you for improving BRepPreDiff.
 
 ## Development setup
 
 ```bash
 conda env create -f environment.yml
-conda activate blendit
+conda activate brepprediff
 python -m pip install -e ".[dev]"
 ```
 

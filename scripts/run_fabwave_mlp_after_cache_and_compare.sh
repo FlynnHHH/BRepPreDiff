@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_ID="${GPU_ID:-1}"
 RUN_TAG="${RUN_TAG:-new_occ_fabwave_mlp_200_$(date +%Y%m%d-%H%M%S)}"
 DIFF_RUN_TAG="${DIFF_RUN_TAG:-new_occ_fabwave_diffloss_200_20260819-103615}"
@@ -33,7 +33,7 @@ done
 MLP_NAME="edge_update_fabwave_cls_mlp_$RUN_TAG"
 MLP_LOG="$LOG_DIR/fabwave_mlp.log"
 echo "[$(date --iso-8601=seconds)] starting matched MLP run on GPU $GPU_ID"
-CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON_BIN" -m blendit.training.finetune \
+CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON_BIN" -m brepprediff.training.finetune \
   --config "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml" \
   --override "run.name=$MLP_NAME" \
   --override "run.output_dir=$RUN_ROOT" \
@@ -52,7 +52,7 @@ CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON_BIN" -m blendit.training.finetune \
 
 MLP_RUN="$(find "$RUN_ROOT/finetune" -mindepth 1 -maxdepth 1 -type d \
   -name "*_${MLP_NAME}" -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)"
-CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON_BIN" -m blendit.training.evaluate \
+CUDA_VISIBLE_DEVICES="$GPU_ID" "$PYTHON_BIN" -m brepprediff.training.evaluate \
   --checkpoint "$MLP_RUN/checkpoints/best.pt" \
   --split test --output "$MLP_RUN/test_metrics.json" \
   --batch-size 64 --num-workers 8 --device cuda \

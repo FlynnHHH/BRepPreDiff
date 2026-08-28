@@ -10,7 +10,7 @@
 - 微调 epoch：10、20、50、100、150、200
 - 每个下游任务形成 `4 × 6 = 24` 个结果点
 
-首轮固定 MLP head，覆盖 BlendIt、Fusion360Seg、MFCAD++、TMCAD 和 FabWave。这样只研究
+首轮固定 MLP head，覆盖 BRepPreDiff、Fusion360Seg、MFCAD++、TMCAD 和 FabWave。这样只研究
 encoder 预训练时长和微调预算，不把 MLP / DiffLoss 的差异混入主效应。TMCAD 和 FabWave
 统一使用 `model.graph_pooling: mean_max`。
 

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CACHE_BIN="${CACHE_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/blendit-cache}"
+CACHE_BIN="${CACHE_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/brepprediff-cache}"
 RUN_TAG="${RUN_TAG:-new_occ_fabwave_diffloss_200_$(date +%Y%m%d-%H%M%S)}"
 LOG_DIR="$ROOT_DIR/runs/launch_logs/fabwave_cache_$RUN_TAG"
 

@@ -18,7 +18,7 @@ split，但训练时不加载任何下游标签。
 
 | 来源 | 候选 STEP | 实际纳入 | 过滤 | 实际 split 组成 |
 |---|---:|---:|---:|---|
-| Blendit | 172,287 | 172,287 | 0 | 172,287 train |
+| BRepPreDiff | 172,287 | 172,287 | 0 | 172,287 train |
 | TMCAD | 10,886 | 10,886 | 0 | 8,709 / 1,090 / 1,087 |
 | Fusion360Seg s2.0.1 | 35,680 | 35,680 | 0 | 24,964 / 5,350 / 5,366 |
 | MFCAD++ | 59,665 | 59,665 | 0 | 41,766 / 8,950 / 8,949 |
@@ -35,7 +35,7 @@ split，但训练时不加载任何下游标签。
 
 ## 3. 联合预训练
 
-- Encoder：初始 Blendit 4-layer MLP/FFN GraphMessageLayer。
+- Encoder：初始 BRepPreDiff 4-layer MLP/FFN GraphMessageLayer。
 - Hidden dimension：128；dropout：0.1；`uv_grid_size: 10`。
 - Geometry diffusion timesteps：1,000。
 - Optimizer：AdamW；学习率 `1e-3`；weight decay `1e-4`。

@@ -157,7 +157,7 @@ class SuiteRunner:
 
     @staticmethod
     def active_process_lines(experiment: Experiment) -> list[str]:
-        module = f"blendit.training.{experiment.stage}"
+        module = f"brepprediff.training.{experiment.stage}"
         result = subprocess.run(
             ["pgrep", "-af", module],
             text=True,
@@ -196,7 +196,7 @@ class SuiteRunner:
             "--standalone",
             f"--nproc_per_node={gpu_count}",
             "-m",
-            f"blendit.training.{experiment.stage}",
+            f"brepprediff.training.{experiment.stage}",
             "--config",
             experiment.config,
             "--override",
@@ -322,7 +322,7 @@ class SuiteRunner:
         command = [
             str(self.python),
             "-m",
-            "blendit.training.evaluate",
+            "brepprediff.training.evaluate",
             "--config",
             experiment.config,
             "--checkpoint",

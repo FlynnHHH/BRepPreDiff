@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2}"
 LOG_DIR="${LOG_DIR:-runs/launch_logs}"
 IFS=',' read -r -a GPUS <<< "$GPU_IDS"
@@ -43,7 +43,7 @@ run_one() {
 
   echo "$(date --iso-8601=seconds) starting $name gpu=$gpu" | tee -a "$summary_log"
   CUDA_VISIBLE_DEVICES="$gpu" OMP_NUM_THREADS=1 "$PYTHON_BIN" \
-    -m blendit.training.finetune --config "$config" >"$train_log" 2>&1
+    -m brepprediff.training.finetune --config "$config" >"$train_log" 2>&1
 
   local run_dir
   run_dir="$(find runs/finetune -mindepth 1 -maxdepth 1 -type d -name "*_${run_name}" \
@@ -54,7 +54,7 @@ run_one() {
   fi
 
   CUDA_VISIBLE_DEVICES="$gpu" OMP_NUM_THREADS=1 "$PYTHON_BIN" \
-    -m blendit.training.evaluate \
+    -m brepprediff.training.evaluate \
     --checkpoint "$run_dir/checkpoints/best.pt" \
     --split test \
     --output "$run_dir/test_metrics.json" \

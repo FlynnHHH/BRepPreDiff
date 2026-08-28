@@ -1,10 +1,16 @@
-# Blendit
+# BRepPreDiff
 
-Diffusion-based B-Rep representation learning for face segmentation and whole-model classification.
+A diffusion-pretrained B-Rep representation learning framework for downstream face segmentation
+and whole-model classification.
 
-Blendit parses STEP models into attributed B-Rep graphs, caches graph features, pretrains a
-geometry-denoising encoder, and fine-tunes it for face-level classification. The default label
-space contains three classes:
+BRepPreDiff provides an end-to-end workflow that parses STEP models into attributed B-Rep graphs,
+caches geometric and topological features, pretrains a reusable encoder with geometry denoising,
+and transfers the encoder to supervised downstream tasks. It supports both per-face segmentation
+and whole-model classification, with interchangeable MLP and label-diffusion (DiffLoss) heads.
+
+The framework is dataset-agnostic: label spaces and class counts are defined by each downstream
+data configuration. Transition-face recognition is one supported segmentation application, not
+the definition or limit of the project. Its example three-class mapping is:
 
 - `0`: non-transition face
 - `1`: vertex blend face (VBF)
@@ -15,8 +21,8 @@ space contains three classes:
 - Direct STEP/STP parsing with `pythonocc-core`.
 - Independent STEP and SEG/JSON source directories.
 - Automatic split generation, cache completion, and invalid-cache removal.
-- Diffusion denoising pretraining over continuous face and edge features.
-- Segmentation (`task: seg`) and classification (`task: cls`) downstream tasks.
+- Reusable diffusion-denoising pretraining over continuous face and edge features.
+- A shared pretrained encoder for segmentation (`task: seg`) and classification (`task: cls`).
 - MLP and label-diffusion fine-tuning heads for both task types.
 - Single- and multi-GPU training with checkpoint resume support.
 - STEP-to-SEG inference, PLY visualization, and a Windows inference package builder.
@@ -33,10 +39,10 @@ B-Rep graph extraction ──► NPZ feature cache
 geometry diffusion pretraining
       │
       ▼
-face segmentation fine-tuning
+reusable pretrained B-Rep encoder
       │
-      ├──► SEG predictions
-      └──► colored PLY visualization
+      ├──► face segmentation fine-tuning ──► labels / SEG / colored PLY
+      └──► whole-model classification ──► model class
 ```
 
 The topology remains fixed during pretraining. Gaussian noise is applied to continuous geometry
@@ -55,11 +61,15 @@ Python 3.9-compatible `pythonocc-core` build for STEP extraction and PLY export.
 
 ## Installation
 
+The project, Python distribution and import package, console-command prefix, and Conda environment
+all use `brepprediff` as their machine-readable identifier. The human-readable project name is
+`BRepPreDiff`.
+
 ```bash
 git clone <your-github-repository-url>
-cd Blendit
+cd BRepPreDiff
 conda env create -f environment.yml
-conda activate blendit
+conda activate brepprediff
 python -m pip install --no-deps -e .
 ```
 
@@ -97,7 +107,7 @@ Start from [data/default.yaml](data/default.yaml):
 data:
   steps_dir: data/raw/steps
   segs_dir: data/raw/segs
-  cache_dir: /data/hhfeng/blendit/cache/features
+  cache_dir: /data/hhfeng/brepprediff/cache/features
   train_split: data/splits/train.txt
   val_split: data/splits/val.txt
   test_split: data/splits/test.txt
@@ -123,7 +133,7 @@ sample contains `XYZ + unit tangent` (6 channels); `edge_u_grid_size` defaults t
 `uv_grid_size` when omitted. Caches created with the earlier 6-channel face grid / scalar-only
 edge schema must be rebuilt.
 
-The default ABC/BrepDit mapping is:
+One included transition-face dataset mapping is:
 
 ```text
 raw 4       -> EBF (class 2)
@@ -134,8 +144,8 @@ other value -> non-transition (class 0)
 Set `labels.raw_to_class_map: null` and `labels.default_class: null` when labels already contain
 model class IDs, as in [data/filletrec.yaml](data/filletrec.yaml).
 
-Downstream fine-tuning defaults to face segmentation. Set the top-level task to `cls` for
-whole-model classification:
+Choose the downstream task with the top-level `task` field. Segmentation configurations use
+`task: seg`; set it to `cls` for whole-model classification:
 
 ```yaml
 task: cls
@@ -146,7 +156,8 @@ labels:
   num_classes: 10
 ```
 
-For `seg`, every graph label tensor has one class ID per face. For `cls`, each `.cls` source file
+For `seg`, every graph label tensor has one class ID per face and may use any dataset-specific
+taxonomy. For `cls`, each `.cls` source file
 is a whitespace-separated one-hot vector; it is strictly validated and converted to one graph-level
 target. The encoder's face embeddings are pooled before either the MLP or DiffLoss head.
 Classification training configs default to `model.graph_pooling: mean_max`; experiments can also
@@ -157,7 +168,7 @@ that omit this field still fall back to `mean` so legacy checkpoints remain comp
 ## Prepare data
 
 ```bash
-blendit-prepare-data --config data/default.yaml --workers 8
+brepprediff-prepare-data --config data/default.yaml --workers 8
 ```
 
 The command performs one idempotent preparation pass:
@@ -188,11 +199,11 @@ The recommended workflow is therefore:
 
 ```bash
 # Run once, and repeat after any source, split, extraction-setting, or cache change.
-blendit-prepare-data --config data/pretrain.yaml --workers 16
+brepprediff-prepare-data --config data/pretrain.yaml --workers 16
 
 # Reuse the validated cache without another full scan.
 torchrun --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config configs/pretrain.yaml
 ```
 
@@ -204,41 +215,41 @@ Advanced data commands are exposed through the same module:
 
 ```bash
 # Build one split only
-blendit-cache --config data/default.yaml --split train --workers 8
+brepprediff-cache --config data/default.yaml --split train --workers 8
 
 # Scan an existing cache
-blendit-scan-cache --cache-dir /data/hhfeng/blendit/cache/features \
-  --invalid-log /data/hhfeng/blendit/cache/invalid.jsonl
+brepprediff-scan-cache --cache-dir /data/hhfeng/brepprediff/cache/features \
+  --invalid-log /data/hhfeng/brepprediff/cache/invalid.jsonl
 
 # Remove failed samples from a split
-blendit-filter-split --split data/splits/train.txt \
-  --invalid-log /data/hhfeng/blendit/cache/invalid.jsonl \
+brepprediff-filter-split --split data/splits/train.txt \
+  --invalid-log /data/hhfeng/brepprediff/cache/invalid.jsonl \
   --output data/splits/train_clean.txt
 ```
 
 For MFCAD++, the face class is stored as the name of each STEP `ADVANCED_FACE` entity. Extract
-one label per line into Blendit-compatible SEG files, while preserving the train/validation/test
+one label per line into BRepPreDiff-compatible SEG files, while preserving the train/validation/test
 directory layout, with:
 
 ```bash
-python -m blendit.data.mfcad_seg \
+python -m brepprediff.data.mfcad_seg \
   --dataset-root /data/hhfeng/MFCAD++ \
   --step-root /data/hhfeng/MFCAD++/step \
   --seg-root /data/hhfeng/MFCAD++/seg \
-  --blendit-splits-dir /data/hhfeng/MFCAD++/blendit_splits \
+  --brepprediff-splits-dir /data/hhfeng/MFCAD++/brepprediff_splits \
   --workers 16
 ```
 
 The dataset contains 24 machining-feature categories (`0..23`) plus the Stock/background label
 (`24`), so face segmentation uses 25 output classes. The matching source-data configuration is
-`data/mfcad.yaml`; its UV grid matches the pretrained Blendit encoder.
+`data/mfcad.yaml`; its UV grid matches the pretrained BRepPreDiff encoder.
 
 Fine-tune the default DiffLoss baseline or the MLP head with the dedicated configurations:
 
 ```bash
-blendit-finetune --config configs/finetune_mfcad_baseline.yaml \
+brepprediff-finetune --config configs/finetune_mfcad_baseline.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
-blendit-finetune --config configs/finetune_mfcad_mlp.yaml \
+brepprediff-finetune --config configs/finetune_mfcad_mlp.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
@@ -248,12 +259,12 @@ TMCAD contains ten model categories stored as top-level directories. Generate a 
 file beside every STEP/STP model, plus deterministic class-stratified 80/10/10 splits:
 
 ```bash
-blendit-prepare-tmcad-cls --dataset-root /data/hhfeng/TMCAD
-blendit-prepare-data --config data/tmcad.yaml --workers 16
+brepprediff-prepare-tmcad-cls --dataset-root /data/hhfeng/TMCAD
+brepprediff-prepare-data --config data/tmcad.yaml --workers 16
 ```
 
 The stable alphabetical class mapping is recorded in
-`/data/hhfeng/TMCAD/blendit_splits/class_map.json`. With the bundled TMCAD data configuration it is:
+`/data/hhfeng/TMCAD/brepprediff_splits/class_map.json`. With the bundled TMCAD data configuration it is:
 
 ```text
 0 bearing, 1 bolt, 2 bracket, 3 coupling, 4 flange,
@@ -271,15 +282,15 @@ Fine-tune and evaluate both heads from the same pretrained encoder:
 ```bash
 PRETRAIN=runs/pretrain/<run>/checkpoints/last.pt
 
-blendit-finetune --config configs/finetune_tmcad_diffloss.yaml \
+brepprediff-finetune --config configs/finetune_tmcad_diffloss.yaml \
   --override train.pretrain_checkpoint=$PRETRAIN
-blendit-evaluate \
+brepprediff-evaluate \
   --checkpoint runs/finetune/<tmcad_diffloss_run>/checkpoints/best.pt \
   --split test --output runs/finetune/<tmcad_diffloss_run>/test_metrics.json
 
-blendit-finetune --config configs/finetune_tmcad_mlp.yaml \
+brepprediff-finetune --config configs/finetune_tmcad_mlp.yaml \
   --override train.pretrain_checkpoint=$PRETRAIN
-blendit-evaluate \
+brepprediff-evaluate \
   --checkpoint runs/finetune/<tmcad_mlp_run>/checkpoints/best.pt \
   --split test --output runs/finetune/<tmcad_mlp_run>/test_metrics.json
 ```
@@ -287,21 +298,21 @@ blendit-evaluate \
 ## Pretraining
 
 ```bash
-blendit-pretrain --config configs/pretrain.yaml
+brepprediff-pretrain --config configs/pretrain.yaml
 ```
 
 The default training configs use the four-head `edge_update_attention` encoder. To explicitly use
 the original FFN/message-passing encoder instead:
 
 ```bash
-blendit-pretrain --config configs/pretrain.yaml \
+brepprediff-pretrain --config configs/pretrain.yaml \
   --override model.encoder_type=ffn
 ```
 
 Common overrides:
 
 ```bash
-blendit-pretrain --config configs/pretrain.yaml \
+brepprediff-pretrain --config configs/pretrain.yaml \
   --override train.device=cuda \
   --override train.batch_size=32 \
   --override train.epochs=100
@@ -310,7 +321,7 @@ blendit-pretrain --config configs/pretrain.yaml \
 Multi-GPU training:
 
 ```bash
-torchrun --standalone --nproc_per_node=4 -m blendit.training.pretrain \
+torchrun --standalone --nproc_per_node=4 -m brepprediff.training.pretrain \
   --config configs/pretrain.yaml \
   --override train.device=cuda
 ```
@@ -318,7 +329,7 @@ torchrun --standalone --nproc_per_node=4 -m blendit.training.pretrain \
 Resume to a target total epoch count:
 
 ```bash
-blendit-pretrain --config configs/pretrain.yaml \
+brepprediff-pretrain --config configs/pretrain.yaml \
   --override train.resume=runs/pretrain/<run>/checkpoints/last.pt \
   --override train.epochs=150
 ```
@@ -331,12 +342,12 @@ training:
 wandb login
 ```
 
-The default project is `blendit`. Configure the destination in the training YAML or with overrides:
+The default project is `brepprediff`. Configure the destination in the training YAML or with overrides:
 
 ```yaml
 wandb:
   enabled: true
-  project: blendit
+  project: brepprediff
   entity: null
   group: null
   tags: []
@@ -351,26 +362,26 @@ Only rank 0 creates and writes the W&B run during distributed training. Set
 MLP segmentation head:
 
 ```bash
-blendit-finetune --config configs/finetune.yaml \
+brepprediff-finetune --config configs/finetune.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
 Label-diffusion head:
 
 ```bash
-blendit-finetune --config configs/finetune_diffloss.yaml \
+brepprediff-finetune --config configs/finetune_diffloss.yaml \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
 ```
 
-For the tuned Blendit DiffLoss setup initialized from joint self-supervised pretraining, use
-[configs/finetune_joint_blendit_diffloss.yaml](configs/finetune_joint_blendit_diffloss.yaml).
+For the tuned BRepPreDiff DiffLoss setup initialized from joint self-supervised pretraining, use
+[configs/finetune_joint_brepprediff_diffloss.yaml](configs/finetune_joint_brepprediff_diffloss.yaml).
 Its controlled MLP comparison, parameter search, and exact test metrics are recorded in
-[reports/blendit_joint_diffloss_results.md](reports/blendit_joint_diffloss_results.md).
+[reports/BRepPreDiff_joint_diffloss_results.md](reports/BRepPreDiff_joint_diffloss_results.md).
 
 Multi-GPU fine-tuning:
 
 ```bash
-torchrun --standalone --nproc_per_node=4 -m blendit.training.finetune \
+torchrun --standalone --nproc_per_node=4 -m brepprediff.training.finetune \
   --config configs/finetune.yaml \
   --override train.device=cuda \
   --override train.pretrain_checkpoint=runs/pretrain/<run>/checkpoints/last.pt
@@ -390,7 +401,7 @@ Evaluate one STEP/SEG pair, or pass two directories with matching relative file 
 dataset:
 
 ```bash
-blendit-evaluate \
+brepprediff-evaluate \
   --checkpoint runs/finetune/<run>/checkpoints/best.pt \
   --step /path/to/step-or-directory \
   --seg /path/to/seg-or-directory \
@@ -407,7 +418,7 @@ metrics with VBF and EBF merged.
 ### STEP to SEG
 
 ```bash
-blendit-infer-seg /path/to/step-or-directory \
+brepprediff-infer-seg /path/to/step-or-directory \
   --checkpoint runs/finetune/<run>/checkpoints/best.pt \
   --config configs/finetune.yaml
 ```
@@ -423,7 +434,7 @@ VBF            -> 6
 ### PLY visualization and evaluation
 
 ```bash
-blendit-infer-visual \
+brepprediff-infer-visual \
   --config configs/finetune.yaml \
   --checkpoint runs/finetune/<run>/checkpoints/best.pt \
   --step /path/to/model.step \
@@ -462,11 +473,11 @@ them to source control.
 ## Repository layout
 
 ```text
-Blendit/
+BRepPreDiff/
 ├── configs/                 training configurations
 ├── data/*.yaml              data-preparation configurations
 ├── scripts/                 dataset, ablation, and package utilities
-├── src/blendit/
+├── src/brepprediff/
 │   ├── brep/                OpenCascade feature extraction
 │   ├── data/
 │   │   ├── segmentation.py   SEG/JSON matching and face-label extraction

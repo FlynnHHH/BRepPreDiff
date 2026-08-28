@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from blendit.training.evaluate import (
+from brepprediff.training.evaluate import (
     classification_metrics_from_confusion,
     pair_step_seg_paths,
 )

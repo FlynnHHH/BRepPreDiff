@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/new_occ_features_downstreams}"
@@ -47,7 +47,7 @@ run_downstream() {
   local task_log="$LOG_ROOT/${task_name}.log"
 
   echo "[$(date --iso-8601=seconds)] Starting $task_name on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -74,7 +74,7 @@ run_downstream() {
     return 1
   fi
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$checkpoint" \
     --split test \
     --output "$run_dir/test_metrics.json" \
@@ -93,7 +93,7 @@ fi
 pids=()
 if [[ "$TASK_GROUP" == "all" || "$TASK_GROUP" == "gpu0" ]]; then
   (
-    run_downstream blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_diffloss_200.yaml" 200
+    run_downstream brepprediff_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_diffloss_200.yaml" 200
     run_downstream fabwave_cls "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml" 200
   ) & pids+=("$!")
 else

@@ -9,7 +9,7 @@ from pathlib import Path
 import random
 import tempfile
 
-from blendit.data.tmcad_cls import _allocate_counts
+from brepprediff.data.tmcad_cls import _allocate_counts
 
 
 ROOT = Path(__file__).resolve().parents[1]

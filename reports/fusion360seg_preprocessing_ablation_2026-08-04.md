@@ -104,7 +104,7 @@ RevolveEnd 只有 73 个测试面，其指标对少数预测变化非常敏感�
 
 ### 3. 联合全局统计量与 Fusion360Seg 域可能不匹配
 
-`typewise_global` 使用 Blendit、TMCAD、Fusion360Seg 和 MFCAD++ 联合几何拟合 mean/std。不同数据源的 CAD 单位、坐标原点和曲率分布可能不同，使 Fusion360Seg 特征在统一变换后产生域偏移。此外，法向量保持单位化而其他面通道全局 z-score，改变了各特征组进入投影层时的相对权重。
+`typewise_global` 使用 BRepPreDiff、TMCAD、Fusion360Seg 和 MFCAD++ 联合几何拟合 mean/std。不同数据源的 CAD 单位、坐标原点和曲率分布可能不同，使 Fusion360Seg 特征在统一变换后产生域偏移。此外，法向量保持单位化而其他面通道全局 z-score，改变了各特征组进入投影层时的相对权重。
 
 这是对明显退化的合理解释，但尚未通过 Fusion360Seg-only 统计量实验验证。
 

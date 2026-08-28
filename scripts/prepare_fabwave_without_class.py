@@ -9,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 
-from blendit.data.dataset import _cache_path
-from blendit.data.graph import save_graph_npz
+from brepprediff.data.dataset import _cache_path
+from brepprediff.data.graph import save_graph_npz
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,11 +23,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--remove-class", default="Rotary_Shaft")
     parser.add_argument("--dataset-root", default="/data/hhfeng/FabWave")
     parser.add_argument("--source-labels", default="data/labels/fabwave")
-    parser.add_argument("--source-cache", default="/data/hhfeng/blendit/cache/features/fabwave")
+    parser.add_argument("--source-cache", default="/data/hhfeng/brepprediff/cache/features/fabwave")
     parser.add_argument("--source-class-map", default="data/splits/fabwave_class_map.json")
     parser.add_argument("--source-split-pattern", default="data/splits/fabwave_{split}_clean.txt")
     parser.add_argument("--output-labels", default="data/labels/fabwave_no_rotary_shaft")
-    parser.add_argument("--output-cache", default="/data/hhfeng/blendit/cache/features/fabwave_no_rotary_shaft")
+    parser.add_argument("--output-cache", default="/data/hhfeng/brepprediff/cache/features/fabwave_no_rotary_shaft")
     parser.add_argument("--output-class-map", default="data/splits/fabwave_no_rotary_shaft_class_map.json")
     parser.add_argument("--output-split-pattern", default="data/splits/fabwave_no_rotary_shaft_{split}.txt")
     parser.add_argument("--overwrite", action="store_true")

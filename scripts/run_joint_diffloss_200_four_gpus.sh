@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 LOG_DIR="${LOG_DIR:-runs/launch_logs}"
 
@@ -29,9 +29,9 @@ fi
 mkdir -p "$LOG_DIR"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 
-names=(blendit fusion360seg mfcadpp tmcad)
+names=(brepprediff fusion360seg mfcadpp tmcad)
 configs=(
-  configs/finetune_joint_blendit_diffloss_200.yaml
+  configs/finetune_joint_brepprediff_diffloss_200.yaml
   configs/finetune_joint_fusion360seg_diffloss_200.yaml
   configs/finetune_joint_mfcadpp_diffloss_200.yaml
   configs/finetune_joint_tmcad_diffloss_200.yaml
@@ -45,7 +45,7 @@ launch() {
   local log_file="$LOG_DIR/${timestamp}_${name}_diffloss_200.log"
 
   echo "Launching $name on GPU $gpu; log: $log_file"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" >"$log_file" 2>&1 &
   pids+=("$!")
 }

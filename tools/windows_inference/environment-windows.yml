@@ -1,4 +1,4 @@
-name: blendit-infer
+name: brepprediff-infer
 channels:
   - pytorch
   - conda-forge

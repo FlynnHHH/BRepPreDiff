@@ -11,9 +11,9 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 def test_load_pretrain_checkpoint_for_finetune_loads_encoder_only(tmp_path):
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import DiffusionPretrainModel, SegmentationModel
-    from blendit.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import DiffusionPretrainModel, SegmentationModel
+    from brepprediff.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
 
     config = load_experiment_config("configs/default.yaml")
     face_dim, edge_dim = feature_dims(config)
@@ -35,9 +35,9 @@ def test_load_pretrain_checkpoint_for_finetune_loads_encoder_only(tmp_path):
 def test_load_pretrain_checkpoint_for_diffusion_finetune_loads_encoder_only(tmp_path):
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import DiffusionPretrainModel, DiffusionSegmentationModel, build_segmentation_model
-    from blendit.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import DiffusionPretrainModel, DiffusionSegmentationModel, build_segmentation_model
+    from brepprediff.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
 
     pretrain_config = load_experiment_config("configs/default.yaml")
     finetune_config = load_experiment_config("configs/finetune_diffloss.yaml")
@@ -60,9 +60,9 @@ def test_load_pretrain_checkpoint_for_diffusion_finetune_loads_encoder_only(tmp_
 def test_classification_mlp_loads_pretrained_encoder_only(tmp_path):
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import DiffusionPretrainModel, build_classification_model
-    from blendit.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import DiffusionPretrainModel, build_classification_model
+    from brepprediff.training.common import load_pretrain_checkpoint_for_finetune, save_checkpoint
 
     pretrain_config = load_experiment_config("configs/pretrain.yaml")
     finetune_config = load_experiment_config("configs/finetune_tmcad_mlp.yaml")
@@ -84,9 +84,9 @@ def test_classification_mlp_loads_pretrained_encoder_only(tmp_path):
 def test_load_checkpoint_migrates_legacy_classification_head(tmp_path):
     import torch
 
-    from blendit.config import feature_dims, load_experiment_config
-    from blendit.models import build_classification_model
-    from blendit.training.common import load_checkpoint
+    from brepprediff.config import feature_dims, load_experiment_config
+    from brepprediff.models import build_classification_model
+    from brepprediff.training.common import load_checkpoint
 
     config = load_experiment_config("configs/finetune_tmcad_mlp.yaml")
     face_dim, edge_dim = feature_dims(config)

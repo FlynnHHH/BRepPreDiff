@@ -1,11 +1,11 @@
 data:
   steps_dir: /data/hhfeng/MFCAD++/step
   segs_dir: /data/hhfeng/MFCAD++/seg
-  cache_dir: /data/hhfeng/blendit/cache/features/mfcad
+  cache_dir: /data/hhfeng/brepprediff/cache/features/mfcad
   prepare_on_start: false
-  train_split: /data/hhfeng/MFCAD++/blendit_splits/train.txt
-  val_split: /data/hhfeng/MFCAD++/blendit_splits/val.txt
-  test_split: /data/hhfeng/MFCAD++/blendit_splits/test.txt
+  train_split: /data/hhfeng/MFCAD++/brepprediff_splits/train.txt
+  val_split: /data/hhfeng/MFCAD++/brepprediff_splits/val.txt
+  test_split: /data/hhfeng/MFCAD++/brepprediff_splits/test.txt
   step_extensions: [".step", ".stp", ".STEP", ".STP"]
   labels_required: true
   strict_label_count: true
@@ -14,7 +14,7 @@ data:
   invalid_log: null
 
 brep:
-  # Match the released Blendit pretraining checkpoints so the complete encoder
+  # Match the released BRepPreDiff pretraining checkpoints so the complete encoder
   # (including face_cont_proj) can be initialized for fine-tuning.
   uv_grid_size: 10
   occ_precision: 1.0e-6

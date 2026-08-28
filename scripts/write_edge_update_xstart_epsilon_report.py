@@ -23,9 +23,9 @@ class Experiment:
 
 
 EXPERIMENTS = (
-    Experiment("Blendit", "MLP", "20260807-200941_edge_update_blendit_seg_20260807-123259"),
-    Experiment("Blendit", "DiffLoss x_start", "*_edge_update_extend200_blendit_xstart_20260810-seg200-titan"),
-    Experiment("Blendit", "DiffLoss x_start+0.5eps", "*_edge_update_blendit_seg_diffloss_xse_20260808-xse-titan"),
+    Experiment("BRepPreDiff", "MLP", "20260807-200941_edge_update_brepprediff_seg_20260807-123259"),
+    Experiment("BRepPreDiff", "DiffLoss x_start", "*_edge_update_extend200_brepprediff_xstart_20260810-seg200-titan"),
+    Experiment("BRepPreDiff", "DiffLoss x_start+0.5eps", "*_edge_update_brepprediff_seg_diffloss_xse_20260808-xse-titan"),
     Experiment("Fusion360Seg s2.0.0", "MLP", "*_edge_update_extend200_fusion360seg_mlp_20260810-seg200-titan"),
     Experiment("Fusion360Seg s2.0.0", "DiffLoss x_start", "*_edge_update_extend200_fusion360seg_xstart_20260810-seg200-titan"),
     Experiment("Fusion360Seg s2.0.0", "DiffLoss x_start+0.5eps", "*_edge_update_extend200_fusion360seg_xse_20260810-seg200-titan"),

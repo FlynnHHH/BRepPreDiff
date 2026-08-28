@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 PRETRAIN_RUN="${PRETRAIN_RUN:-$ROOT_DIR/runs/pretrain/20260824-114039_seven_source_711_4gpu_wandb_20260824-113934}"
 RUN_TAG="${RUN_TAG:-pretrain_finetune_epoch_grid_$(date +%Y%m%d-%H%M%S)}"
@@ -14,7 +14,7 @@ RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/pretrain_finetune_epoch_grid}"
 LOG_ROOT="$ROOT_DIR/runs/launch_logs/$RUN_TAG"
 RESULT_ROOT="$RUN_ROOT/results/$RUN_TAG"
 REPORT_PATH="${REPORT_PATH:-$ROOT_DIR/reports/${RUN_TAG}.md}"
-TASKS="${TASKS:-blendit_seg,fusion360seg,mfcadpp_seg,tmcad_cls,fabwave_cls}"
+TASKS="${TASKS:-brepprediff_seg,fusion360seg,mfcadpp_seg,tmcad_cls,fabwave_cls}"
 
 PRETRAIN_EPOCHS=(20 50 100 150)
 FINETUNE_EPOCHS=(10 20 50 100 150 200)
@@ -71,7 +71,7 @@ run_task_pretrain() {
   task_log="$LOG_ROOT/${task}_pre${pretrain_epoch}.log"
   echo "[$(date --iso-8601=seconds)] training task=$task pretrain_epoch=$pretrain_epoch gpu=$gpu batch=$batch_size accumulation=$accumulation_steps"
 
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=$run_name" \
     --override "run.output_dir=$RUN_ROOT" \
@@ -105,7 +105,7 @@ run_task_pretrain() {
       echo "Fine-tune checkpoint not found: $eval_checkpoint" >&2
       return 1
     fi
-    CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+    CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
       --checkpoint "$eval_checkpoint" \
       --split test \
       --output "$output" \
@@ -134,12 +134,12 @@ done
 (
   run_task_pretrain mfcadpp_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" 20 64 4 4
   run_task_pretrain mfcadpp_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" 100 64 4 4
-  run_task_pretrain blendit_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" 20 64 4 4
+  run_task_pretrain brepprediff_seg "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 20 64 4 4
 ) & pids+=("$!")
 (
   run_task_pretrain mfcadpp_seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" 50 64 4 4
   run_task_pretrain mfcadpp_seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_mfcadpp_mlp.yaml" 150 64 4 4
-  run_task_pretrain blendit_seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" 50 64 4 4
+  run_task_pretrain brepprediff_seg "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 50 64 4 4
 ) & pids+=("$!")
 (
   for epoch in "${PRETRAIN_EPOCHS[@]}"; do
@@ -150,8 +150,8 @@ done
   for epoch in "${PRETRAIN_EPOCHS[@]}"; do
     run_task_pretrain fabwave_cls "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml" "$epoch" 64 4 4
   done
-  run_task_pretrain blendit_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" 100 64 4 4
-  run_task_pretrain blendit_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_blendit_mlp.yaml" 150 64 4 4
+  run_task_pretrain brepprediff_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 100 64 4 4
+  run_task_pretrain brepprediff_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 150 64 4 4
 ) & pids+=("$!")
 
 status=0

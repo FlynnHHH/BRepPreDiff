@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from blendit.inference.step_to_seg import (
+from brepprediff.inference.step_to_seg import (
     build_jobs,
     default_output_dir,
     discover_step_files,

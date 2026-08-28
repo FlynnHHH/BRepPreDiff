@@ -15,7 +15,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def _write_cache(path: Path, label: int) -> None:
-    from blendit.data.graph import save_graph_npz
+    from brepprediff.data.graph import save_graph_npz
 
     save_graph_npz(
         path,
@@ -73,7 +73,7 @@ def _write_source_config(
 def test_multi_source_dataset_combines_mapped_splits_and_never_loads_labels(
     tmp_path: Path,
 ):
-    from blendit.data.dataset import MultiSourceDataset
+    from brepprediff.data.dataset import MultiSourceDataset
 
     source_a = tmp_path / "source_a.yaml"
     source_b = tmp_path / "source_b.yaml"
@@ -135,7 +135,7 @@ def test_multi_source_dataset_combines_mapped_splits_and_never_loads_labels(
 
 
 def test_multi_source_dataset_rejects_incompatible_feature_grid(tmp_path: Path):
-    from blendit.data.dataset import MultiSourceDataset
+    from brepprediff.data.dataset import MultiSourceDataset
 
     source = tmp_path / "source.yaml"
     _write_source_config(

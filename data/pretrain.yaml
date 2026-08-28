@@ -1,7 +1,7 @@
 data:
-  steps_dir: /data/hhfeng/blendit/pretrain/step
-  segs_dir: /data/hhfeng/blendit/pretrain/seg
-  cache_dir: /data/hhfeng/blendit/cache/features/pretrain
+  steps_dir: /data/hhfeng/brepprediff/pretrain/step
+  segs_dir: /data/hhfeng/brepprediff/pretrain/seg
+  cache_dir: /data/hhfeng/brepprediff/cache/features/pretrain
   prepare_on_start: false
   train_split: data/splits/pretrain_train.txt
   val_split: null

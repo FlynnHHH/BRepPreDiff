@@ -5,7 +5,7 @@ data:
   prepare_on_start: false
   strip_labels: true
   sources:
-    - name: blendit
+    - name: brepprediff
       data_config: pretrain.yaml
       splits:
         train: [train]

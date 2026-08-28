@@ -13,7 +13,7 @@ PRETRAIN_SEGS_DIR="${PRETRAIN_SEGS_DIR:-${ABC_ROOT}/seg}"
 FINETUNE_FLAT_DIR="${FINETUNE_FLAT_DIR:-${ABC_ROOT}/all_flat}"
 
 SPLIT_DIR="${SPLIT_DIR:-${PROJECT_DIR}/data/abc_splits}"
-CACHE_ROOT="${CACHE_ROOT:-/data/hhfeng/blendit/cache/abc_features}"
+CACHE_ROOT="${CACHE_ROOT:-/data/hhfeng/brepprediff/cache/abc_features}"
 PRETRAIN_CACHE_DIR="${PRETRAIN_CACHE_DIR:-${CACHE_ROOT}/pretrain}"
 FINETUNE_CACHE_DIR="${FINETUNE_CACHE_DIR:-${CACHE_ROOT}/finetune}"
 INVALID_DIR="${INVALID_DIR:-${CACHE_ROOT}/invalid}"
@@ -27,7 +27,7 @@ SEED="${SEED:-42}"
 CACHE_WORKERS="${CACHE_WORKERS:-0}"
 PRETRAIN_CACHE_WORKERS="${PRETRAIN_CACHE_WORKERS:-${CACHE_WORKERS}}"
 FINETUNE_CACHE_WORKERS="${FINETUNE_CACHE_WORKERS:-${CACHE_WORKERS}}"
-SCREEN_NAME_PREFIX="${SCREEN_NAME_PREFIX:-blendit_prepare_abc}"
+SCREEN_NAME_PREFIX="${SCREEN_NAME_PREFIX:-brepprediff_prepare_abc}"
 
 PRETRAIN_TRAIN_SPLIT="${SPLIT_DIR}/pretrain_train.txt"
 PRETRAIN_TRAIN_CLEAN_SPLIT="${SPLIT_DIR}/pretrain_train_clean.txt"
@@ -166,7 +166,7 @@ fi
 echo "Cache overwrite: ${OVERWRITE_CACHE}"
 
 echo "[2/3] Building pretrain cache in ${PRETRAIN_CACHE_DIR}"
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split train \
   --workers "${PRETRAIN_CACHE_WORKERS}" \
@@ -180,14 +180,14 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache 
   --override "data.labels_required=false" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data filter-split \
   --split "${PRETRAIN_TRAIN_SPLIT}" \
   --invalid-log "${INVALID_DIR}/pretrain_train_invalid.jsonl" \
   --output "${PRETRAIN_TRAIN_CLEAN_SPLIT}" \
   --removed-output "${SPLIT_DIR}/pretrain_train_invalid_removed.txt"
 
 echo "[3/3] Building finetune cache in ${FINETUNE_CACHE_DIR}"
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split train \
   --workers "${FINETUNE_CACHE_WORKERS}" \
@@ -201,13 +201,13 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache 
   --override "data.labels_required=true" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data filter-split \
   --split "${FINETUNE_TRAIN_SPLIT}" \
   --invalid-log "${INVALID_DIR}/finetune_train_invalid.jsonl" \
   --output "${FINETUNE_TRAIN_CLEAN_SPLIT}" \
   --removed-output "${SPLIT_DIR}/finetune_train_invalid_removed.txt"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data cache \
   --config "${CONFIG_PATH}" \
   --split val \
   --workers "${FINETUNE_CACHE_WORKERS}" \
@@ -221,7 +221,7 @@ PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data cache 
   --override "data.labels_required=true" \
   --override "data.overwrite_cache=${OVERWRITE_CACHE}"
 
-PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m blendit.data.load_data filter-split \
+PYTHONPATH="${PROJECT_DIR}/src" "${PYTHON_BIN}" -m brepprediff.data.load_data filter-split \
   --split "${FINETUNE_VAL_SPLIT}" \
   --invalid-log "${INVALID_DIR}/finetune_val_invalid.jsonl" \
   --output "${FINETUNE_VAL_CLEAN_SPLIT}" \

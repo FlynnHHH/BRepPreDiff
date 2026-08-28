@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON_BIN="/home/hhfeng/miniconda3/envs/blendit/bin/python"
+PYTHON_BIN="/home/hhfeng/miniconda3/envs/brepprediff/bin/python"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d-%H%M%S)}"
 RUN_NAME="new_occ_features_edge_update_${RUN_TAG}"
@@ -29,7 +29,7 @@ done
 echo "[$(date --iso-8601=seconds)] CUDA ready; starting four-GPU encoder pretraining"
 CUDA_VISIBLE_DEVICES="$GPU_IDS" "$PYTHON_BIN" -m torch.distributed.run \
   --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config "$ROOT_DIR/configs/pretrain_joint_all_splits.yaml" \
   --override "run.name=$RUN_NAME" \
   --override "model.encoder_type=edge_update_attention" \

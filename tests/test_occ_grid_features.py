@@ -5,10 +5,10 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from blendit.brep.occ_extractor import OccBRepExtractor
-from blendit.config import feature_dims
-from blendit.data.dataset import _project_occ_grid_v2_to_legacy
-from blendit.data.graph import BRepGraph
+from brepprediff.brep.occ_extractor import OccBRepExtractor
+from brepprediff.config import feature_dims
+from brepprediff.data.dataset import _project_occ_grid_v2_to_legacy
+from brepprediff.data.graph import BRepGraph
 
 
 class _Point:

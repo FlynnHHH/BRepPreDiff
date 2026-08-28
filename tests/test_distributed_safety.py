@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import pytest
 
-from blendit.training.common import (
+from brepprediff.training.common import (
     DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS,
     DistributedContext,
     distributed_timeout,

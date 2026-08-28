@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/blendit/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-/home/hhfeng/miniconda3/envs/brepprediff/bin/python}"
 GPU_IDS="${GPU_IDS:-0,1,2,3}"
 PIPELINE_TAG="${PIPELINE_TAG:-20260805-unlabeled-v2}"
 LOG_DIR="${LOG_DIR:-runs/launch_logs}"
@@ -44,7 +44,7 @@ for index in "${!names[@]}"; do
   run_name="${name}_mlp_200_${PIPELINE_TAG}"
   train_log="$LOG_DIR/${run_name}.log"
   echo "[$(date --iso-8601=seconds)] Starting $name MLP fine-tuning on GPU $gpu"
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.finetune \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.finetune \
     --config "$config" \
     --override "run.name=${run_name}" \
     --override "train.epochs=200" \
@@ -78,7 +78,7 @@ for index in "${!names[@]}"; do
     echo "Best checkpoint not found for $name: $run_dir" >&2
     exit 1
   fi
-  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m blendit.training.evaluate \
+  CUDA_VISIBLE_DEVICES="$gpu" "$PYTHON_BIN" -m brepprediff.training.evaluate \
     --checkpoint "$run_dir/checkpoints/best.pt" \
     --split test \
     --output "$run_dir/test_metrics.json" \

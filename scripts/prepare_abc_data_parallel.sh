@@ -11,6 +11,6 @@ export FINETUNE_CACHE_WORKERS="${FINETUNE_CACHE_WORKERS:-2}"
 
 # The main script launches itself in screen by default. Use a distinct prefix so
 # parallel runs are easy to identify with `screen -ls`.
-export SCREEN_NAME_PREFIX="${SCREEN_NAME_PREFIX:-blendit_prepare_abc_parallel}"
+export SCREEN_NAME_PREFIX="${SCREEN_NAME_PREFIX:-brepprediff_prepare_abc_parallel}"
 
 exec "${SCRIPT_DIR}/prepare_abc_data.sh" "$@"

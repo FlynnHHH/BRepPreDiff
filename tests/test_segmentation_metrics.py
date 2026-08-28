@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 def test_segmentation_metrics_from_confusion_matrix_uses_macro_f1():
     import torch
 
-    from blendit.models import segmentation_metrics_from_confusion_matrix
+    from brepprediff.models import segmentation_metrics_from_confusion_matrix
 
     confusion = torch.tensor(
         [
@@ -32,7 +32,7 @@ def test_segmentation_metrics_from_confusion_matrix_uses_macro_f1():
 def test_segmentation_metrics_from_confusion_matrix_handles_empty_input():
     import torch
 
-    from blendit.models import segmentation_metrics_from_confusion_matrix
+    from brepprediff.models import segmentation_metrics_from_confusion_matrix
 
     metrics = segmentation_metrics_from_confusion_matrix(torch.zeros((3, 3), dtype=torch.int64))
 

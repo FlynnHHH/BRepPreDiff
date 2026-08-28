@@ -21,11 +21,11 @@ JSON 本身应作为分割标签，而是无标签预训练配置把 `segs_dir` 
 ## 2. 实际联合预训练数据
 
 联合预训练采用 transductive 协议：下游数据集的 train/val/test geometry 全部并入
-无标签预训练 train split。编码器为初始 Blendit 4-layer MLP/FFN GraphMessageLayer。
+无标签预训练 train split。编码器为初始 BRepPreDiff 4-layer MLP/FFN GraphMessageLayer。
 
 | 来源 | 请求/发现 STEP | 实际纳入 | 过滤 | 实际组成 |
 |---|---:|---:|---:|---|
-| Blendit | 172,287 | 172,287 | 0 | train |
+| BRepPreDiff | 172,287 | 172,287 | 0 | train |
 | TMCAD | 10,886 | 10,886 | 0 | 8,709 / 1,090 / 1,087 |
 | Fusion360Seg s2.0.1 | 35,680 | 35,680 | 0 | 24,964 / 5,350 / 5,366 |
 | MFCAD++ | 59,665 | 59,665 | 0 | 41,766 / 8,950 / 8,949 |

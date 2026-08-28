@@ -15,7 +15,7 @@ model:
   num_classes: 25
   finetune_head: diffusion
 
-# Blendit's default DiffLoss baseline.
+# BRepPreDiff's default DiffLoss baseline.
 label_diffusion:
   target_encoding: bipolar_one_hot
   train_timesteps: 1000

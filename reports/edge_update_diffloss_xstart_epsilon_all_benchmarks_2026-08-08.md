@@ -10,9 +10,9 @@
 
 | Benchmark | Variant | Best epoch | Samples | Accuracy (%) | Macro-F1 (%) | Weighted-F1 (%) | mIoU (%) |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Blendit | MLP | 18 | 766 | 98.1210 | 96.2606 | 98.1351 | 92.8949 |
-| Blendit | DiffLoss x_start | 172 | 766 | 98.1452 | 96.2543 | 98.1575 | 92.8807 |
-| Blendit | DiffLoss x_start+0.5eps | 37 | 766 | 98.2127 | 96.5933 | 98.2250 | 93.5098 |
+| BRepPreDiff | MLP | 18 | 766 | 98.1210 | 96.2606 | 98.1351 | 92.8949 |
+| BRepPreDiff | DiffLoss x_start | 172 | 766 | 98.1452 | 96.2543 | 98.1575 | 92.8807 |
+| BRepPreDiff | DiffLoss x_start+0.5eps | 37 | 766 | 98.2127 | 96.5933 | 98.2250 | 93.5098 |
 | Fusion360Seg s2.0.0 | MLP | 165 | 5,366 | 93.0933 | 87.2338 | 93.0572 | 78.5003 |
 | Fusion360Seg s2.0.0 | DiffLoss x_start | 172 | 5,366 | 93.0946 | 86.9494 | 93.0608 | 78.1552 |
 | Fusion360Seg s2.0.0 | DiffLoss x_start+0.5eps | 168 | 5,366 | 93.2672 | 87.9302 | 93.2362 | 79.3756 |
@@ -32,7 +32,7 @@
 
 | Benchmark | ΔAcc vs x_start | ΔMacro-F1 vs x_start | ΔmIoU vs x_start | ΔAcc vs MLP |
 |---|---:|---:|---:|---:|
-| Blendit | +0.0675 | +0.3390 | +0.6291 | +0.0917 |
+| BRepPreDiff | +0.0675 | +0.3390 | +0.6291 | +0.0917 |
 | Fusion360Seg s2.0.0 | +0.1726 | +0.9809 | +1.2204 | +0.1739 |
 | MFCAD++ | -0.0375 | -0.0720 | -0.1396 | +0.0138 |
 | TMCAD | +0.0000 | -0.0518 | +0.0594 | -0.9200 |
@@ -40,9 +40,9 @@
 
 ## 运行产物
 
-- Blendit / MLP：`runs/edge_update_new_joint/finetune/20260807-200941_edge_update_blendit_seg_20260807-123259`；`best.pt` SHA-256 `10f8bb47a845206701a5c44272c5bb0c29e90ed473cb051baff5d8c7dc474c9d`
-- Blendit / DiffLoss x_start：`runs/edge_update_new_joint/finetune/20260810-144740_edge_update_extend200_blendit_xstart_20260810-seg200-titan`；`best.pt` SHA-256 `cfbf7e992ff4d9c6d11ab7909e33542822a54527726da369f663a19a479262b2`
-- Blendit / DiffLoss x_start+0.5eps：`runs/edge_update_new_joint/finetune/20260808-183835_edge_update_blendit_seg_diffloss_xse_20260808-xse-titan`；`best.pt` SHA-256 `1e1ffff9eb6b7a86b23609d91cc780ded2c5efe9aa06837ce378b4629d6c37b7`
+- BRepPreDiff / MLP：`runs/edge_update_new_joint/finetune/20260807-200941_edge_update_brepprediff_seg_20260807-123259`；`best.pt` SHA-256 `10f8bb47a845206701a5c44272c5bb0c29e90ed473cb051baff5d8c7dc474c9d`
+- BRepPreDiff / DiffLoss x_start：`runs/edge_update_new_joint/finetune/20260810-144740_edge_update_extend200_brepprediff_xstart_20260810-seg200-titan`；`best.pt` SHA-256 `cfbf7e992ff4d9c6d11ab7909e33542822a54527726da369f663a19a479262b2`
+- BRepPreDiff / DiffLoss x_start+0.5eps：`runs/edge_update_new_joint/finetune/20260808-183835_edge_update_brepprediff_seg_diffloss_xse_20260808-xse-titan`；`best.pt` SHA-256 `1e1ffff9eb6b7a86b23609d91cc780ded2c5efe9aa06837ce378b4629d6c37b7`
 - Fusion360Seg s2.0.0 / MLP：`runs/edge_update_new_joint/finetune/20260810-133433_edge_update_extend200_fusion360seg_mlp_20260810-seg200-titan`；`best.pt` SHA-256 `3fa9827d42e815a3cf532140a9149da5ada2c828cc39e61be865a2078a2b23c9`
 - Fusion360Seg s2.0.0 / DiffLoss x_start：`runs/edge_update_new_joint/finetune/20260810-141509_edge_update_extend200_fusion360seg_xstart_20260810-seg200-titan`；`best.pt` SHA-256 `2f5a3b20de6c37e451b4e1c96aed1bf2c7cb6d7c9bc6f4c16fed165fbd6920e0`
 - Fusion360Seg s2.0.0 / DiffLoss x_start+0.5eps：`runs/edge_update_new_joint/finetune/20260810-150034_edge_update_extend200_fusion360seg_xse_20260810-seg200-titan`；`best.pt` SHA-256 `fc58cd5657790ea07b06839d6c19fd063b5bbac1ca224f16dfa2f365d75cbabe`

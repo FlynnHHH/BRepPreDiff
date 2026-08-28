@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-from blendit.data.graph import (
+from brepprediff.data.graph import (
     BRepGraph,
     GlobalFeatureStats,
     normalize_graph_features,

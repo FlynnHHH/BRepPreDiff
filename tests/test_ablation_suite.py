@@ -12,7 +12,7 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 
 def _load_ablation_suite_module():
     script_path = Path(__file__).parents[1] / "scripts" / "run_ablation_suite.py"
-    spec = importlib.util.spec_from_file_location("blendit_ablation_suite", script_path)
+    spec = importlib.util.spec_from_file_location("brepprediff_ablation_suite", script_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module

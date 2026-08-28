@@ -37,41 +37,41 @@ const PREDICTION_MANIFEST_SOURCES = [
   {
     key: "finetune-test",
     filename: "finetune_test_manifest.json",
-    metricsTitle: "BlendIt expanded-data default MLP on official test split",
+    metricsTitle: "BRepPreDiff expanded-data default MLP on official test split",
     metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
-    modelName: "BlendIt expanded-data default MLP",
+    modelName: "BRepPreDiff expanded-data default MLP",
     visualizationNumClasses: 3,
-    gtTitle: "BlendIt test split 三分类 GT",
+    gtTitle: "BRepPreDiff test split 三分类 GT",
     predictionTitle: "扩充数据默认 MLP · NonTransition / VBF / EBF 预测"
   },
   {
-    key: "blendit-best-lxy",
-    filename: "blendit_best_lxy_manifest.json",
-    metricsTitle: "BlendIt official-test best MLP on testset_lxy",
+    key: "brepprediff-best-lxy",
+    filename: "brepprediff_best_lxy_manifest.json",
+    metricsTitle: "BRepPreDiff official-test best MLP on testset_lxy",
     metricsSubtitle: "三分类 Macro 指标 · NonTransition / VBF / EBF",
-    modelName: "BlendIt expanded-data best MLP",
+    modelName: "BRepPreDiff expanded-data best MLP",
     visualizationNumClasses: 3,
     gtTitle: "testset_lxy SEG 三分类 GT",
-    predictionTitle: "BlendIt 官方 test 最优 MLP 三分类预测"
+    predictionTitle: "BRepPreDiff 官方 test 最优 MLP 三分类预测"
   },
   {
     key: "cjq-step-numeric",
     filename: "cjq_step_numeric_manifest.json",
-    metricsTitle: "BlendIt best MLP on cjq step_numeric",
+    metricsTitle: "BRepPreDiff best MLP on cjq step_numeric",
     metricsSubtitle: "无 GT，仅展示三分类预测",
-    modelName: "BlendIt expanded-data best MLP",
+    modelName: "BRepPreDiff expanded-data best MLP",
     visualizationNumClasses: 3,
     gtTitle: "cjq step_numeric 原始模型（无 GT）",
-    predictionTitle: "BlendIt 官方 test 最优 MLP 三分类预测"
+    predictionTitle: "BRepPreDiff 官方 test 最优 MLP 三分类预测"
   },
   {
     key: "filletrec",
     filename: "prediction_manifest.json",
-    metricsTitle: "Blendit on FilletRec Test Set",
-    modelName: "Blendit",
+    metricsTitle: "BRepPreDiff on FilletRec Test Set",
+    modelName: "BRepPreDiff",
     visualizationNumClasses: 2,
     gtTitle: "FilletRec GT 过渡面",
-    predictionTitle: "Blendit 过渡面预测"
+    predictionTitle: "BRepPreDiff 过渡面预测"
   },
   {
     key: "filletrec-model-filletrec-testset",
@@ -544,8 +544,8 @@ function createCard(sampleName, instanceFile, semanticFile) {
   const isFavorite = favorites.has(sampleName);
   const record = manifestSamples.get(sampleName);
   const displayName = record?.display_name ||
-    (record?._datasetKey === "blendit-best-lxy"
-      ? sampleName.replace(/^blendit_best_lxy__/, "")
+    (record?._datasetKey === "brepprediff-best-lxy"
+      ? sampleName.replace(/^brepprediff_best_lxy__/, "")
       : sampleName);
   const gtTitle = record?._gtTitle || "SEG GT 高亮";
   const predictionTitle = record?._predictionTitle || "EBF/VBF 预测高亮";
@@ -758,7 +758,7 @@ function datasetForSample(sampleName) {
     return "filletrec-model-filletrec-testset";
   }
   if (sampleName.startsWith("filletrec__")) return "filletrec";
-  if (sampleName.startsWith("blendit_best_lxy__")) return "blendit-best-lxy";
+  if (sampleName.startsWith("brepprediff_best_lxy__")) return "brepprediff-best-lxy";
   if (sampleName.startsWith("cjq_step_numeric__")) return "cjq-step-numeric";
   // Once the finetune-test manifest is available, omit stale duplicate PLYs
   // left by earlier path-deduplication runs (Ex9/Ex14 hash suffixes).
@@ -897,18 +897,18 @@ function renderCards() {
     {
       key: "finetune-test",
       title: "Finetune Test Split",
-      description: "默认 Blendit baseline 在 finetune_test split 上的三分类结果",
+      description: "默认 BRepPreDiff baseline 在 finetune_test split 上的三分类结果",
       pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "finetune-test")
     },
     {
-      key: "blendit-best-lxy",
-      title: "Blendit Best · testset_lxy",
+      key: "brepprediff-best-lxy",
+      title: "BRepPreDiff Best · testset_lxy",
       description: "官方 test Macro-F1 0.968617 的扩充数据最优 MLP，在 testset_lxy 上的 SEG GT / 预测对比",
-      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "blendit-best-lxy")
+      pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "brepprediff-best-lxy")
     },
     {
       key: "cjq-step-numeric",
-      title: "BlendIt Best · cjq step_numeric",
+      title: "BRepPreDiff Best · cjq step_numeric",
       description: "3,993 个无 GT STEP：左侧原始模型，右侧为最优微调 MLP 的三分类预测",
       pairs: matchedPairs.filter((pair) => datasetForSample(pair.sample) === "cjq-step-numeric")
     },

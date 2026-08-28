@@ -32,9 +32,9 @@ DiffLoss 使用 `L_x_start + 0.5 * L_epsilon` 和单步 DDIM。
 
 ## Run artifacts
 
-- Seed 42 / MLP: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-111619_edge_update_tmcad_cls_mlp_new_occ_all_mlp_200_20260819-1100`
-- Seed 42 / DiffLoss: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260818-194812_edge_update_tmcad_cls_diffloss_xse_new_occ_diffloss_200_20260818-195000`
-- Seed 43 / MLP: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-153351_edge_update_tmcad_mlp_seed43_new_occ_tmcad_seeds43_44_20260819-153340`
-- Seed 43 / DiffLoss: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_diffloss_seed43_new_occ_tmcad_seeds43_44_20260819-153340`
-- Seed 44 / MLP: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_mlp_seed44_new_occ_tmcad_seeds43_44_20260819-153340`
-- Seed 44 / DiffLoss: `/home/hhfeng/Blendit/runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_diffloss_seed44_new_occ_tmcad_seeds43_44_20260819-153340`
+- Seed 42 / MLP: `runs/new_occ_features_downstreams/finetune/20260819-111619_edge_update_tmcad_cls_mlp_new_occ_all_mlp_200_20260819-1100`
+- Seed 42 / DiffLoss: `runs/new_occ_features_downstreams/finetune/20260818-194812_edge_update_tmcad_cls_diffloss_xse_new_occ_diffloss_200_20260818-195000`
+- Seed 43 / MLP: `runs/new_occ_features_downstreams/finetune/20260819-153351_edge_update_tmcad_mlp_seed43_new_occ_tmcad_seeds43_44_20260819-153340`
+- Seed 43 / DiffLoss: `runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_diffloss_seed43_new_occ_tmcad_seeds43_44_20260819-153340`
+- Seed 44 / MLP: `runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_mlp_seed44_new_occ_tmcad_seeds43_44_20260819-153340`
+- Seed 44 / DiffLoss: `runs/new_occ_features_downstreams/finetune/20260819-153352_edge_update_tmcad_diffloss_seed44_new_occ_tmcad_seeds43_44_20260819-153340`

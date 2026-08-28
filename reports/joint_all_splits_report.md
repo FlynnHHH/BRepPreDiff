@@ -9,7 +9,7 @@
 
 | 数据集 | Task | Accuracy | Macro-F1 | Macro-IoU | Weighted-IoU |
 |---|---|---:|---:|---:|---:|
-| Blendit | Seg | **0.981403** | **0.963957** | **0.931435** | **0.964574** |
+| BRepPreDiff | Seg | **0.981403** | **0.963957** | **0.931435** | **0.964574** |
 | TMCAD | Cls | **0.811408** | **0.803404** | **0.681889** | **0.690816** |
 | Fusion360Seg | Seg | **0.923628** | **0.850743** | **0.755406** | **0.860097** |
 | MFCAD++ | Seg | **0.991040** | **0.985739** | **0.972147** | **0.982424** |
@@ -18,7 +18,7 @@
 
 本实验按指定要求采用 **transductive self-supervised pretraining**：
 
-- Blendit pretrain 使用其 train split；
+- BRepPreDiff pretrain 使用其 train split；
 - TMCAD、Fusion360Seg、MFCAD++ 的 train、validation、test 三个 split 全部参与
   自监督预训练；
 - 下游标签不会从 NPZ cache 中加载，联合 batch 的 `labels` 恒为 `None`；
@@ -34,7 +34,7 @@ train/validation split，test 标签只在最终评估时使用。
 
 | 数据集 | 来源 split | 图数量 |
 |---|---|---:|
-| Blendit pretrain | train | 172,287 |
+| BRepPreDiff pretrain | train | 172,287 |
 | TMCAD | train | 8,709 |
 | TMCAD | validation | 1,090 |
 | TMCAD | test | 1,087 |
@@ -78,7 +78,7 @@ size 为 256。
 
 | 数据集 | 任务 | 类别数 | Train / Val / Test | 配置 |
 |---|---|---:|---:|---|
-| Blendit | face segmentation | 3 | 6,127 / 766 / 766 | `configs/finetune_joint_blendit_mlp.yaml` |
+| BRepPreDiff | face segmentation | 3 | 6,127 / 766 / 766 | `configs/finetune_joint_brepprediff_mlp.yaml` |
 | TMCAD | model classification | 10 | 8,709 / 1,090 / 1,087 | `configs/finetune_joint_tmcad_mlp.yaml` |
 | Fusion360Seg | face segmentation | 8 | 24,964 / 5,350 / 5,366 | `configs/finetune_joint_fusion360seg_mlp.yaml` |
 | MFCAD++ | face segmentation | 25 | 41,766 / 8,950 / 8,949 | `configs/finetune_joint_mfcadpp_mlp.yaml` |
@@ -86,7 +86,7 @@ size 为 256。
 ## 实现与验证
 
 - 联合 Dataset 实际解析得到 278,518 个图，10 个来源分量计数与上表一致。
-- 从 Blendit、TMCAD、Fusion360Seg、MFCAD++ test 各抽一个图组成真实混合 batch：
+- 从 BRepPreDiff、TMCAD、Fusion360Seg、MFCAD++ test 各抽一个图组成真实混合 batch：
   156 faces、748 edges。
 - 混合 batch 的 `labels is None`。
 - loss 仅含 `face_noise`、`face_recon`、`surface`、`edge_noise`、`edge_recon`、
@@ -98,7 +98,7 @@ size 为 256。
 
 | 数据集 | Best epoch | Test samples | Test faces | Accuracy | Macro Precision | Macro Recall | Macro-F1 | Macro-IoU | Weighted-F1 | Weighted-IoU |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Blendit | 21 | 766 | 41,459 | 0.981403 | 0.957206 | 0.971104 | 0.963957 | 0.931435 | 0.981600 | 0.964574 |
+| BRepPreDiff | 21 | 766 | 41,459 | 0.981403 | 0.957206 | 0.971104 | 0.963957 | 0.931435 | 0.981600 | 0.964574 |
 | TMCAD | 94 | 1,087 | — | 0.811408 | 0.806434 | 0.807725 | 0.803404 | 0.681889 | 0.809230 | 0.690816 |
 | Fusion360Seg | 60 | 5,366 | 77,070 | 0.923628 | 0.861352 | 0.841178 | 0.850743 | 0.755406 | 0.923119 | 0.860097 |
 | MFCAD++ | 98 | 8,949 | 268,982 | 0.991040 | 0.986831 | 0.984696 | 0.985739 | 0.972147 | 0.991031 | 0.982424 |
@@ -107,7 +107,7 @@ size 为 256。
 
 | 数据集 | 类别 | Support | F1 | IoU |
 |---|---|---:|---:|---:|
-| Blendit | EBF | 5,531 | 0.932558 | 0.873637 |
+| BRepPreDiff | EBF | 5,531 | 0.932558 | 0.873637 |
 | TMCAD | coupling | 107 | 0.641304 | 0.472000 |
 | TMCAD | pulley | 101 | 0.666667 | 0.500000 |
 | Fusion360Seg | RevolveEnd | 73 | 0.583333 | 0.411765 |
@@ -125,12 +125,12 @@ F1 仍达到 0.957636。
 
 | 数据集 | Δ Accuracy | Δ Macro-F1 | Δ Macro-IoU |
 |---|---:|---:|---:|
-| Blendit | +0.169 pp | +0.410 pp | +0.744 pp |
+| BRepPreDiff | +0.169 pp | +0.410 pp | +0.744 pp |
 | TMCAD | -0.736 pp | -1.002 pp | -1.238 pp |
 | Fusion360Seg | +0.231 pp | -0.578 pp | -0.643 pp |
 | MFCAD++ | +0.138 pp | +0.198 pp | +0.371 pp |
 
-联合预训练对 Blendit 和 MFCAD++ 的三项聚合指标均有提升；对
+联合预训练对 BRepPreDiff 和 MFCAD++ 的三项聚合指标均有提升；对
 Fusion360Seg 的 Accuracy 有小幅提升，但 Macro-F1/IoU 略降；TMCAD 三项指标均
 略降。由于协议同时改变了数据构成和 test 几何可见性，这里只报告观察结果，不作
 单因素因果结论。
@@ -140,14 +140,14 @@ Fusion360Seg 的 Accuracy 有小幅提升，但 Macro-F1/IoU 略降；TMCAD 三�
 | 产物 | 路径 | SHA-256 |
 |---|---|---|
 | 联合预训练 `last.pt` | `<joint-pretrain-run>/checkpoints/last.pt` | `1689ab00fe1d9e110b6a38f052a773a241b2765dd7c5addee1cef28fc8e3d464` |
-| Blendit `best.pt` | `runs/finetune/20260723-232008_joint_blendit_mlp/checkpoints/best.pt` | `f1a234cbe402eb788c8eaafd84e1c641f6d755dabd325a6864c99a3b3f5c4bb3` |
+| BRepPreDiff `best.pt` | `runs/finetune/20260723-232008_joint_brepprediff_mlp/checkpoints/best.pt` | `f1a234cbe402eb788c8eaafd84e1c641f6d755dabd325a6864c99a3b3f5c4bb3` |
 | TMCAD `best.pt` | `runs/finetune/20260723-232049_joint_tmcad_mlp/checkpoints/best.pt` | `02adcfb2db6451bb0f30af65ad674a3a4f65248309dc1b2ceca4f42d524a4c01` |
 | Fusion360Seg `best.pt` | `runs/finetune/20260723-232129_joint_fusion360seg_mlp/checkpoints/best.pt` | `7a748af4f499a5d2a92082c820f83887c80af29eb9dcbb92bee952b6492c35b6` |
 | MFCAD++ `best.pt` | `runs/finetune/20260723-232210_joint_mfcadpp_mlp/checkpoints/best.pt` | `d3f9fa1b512cc9cba78e070176993cfbe077175f0383b9389e1d64da2132bb21` |
 
 完整 confusion matrix 和逐类 precision/recall/F1/IoU 位于：
 
-- `runs/finetune/20260723-232008_joint_blendit_mlp/test_metrics.json`
+- `runs/finetune/20260723-232008_joint_brepprediff_mlp/test_metrics.json`
 - `runs/finetune/20260723-232049_joint_tmcad_mlp/test_metrics.json`
 - `runs/finetune/20260723-232129_joint_fusion360seg_mlp/test_metrics.json`
 - `runs/finetune/20260723-232210_joint_mfcadpp_mlp/test_metrics.json`
@@ -157,9 +157,9 @@ Fusion360Seg 的 Accuracy 有小幅提升，但 Macro-F1/IoU 略降；TMCAD 三�
 四卡联合预训练：
 
 ```bash
-/home/hhfeng/miniconda3/envs/blendit/bin/torchrun \
+/home/hhfeng/miniconda3/envs/brepprediff/bin/torchrun \
   --standalone --nproc_per_node=4 \
-  -m blendit.training.pretrain \
+  -m brepprediff.training.pretrain \
   --config configs/pretrain_joint_all_splits.yaml
 ```
 
@@ -171,17 +171,17 @@ PRETRAIN=<joint-pretrain-run>/checkpoints/last.pt
 即可复现其余任务：
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 /home/hhfeng/miniconda3/envs/blendit/bin/python \
-  -m blendit.training.finetune \
-  --config configs/finetune_joint_blendit_mlp.yaml \
+CUDA_VISIBLE_DEVICES=0 /home/hhfeng/miniconda3/envs/brepprediff/bin/python \
+  -m brepprediff.training.finetune \
+  --config configs/finetune_joint_brepprediff_mlp.yaml \
   --override train.pretrain_checkpoint="$PRETRAIN"
 ```
 
 每项训练结束后，对相应 `best.pt` 做单进程精确 test 评估：
 
 ```bash
-/home/hhfeng/miniconda3/envs/blendit/bin/python \
-  -m blendit.training.evaluate \
+/home/hhfeng/miniconda3/envs/brepprediff/bin/python \
+  -m brepprediff.training.evaluate \
   --checkpoint runs/finetune/<run>/checkpoints/best.pt \
   --split test \
   --output runs/finetune/<run>/test_metrics.json \

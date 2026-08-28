@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from blendit.config import load_config, load_experiment_config
+from brepprediff.config import load_config, load_experiment_config
 
 
 DATA_CONFIGS = (
@@ -26,8 +26,8 @@ TRAINING_CONFIGS = (
     "configs/finetune_mfcad_mlp.yaml",
     "configs/finetune_fusion360seg_mlp_full.yaml",
     "configs/pretrain_joint_all_splits.yaml",
-    "configs/finetune_joint_blendit_mlp.yaml",
-    "configs/finetune_joint_blendit_diffloss.yaml",
+    "configs/finetune_joint_brepprediff_mlp.yaml",
+    "configs/finetune_joint_brepprediff_diffloss.yaml",
     "configs/finetune_joint_tmcad_mlp.yaml",
     "configs/finetune_joint_fusion360seg_mlp.yaml",
     "configs/finetune_joint_mfcadpp_mlp.yaml",

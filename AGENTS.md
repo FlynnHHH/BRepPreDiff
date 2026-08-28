@@ -1,4 +1,4 @@
-# BlendIt project memory
+# BRepPreDiff project memory
 
 ## Whole-model classification pooling
 

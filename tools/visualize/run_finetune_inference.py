@@ -6,11 +6,11 @@ from pathlib import Path
 
 def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
-        if (candidate / "src" / "blendit").is_dir() and (candidate / "pyproject.toml").exists():
+        if (candidate / "src" / "brepprediff").is_dir() and (candidate / "pyproject.toml").exists():
             return candidate
     raise RuntimeError(
-        "Could not find the Blendit repo root. "
-        "Run this script from inside the extracted viewer directory under the Blendit repository."
+        "Could not find the BRepPreDiff repo root. "
+        "Run this script from inside the extracted viewer directory under the BRepPreDiff repository."
     )
 
 
@@ -24,7 +24,7 @@ def main() -> None:
     if not any(arg == "--output-dir" or arg.startswith("--output-dir=") for arg in sys.argv):
         sys.argv.extend(["--output-dir", str(viewer_dir / "results")])
 
-    from blendit.inference.finetune_visualize import main as infer_main
+    from brepprediff.inference.finetune_visualize import main as infer_main
 
     infer_main()
 

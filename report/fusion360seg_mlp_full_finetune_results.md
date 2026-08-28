@@ -1,10 +1,10 @@
-# Fusion 360 Segmentation：Blendit MLP full 微调结果
+# Fusion 360 Segmentation：BRepPreDiff MLP full 微调结果
 
 生成日期：2026-07-23
 
 ## 结论
 
-Blendit 的 MLP full 基模已在 Fusion 360 Segmentation s2.0.0 的 8 类 face
+BRepPreDiff 的 MLP full 基模已在 Fusion 360 Segmentation s2.0.0 的 8 类 face
 segmentation 任务上完成 100 epochs 微调。最佳 checkpoint 由 validation Macro-F1
 选择，对完整且未参与训练/选模的官方 test split 进行单卡精确评估后，结果如下。
 
@@ -66,7 +66,7 @@ train，其余 5,350 个模型作为 validation。最终比例因官方 split �
 
 | 配置项 | 值 |
 |---|---|
-| 初始化权重 | Blendit 150-epoch pretrain `last.pt` |
+| 初始化权重 | BRepPreDiff 150-epoch pretrain `last.pt` |
 | 载入情况 | 61 个预训练张量载入；8 类 MLP head 的 2 个不匹配张量跳过并重新初始化 |
 | 可训练参数 | 832,136（全部可训练） |
 | Hidden dimension / layers | 128 / 4 |
@@ -137,20 +137,20 @@ CutEnd → ExtrudeEnd（389）。
 
 ```bash
 # 完整缓存构建与检查
-/home/hhfeng/miniconda3/envs/blendit/bin/blendit-prepare-data \
+/home/hhfeng/miniconda3/envs/brepprediff/bin/brepprediff-prepare-data \
   --config data/fusion360seg.yaml \
   --workers 16
 
 # 4-GPU MLP full finetune
-/home/hhfeng/miniconda3/envs/blendit/bin/torchrun \
+/home/hhfeng/miniconda3/envs/brepprediff/bin/torchrun \
   --standalone \
   --nproc_per_node=4 \
-  -m blendit.training.finetune \
+  -m brepprediff.training.finetune \
   --config configs/finetune_fusion360seg_mlp_full.yaml
 
 # 用最佳 checkpoint 精确评估官方 test split
-/home/hhfeng/miniconda3/envs/blendit/bin/python \
-  -m blendit.training.evaluate \
+/home/hhfeng/miniconda3/envs/brepprediff/bin/python \
+  -m brepprediff.training.evaluate \
   --checkpoint runs/finetune/20260723-164805_fusion360seg_mlp_full/checkpoints/best.pt \
   --split test \
   --output runs/finetune/20260723-164805_fusion360seg_mlp_full/test_metrics.json \

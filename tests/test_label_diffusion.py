@@ -9,7 +9,7 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("torch") is None, reaso
 
 
 def _small_diffusion_config():
-    from blendit.config import load_experiment_config
+    from brepprediff.config import load_experiment_config
 
     config = load_experiment_config("configs/finetune_diffloss.yaml")
     config["model"]["hidden_dim"] = 32
@@ -26,7 +26,7 @@ def _small_diffusion_config():
 def test_bipolar_one_hot_encoding():
     import torch
 
-    from blendit.models import bipolar_one_hot
+    from brepprediff.models import bipolar_one_hot
 
     encoded = bipolar_one_hot(torch.tensor([0, 1, 2]), num_classes=3)
     expected = torch.tensor(
@@ -42,16 +42,16 @@ def test_bipolar_one_hot_encoding():
 def test_diffusion_head_forward_backward_and_sampling():
     import torch
 
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.models import (
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import (
         DiffusionSegmentationModel,
         build_segmentation_model,
         compute_label_diffusion_loss,
         predict_segmentation_probabilities,
         prepare_label_diffusion_training_batch,
     )
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.training.smoke import synthetic_graph
 
     config = _small_diffusion_config()
     face_dim, edge_dim = feature_dims(config)
@@ -89,10 +89,10 @@ def test_diffusion_head_forward_backward_and_sampling():
 def test_label_diffusion_ignores_unlabelled_faces():
     import torch
 
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.models import DiffusionSegmentationModel, build_segmentation_model, prepare_label_diffusion_training_batch
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import DiffusionSegmentationModel, build_segmentation_model, prepare_label_diffusion_training_batch
+    from brepprediff.training.smoke import synthetic_graph
 
     config = _small_diffusion_config()
     face_dim, edge_dim = feature_dims(config)
@@ -122,16 +122,16 @@ def test_label_diffusion_prediction_types_forward_backward_and_sample(
 ):
     import torch
 
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.models import (
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import (
         DiffusionSegmentationModel,
         build_segmentation_model,
         compute_label_diffusion_loss,
         predict_segmentation_probabilities,
         prepare_label_diffusion_training_batch,
     )
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.training.smoke import synthetic_graph
 
     config = _small_diffusion_config()
     config["label_diffusion"]["prediction_type"] = prediction_type
@@ -159,7 +159,7 @@ def test_label_diffusion_prediction_types_forward_backward_and_sample(
 def test_label_diffusion_prediction_conversions_are_inverse():
     import torch
 
-    from blendit.models import LabelDiffusionSchedule
+    from brepprediff.models import LabelDiffusionSchedule
 
     schedule = LabelDiffusionSchedule(20)
     x_start = torch.randn(7, 3)
@@ -174,14 +174,14 @@ def test_label_diffusion_prediction_conversions_are_inverse():
 def test_joint_prediction_loss_uses_literal_component_weights():
     import torch
 
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.models import (
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import (
         build_segmentation_model,
         compute_label_diffusion_loss,
         prepare_label_diffusion_training_batch,
     )
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.training.smoke import synthetic_graph
 
     config = _small_diffusion_config()
     config["label_diffusion"]["prediction_type"] = "x_start_epsilon"
@@ -200,10 +200,10 @@ def test_joint_prediction_loss_uses_literal_component_weights():
 
 
 def test_label_diffusion_rejects_score_bias_with_wrong_class_count():
-    from blendit.config import feature_dims
-    from blendit.data.graph import collate_graphs
-    from blendit.models import build_segmentation_model, predict_segmentation_probabilities
-    from blendit.training.smoke import synthetic_graph
+    from brepprediff.config import feature_dims
+    from brepprediff.data.graph import collate_graphs
+    from brepprediff.models import build_segmentation_model, predict_segmentation_probabilities
+    from brepprediff.training.smoke import synthetic_graph
 
     config = _small_diffusion_config()
     config["label_diffusion"]["class_score_bias"] = [0.0, 0.0]
