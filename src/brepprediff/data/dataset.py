@@ -201,7 +201,21 @@ def _iter_cache_files(cache_dir: Path) -> list[Path]:
     return sorted(p for p in cache_dir.rglob("*.npz") if p.is_file())
 
 
-def _resolve_split_cache(cache_dir: Path, item: str) -> Path:
+def _split_cache_index(cache_dir: Path) -> dict[str, list[Path]]:
+    """Index hashed cache names once for cache-only migrated datasets."""
+    index: dict[str, list[Path]] = {}
+    for cache_path in _iter_cache_files(cache_dir):
+        source_stem, separator, _digest = cache_path.stem.rpartition("_")
+        if separator:
+            index.setdefault(source_stem, []).append(cache_path)
+    return index
+
+
+def _resolve_split_cache(
+    cache_dir: Path,
+    item: str,
+    cache_index: dict[str, list[Path]] | None = None,
+) -> Path:
     path = Path(item)
     candidates = []
     if path.is_absolute():
@@ -219,7 +233,11 @@ def _resolve_split_cache(cache_dir: Path, item: str) -> Path:
     if exact.exists() and exact.is_file():
         return exact
 
-    matches = sorted(cache_dir.rglob(f"{safe_stem}_*.npz"))
+    matches = (
+        cache_index.get(safe_stem, [])
+        if cache_index is not None
+        else sorted(cache_dir.rglob(f"{safe_stem}_*.npz"))
+    )
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
@@ -234,11 +252,25 @@ def _resolve_split_cache_for_item(
     steps_dir: Path,
     item: str,
     extensions: Iterable[str],
+    cache_index: dict[str, list[Path]] | None = None,
 ) -> Path:
     try:
         step_path = _resolve_split_step(steps_dir, item, extensions)
     except FileNotFoundError:
-        return _resolve_split_cache(cache_dir, item)
+        item_path = Path(item)
+        if not item_path.is_absolute() and item_path.suffix.lower() != ".npz":
+            relative_candidates = (
+                [item_path]
+                if item_path.suffix
+                else [Path(f"{item}{extension}") for extension in extensions]
+            )
+            for relative_path in relative_candidates:
+                digest = hashlib.sha1(relative_path.as_posix().encode("utf-8")).hexdigest()[:10]
+                safe_stem = relative_path.stem.replace(" ", "_")
+                expected = cache_dir / f"{safe_stem}_{digest}.npz"
+                if expected.is_file():
+                    return expected
+        return _resolve_split_cache(cache_dir, item, cache_index)
 
     expected = _cache_path(cache_dir, steps_dir, step_path)
     if expected.exists() and expected.is_file():
@@ -368,12 +400,14 @@ class StepSegDataset(Dataset):
                 ]
             else:
                 samples = []
+                cache_index = None if self.steps_dir.is_dir() else _split_cache_index(self.cache_dir)
                 for item in split_items:
                     cache_path = _resolve_split_cache_for_item(
                         self.cache_dir,
                         self.steps_dir,
                         item,
                         extensions,
+                        cache_index,
                     )
                     samples.append(
                         CachedSample(

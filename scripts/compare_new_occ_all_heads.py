@@ -50,6 +50,13 @@ def main() -> None:
         required=True,
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--title", default="新 OCC 特征：全部下游任务 MLP 与 DiffLoss 对照")
+    parser.add_argument("--epochs", type=int, default=200)
+    parser.add_argument("--batch-description", default="batch size 64、梯度累积 4")
+    parser.add_argument(
+        "--pretrain-description",
+        default="同一 Edge Update Attention 新特征预训练 encoder",
+    )
     args = parser.parse_args()
 
     rows: list[tuple[str, dict[str, object], dict[str, object]]] = []
@@ -57,10 +64,10 @@ def main() -> None:
         rows.append((task, load_run(Path(mlp_path)), load_run(Path(diff_path))))
 
     lines = [
-        "# 新 OCC 特征：全部下游任务 MLP 与 DiffLoss 对照",
+        f"# {args.title}",
         "",
-        "所有实验使用同一 Edge Update Attention 新特征预训练 encoder、相同数据划分、",
-        "随机种子 42、200 epochs、batch size 64、梯度累积 4，并按 validation accuracy",
+        f"所有实验使用{args.pretrain_description}、相同数据划分、",
+        f"随机种子 42、{args.epochs} epochs、{args.batch_description}，并按 validation accuracy",
         "选择 best checkpoint。分类任务统一使用 Mean+Max pooling。",
         "",
         "| Task | Head | Best epoch | Samples | Accuracy (%) | Macro-F1 (%) | Weighted-F1 (%) | mIoU (%) |",
@@ -112,4 +119,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

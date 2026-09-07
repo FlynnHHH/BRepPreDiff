@@ -124,6 +124,48 @@ def test_cached_val_split_can_reference_original_step_stem(tmp_path: Path):
     assert graph.num_faces == 2
 
 
+def test_cache_only_split_indexes_hashed_names_once(tmp_path: Path, monkeypatch):
+    cache_path = tmp_path / "cache" / "part_with_underscores_abc123.npz"
+    _write_cache(cache_path)
+    split_path = tmp_path / "split.txt"
+    split_path.write_text("part_with_underscores.step\n", encoding="utf-8")
+    config = _cached_config(tmp_path, split_path)
+
+    original_rglob = Path.rglob
+    calls = 0
+
+    def count_rglob(path, pattern):
+        nonlocal calls
+        calls += 1
+        return original_rglob(path, pattern)
+
+    monkeypatch.setattr(Path, "rglob", count_rglob)
+    dataset = StepSegDataset(config, split="train")
+
+    assert calls == 1
+    assert dataset[0].sample_id == "part_with_underscores"
+
+
+def test_cache_only_split_uses_relative_path_hash_to_disambiguate_stems(tmp_path: Path):
+    import hashlib
+
+    cache_dir = tmp_path / "cache"
+    first_item = "bearing/1.stp"
+    second_item = "bolt/1.stp"
+    first_digest = hashlib.sha1(first_item.encode("utf-8")).hexdigest()[:10]
+    second_digest = hashlib.sha1(second_item.encode("utf-8")).hexdigest()[:10]
+    first_cache = cache_dir / f"1_{first_digest}.npz"
+    _write_cache(first_cache)
+    _write_cache(cache_dir / f"1_{second_digest}.npz")
+    split_path = tmp_path / "split.txt"
+    split_path.write_text(f"{first_item}\n", encoding="utf-8")
+
+    dataset = StepSegDataset(_cached_config(tmp_path, split_path), split="train")
+
+    assert len(dataset) == 1
+    assert dataset.samples[0].cache_path == first_cache
+
+
 def test_cached_dataset_rejects_legacy_feature_dimensions(tmp_path: Path):
     cache_path = tmp_path / "cache" / "part_abc123.npz"
     _write_cache(cache_path)

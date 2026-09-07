@@ -1,8 +1,8 @@
 data:
-  steps_dir: /data/hhfeng/fusion360ass/j1.0.0/joint
+  steps_dir: data/raw/fusion360ass/j1.0.0/joint
   # Deliberately isolated from co-located assembly/joint JSON metadata.
   segs_dir: data/no_labels/fusion360ass_j1_0_0
-  cache_dir: /data/hhfeng/brepprediff/cache/features/fusion360ass_j1_0_0_unlabeled
+  cache_dir: cache/features/fusion360ass_j1_0_0_unlabeled
   prepare_on_start: false
   train_split: data/splits/fusion360ass_j1_0_0_train_clean.txt
   val_split: data/splits/fusion360ass_j1_0_0_val_clean.txt
@@ -14,7 +14,7 @@ data:
   strict_label_count: false
   overwrite_cache: false
   cache_num_workers: 16
-  invalid_log: /data/hhfeng/brepprediff/cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl
+  invalid_log: cache/features/fusion360ass_j1_0_0_unlabeled_invalid.jsonl
 
 brep:
   uv_grid_size: 10

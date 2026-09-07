@@ -1,9 +1,9 @@
 task: cls
 
 data:
-  steps_dir: /data/hhfeng/FabWave
+  steps_dir: data/raw/fabwave
   labels_dir: data/labels/fabwave_no_rotary_shaft_no_washer_overlap_min10
-  cache_dir: /data/hhfeng/brepprediff/cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10
+  cache_dir: cache/features/fabwave_no_rotary_shaft_no_washer_overlap_min10
   prepare_on_start: false
   train_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_train.txt
   val_split: data/splits/fabwave_no_rotary_shaft_no_washer_overlap_min10_val.txt

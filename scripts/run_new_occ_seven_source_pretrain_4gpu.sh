@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Rebuild the remaining legacy caches, then pretrain the default 711/63
-# Edge Update encoder on the seven-source joint corpus.
+# Edge Update encoder on the inductive train-only joint corpus, including
+# SolidLetters/CADSynth/MFInstSeg while holding out every downstream val/test split.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,7 +34,7 @@ if [[ ! -x "$BREPPREDIFF_CACHE_BIN" ]]; then
   exit 2
 fi
 
-# These three seven-source caches were still on the legacy 611/3 schema.
+# These three source caches were still on the legacy 611/3 schema.
 cache_configs=(
   data/fusion360seg_s2_0_1_pretrain.yaml
   data/fusion360rec_r1_0_1_pretrain.yaml

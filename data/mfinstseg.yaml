@@ -1,0 +1,59 @@
+task: seg
+
+data:
+  steps_dir: /home/nvme03/hhfeng/MFInstSeg/steps
+  labels_dir: /home/nvme03/hhfeng/MFInstSeg/labels
+  cache_dir: cache/features/mfinstseg
+  prepare_on_start: false
+  train_split: data/splits/mfinstseg_train.txt
+  val_split: data/splits/mfinstseg_val.txt
+  test_split: data/splits/mfinstseg_test.txt
+  split_seed: 42
+  split_ratios: {train: 0.8, val: 0.1, test: 0.1}
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 16
+  invalid_log: cache/features/mfinstseg_invalid.jsonl
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  value_offset: 0
+  raw_to_class_map: null
+  default_class: null
+  ignore_index: -100
+  include_transition_binary: false
+  names:
+    - Chamfer
+    - Through hole
+    - Triangular passage
+    - Rectangular passage
+    - 6-sided passage
+    - Triangular through slot
+    - Rectangular through slot
+    - Circular through slot
+    - Rectangular through step
+    - 2-sided through step
+    - Slanted through step
+    - O-ring
+    - Blind hole
+    - Triangular pocket
+    - Rectangular pocket
+    - 6-sided pocket
+    - Circular end pocket
+    - Rectangular blind slot
+    - Vertical circular end blind slot
+    - Horizontal circular end blind slot
+    - Triangular blind step
+    - Circular blind step
+    - Rectangular blind step
+    - Round
+    - Stock

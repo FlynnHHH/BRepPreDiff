@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wait for the 711/63 seven-source encoder, then run matched MLP and DiffLoss
-# fine-tuning/evaluation on all five downstream benchmarks.
+# fine-tuning/evaluation on the four retained downstream benchmarks.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -115,14 +115,11 @@ run_downstream() {
   echo "[$(date --iso-8601=seconds)] completed dataset=$dataset head=$head run=$run_dir"
 }
 
-# One queue per GPU avoids oversubscription. FabWave follows the two BRepPreDiff
-# jobs on GPU 0 because its classification runs are comparatively short.
+# One queue per GPU avoids oversubscription.
 pids=()
 (
   run_downstream brepprediff_seg mlp "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml"
   run_downstream brepprediff_seg diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_diffloss_200.yaml"
-  run_downstream fabwave_cls mlp "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml"
-  run_downstream fabwave_cls diffloss "${GPUS[0]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_diffloss_acc_200.yaml"
 ) & pids+=("$!")
 (
   run_downstream fusion360seg mlp "${GPUS[1]}" "$ROOT_DIR/configs/finetune_joint_fusion360seg_mlp.yaml"
@@ -156,15 +153,11 @@ mfcad_mlp="$(latest_run "*_seven_source_711_mfcadpp_seg_mlp_200_$RUN_TAG")"
 mfcad_diff="$(latest_run "*_seven_source_711_mfcadpp_seg_diffloss_200_$RUN_TAG")"
 tmcad_mlp="$(latest_run "*_seven_source_711_tmcad_cls_mlp_200_$RUN_TAG")"
 tmcad_diff="$(latest_run "*_seven_source_711_tmcad_cls_diffloss_200_$RUN_TAG")"
-fabwave_mlp="$(latest_run "*_seven_source_711_fabwave_cls_mlp_200_$RUN_TAG")"
-fabwave_diff="$(latest_run "*_seven_source_711_fabwave_cls_diffloss_200_$RUN_TAG")"
-
 "$PYTHON_BIN" "$ROOT_DIR/scripts/compare_new_occ_all_heads.py" \
   --pair BRepPreDiff "$brepprediff_mlp" "$brepprediff_diff" \
   --pair Fusion360Seg "$fusion_mlp" "$fusion_diff" \
   --pair MFCAD++ "$mfcad_mlp" "$mfcad_diff" \
   --pair TMCAD "$tmcad_mlp" "$tmcad_diff" \
-  --pair FabWave "$fabwave_mlp" "$fabwave_diff" \
   --output "$REPORT_PATH" >"$LOG_ROOT/comparison.log" 2>&1
 
 echo "[$(date --iso-8601=seconds)] all downstream experiments completed report=$REPORT_PATH"

@@ -1,12 +1,12 @@
 data:
   steps_dir: data/filletrec/filletRec/steps
   segs_dir: data/filletrec/filletRec/labels
-  cache_dir: /data/hhfeng/brepprediff/cache/filletrec
+  cache_dir: cache/features/filletrec
   prepare_on_start: false
   cache_dirs:
-    train: /data/hhfeng/brepprediff/cache/filletrec/train
-    val: /data/hhfeng/brepprediff/cache/filletrec/val
-    test: /data/hhfeng/brepprediff/cache/filletrec/test
+    train: cache/features/filletrec/train
+    val: cache/features/filletrec/val
+    test: cache/features/filletrec/test
   train_split: data/filletrec/filletRec/train.txt
   val_split: data/filletrec/filletRec/val.txt
   test_split: data/filletrec/filletRec/test.txt

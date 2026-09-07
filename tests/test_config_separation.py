@@ -15,6 +15,7 @@ DATA_CONFIGS = (
     "data/mfcad.yaml",
     "data/fusion360seg.yaml",
     "data/pretrain_joint_all_splits.yaml",
+    "data/pretrain_joint_inductive.yaml",
 )
 TRAINING_CONFIGS = (
     "configs/default.yaml",
@@ -110,3 +111,22 @@ def test_default_training_configs_use_edge_update_attention():
         model_config = load_config(path)["model"]
         assert model_config["encoder_type"] == "edge_update_attention", path
         assert model_config["num_heads"] == 4, path
+
+
+def test_default_pretrain_is_inductive_and_uses_only_source_train_splits():
+    config = load_experiment_config("configs/pretrain.yaml")
+    sources = config["data"]["sources"]
+
+    assert len(sources) == 9
+    assert {source["name"] for source in sources} == {
+        "brepprediff",
+        "tmcad",
+        "fusion360seg_s2_0_1",
+        "mfcadpp",
+        "fusion360rec_r1_0_1",
+        "fusion360ass_j1_0_0",
+        "solidletters",
+        "cadsynth",
+        "mfinstseg",
+    }
+    assert all(source["splits"] == {"train": ["train"]} for source in sources)

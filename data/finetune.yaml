@@ -1,12 +1,12 @@
 data:
-  steps_dir: /data/hhfeng/brepprediff/finetune/step
-  segs_dir: /data/hhfeng/brepprediff/finetune/seg
-  cache_dir: /data/hhfeng/brepprediff/cache/features/finetune
+  steps_dir: data/raw/brepprediff/finetune/step
+  segs_dir: data/raw/brepprediff/finetune/seg
+  cache_dir: cache/features/finetune
   prepare_on_start: false
   cache_dirs:
-    train: /data/hhfeng/brepprediff/cache/features/finetune/train
-    val: /data/hhfeng/brepprediff/cache/features/finetune/val
-    test: /data/hhfeng/brepprediff/cache/features/finetune/val
+    train: cache/features/finetune/train
+    val: cache/features/finetune/val
+    test: cache/features/finetune/val
   train_split: data/splits/finetune_train.txt
   val_split: data/splits/finetune_val.txt
   test_split: data/splits/finetune_test.txt

@@ -33,6 +33,12 @@ data:
       data_config: fabwave_no_rotary_shaft_no_washer_overlap_min10.yaml
       splits:
         train: [train, val, test]
+    # SolidLetters is a downstream classification task, so only its official
+    # clean train split is included here. Validation and test remain held out.
+    - name: solidletters
+      data_config: solidletters.yaml
+      splits:
+        train: [train]
 
 brep:
   # OCC-grid-v2: 11 + 10*10*7 = 711 face channels and

@@ -33,6 +33,21 @@ from brepprediff.training.common import (
 from brepprediff.training.tracking import WandbTracker
 
 
+def build_lr_scheduler(optimizer, config):
+    scheduler_name = str(config["train"].get("lr_scheduler", "constant")).lower()
+    if scheduler_name in {"constant", "none"}:
+        return None
+    if scheduler_name == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=int(config["train"]["epochs"]),
+            eta_min=float(config["train"].get("min_lr", 0.0)),
+        )
+    raise ValueError(
+        f"Unsupported train.lr_scheduler={scheduler_name!r}; expected constant or cosine."
+    )
+
+
 def run_epoch(
     model,
     schedule,
@@ -153,12 +168,24 @@ def main() -> None:
             weight_decay=float(config["train"]["weight_decay"]),
         )
         logger.info("optimizer ready: AdamW lr=%s weight_decay=%s", config["train"]["lr"], config["train"]["weight_decay"])
+        lr_scheduler = build_lr_scheduler(optimizer, config)
+        logger.info(
+            "lr scheduler ready: name=%s min_lr=%s",
+            config["train"].get("lr_scheduler", "constant"),
+            config["train"].get("min_lr", 0.0),
+        )
 
         start_epoch = 0
         resume = config["train"].get("resume")
         if resume:
             logger.info("loading resume checkpoint=%s", resume)
-            start_epoch = load_checkpoint(resume, model=model, optimizer=optimizer, device=device)
+            start_epoch = load_checkpoint(
+                resume,
+                model=model,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                device=device,
+            )
             logger.info("resumed checkpoint=%s epoch=%d", resume, start_epoch)
 
         best_val = float("inf")
@@ -172,6 +199,7 @@ def main() -> None:
                     path,
                     model=model,
                     optimizer=optimizer,
+                    lr_scheduler=lr_scheduler,
                     epoch=start_epoch,
                     config=config,
                     metrics={},
@@ -180,7 +208,8 @@ def main() -> None:
             return
 
         for epoch in range(start_epoch + 1, epochs + 1):
-            logger.info("epoch=%d/%d split=train start", epoch, epochs)
+            epoch_lr = float(optimizer.param_groups[0]["lr"])
+            logger.info("epoch=%d/%d split=train start lr=%.12g", epoch, epochs, epoch_lr)
             train_sampler = getattr(train_loader, "sampler", None)
             if hasattr(train_sampler, "set_epoch"):
                 train_sampler.set_epoch(epoch)
@@ -195,7 +224,11 @@ def main() -> None:
                 train=True,
                 distributed=distributed,
             )
+            train_metrics["lr"] = epoch_lr
             logger.info("epoch=%d split=train %s", epoch, format_metrics(train_metrics))
+
+            if lr_scheduler is not None:
+                lr_scheduler.step()
 
             val_metrics = None
             if val_loader is not None and epoch % int(config["train"]["validate_every_epochs"]) == 0:
@@ -223,6 +256,7 @@ def main() -> None:
                             path,
                             model=model,
                             optimizer=optimizer,
+                            lr_scheduler=lr_scheduler,
                             epoch=epoch,
                             config=config,
                             metrics=val_metrics,
@@ -238,6 +272,7 @@ def main() -> None:
                     path,
                     model=model,
                     optimizer=optimizer,
+                    lr_scheduler=lr_scheduler,
                     epoch=epoch,
                     config=config,
                     metrics=metrics,
@@ -250,6 +285,7 @@ def main() -> None:
                 path,
                 model=model,
                 optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
                 epoch=epochs,
                 config=config,
                 metrics=train_metrics,

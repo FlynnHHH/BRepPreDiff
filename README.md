@@ -160,6 +160,14 @@ For `seg`, every graph label tensor has one class ID per face and may use any da
 taxonomy. For `cls`, each `.cls` source file
 is a whitespace-separated one-hot vector; it is strictly validated and converted to one graph-level
 target. The encoder's face embeddings are pooled before either the MLP or DiffLoss head.
+
+CADSynth and MFInstSeg are available through `data/cadsynth.yaml` and
+`data/mfinstseg.yaml`. Their object/nested JSON face-label schemas are read directly; generate the
+official/complementary CADSynth splits and deterministic MFInstSeg 8:1:1 splits with:
+
+```bash
+python scripts/prepare_cadsynth_mfinstseg_splits.py
+```
 Classification training configs default to `model.graph_pooling: mean_max`; experiments can also
 select `mean`, `mean_std`, or `residual_attention`. The learned alternatives are initialized to
 reproduce mean pooling exactly and learn only a residual complement during fine-tuning. Configs
@@ -294,6 +302,29 @@ brepprediff-evaluate \
   --checkpoint runs/finetune/<tmcad_mlp_run>/checkpoints/best.pt \
   --split test --output runs/finetune/<tmcad_mlp_run>/test_metrics.json
 ```
+
+### SolidLetters model classification
+
+SolidLetters is a 26-class whole-model classification dataset. The leading letter in each model
+name (for example, `a_...step`) is converted to a one-hot class label. The preparation command
+preserves the dataset's official test split and deterministically reserves 10% of the official
+training split for validation:
+
+```bash
+brepprediff-prepare-solidletters-cls \
+  --dataset-root /home/nvme03/hhfeng/SolidLetters \
+  --labels-root data/labels/solidletters \
+  --splits-dir data/splits
+brepprediff-prepare-data --config data/solidletters.yaml --workers 16
+```
+
+The prepared clean splits contain 69,660 training, 7,744 validation, and 19,392 test models.
+Sixty-four source STEP files rejected by OCC are retained in the corresponding
+`data/splits/solidletters_*_invalid.txt` audit files.
+
+Use `configs/finetune_solidletters_mlp.yaml` or
+`configs/finetune_solidletters_diffloss.yaml` for downstream training. Both use Mean+Max graph
+pooling and the standard 100-epoch downstream budget.
 
 ## Pretraining
 

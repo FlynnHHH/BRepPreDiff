@@ -14,7 +14,7 @@ RUN_ROOT="${RUN_ROOT:-$ROOT_DIR/runs/pretrain_finetune_epoch_grid}"
 LOG_ROOT="$ROOT_DIR/runs/launch_logs/$RUN_TAG"
 RESULT_ROOT="$RUN_ROOT/results/$RUN_TAG"
 REPORT_PATH="${REPORT_PATH:-$ROOT_DIR/reports/${RUN_TAG}.md}"
-TASKS="${TASKS:-brepprediff_seg,fusion360seg,mfcadpp_seg,tmcad_cls,fabwave_cls}"
+TASKS="${TASKS:-brepprediff_seg,fusion360seg,mfcadpp_seg,tmcad_cls}"
 
 PRETRAIN_EPOCHS=(20 50 100 150)
 FINETUNE_EPOCHS=(10 20 50 100 150 200)
@@ -147,9 +147,6 @@ done
   done
 ) & pids+=("$!")
 (
-  for epoch in "${PRETRAIN_EPOCHS[@]}"; do
-    run_task_pretrain fabwave_cls "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_fabwave_min10_mlp_acc_200.yaml" "$epoch" 64 4 4
-  done
   run_task_pretrain brepprediff_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 100 64 4 4
   run_task_pretrain brepprediff_seg "${GPUS[3]}" "$ROOT_DIR/configs/finetune_joint_brepprediff_mlp.yaml" 150 64 4 4
 ) & pids+=("$!")

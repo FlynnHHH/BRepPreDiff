@@ -51,6 +51,44 @@ def _remap_labels(
     return remapped
 
 
+def _json_face_labels(payload: Any, label_path: Path) -> list[int]:
+    """Read supported per-face JSON schemas into OCC face order."""
+    if isinstance(payload, list) and all(
+        not isinstance(value, (list, dict)) for value in payload
+    ):
+        return [int(value) for value in payload]
+
+    if isinstance(payload, dict) and isinstance(payload.get("labels"), list):
+        return [int(value) for value in payload["labels"]]
+
+    segmentation = payload.get("seg") if isinstance(payload, dict) else None
+    if (
+        segmentation is None
+        and isinstance(payload, list)
+        and len(payload) == 1
+        and isinstance(payload[0], list)
+        and len(payload[0]) == 2
+        and isinstance(payload[0][1], dict)
+    ):
+        segmentation = payload[0][1].get("seg")
+    if isinstance(segmentation, dict):
+        try:
+            indexed = {int(index): int(value) for index, value in segmentation.items()}
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"JSON seg keys and values must be integers: {label_path}") from exc
+        expected = list(range(len(indexed)))
+        if sorted(indexed) != expected:
+            raise ValueError(
+                f"JSON seg face indices must be contiguous from 0: {label_path}"
+            )
+        return [indexed[index] for index in expected]
+
+    raise ValueError(
+        "Unsupported JSON face-label schema; expected a label list, an object "
+        f"with 'labels', or an MFInstSeg 'seg' mapping: {label_path}"
+    )
+
+
 def _occ_imports() -> SimpleNamespace:
     try:
         from OCC.Core.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
@@ -443,9 +481,10 @@ class OccBRepExtractor:
         labels: list[int] = []
         if label_path.suffix.lower() == ".json":
             payload = json.loads(label_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, list):
-                raise ValueError(f"JSON label must be a list: {label_path}")
-            labels = [int(value) - self.label_offset for value in payload]
+            labels = [
+                value - self.label_offset
+                for value in _json_face_labels(payload, label_path)
+            ]
         else:
             with label_path.open("r", encoding="utf-8") as f:
                 for line in f:

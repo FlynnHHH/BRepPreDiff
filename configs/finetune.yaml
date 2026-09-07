@@ -22,7 +22,8 @@ model:
 
 train:
   device: cuda
-  epochs: 200
+  require_cuda: true
+  epochs: 100
   batch_size: 512
   num_workers: 16
   normalize_per_graph: true

@@ -394,6 +394,7 @@ def save_checkpoint(
     *,
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer | None,
+    lr_scheduler: Any | None = None,
     epoch: int,
     config: dict[str, Any],
     metrics: dict[str, float] | None = None,
@@ -406,6 +407,8 @@ def save_checkpoint(
     }
     if optimizer is not None:
         checkpoint["optimizer"] = optimizer.state_dict()
+    if lr_scheduler is not None:
+        checkpoint["lr_scheduler"] = lr_scheduler.state_dict()
     torch.save(checkpoint, path)
 
 
@@ -423,6 +426,7 @@ def load_checkpoint(
     *,
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer | None = None,
+    lr_scheduler: Any | None = None,
     device: torch.device | str = "cpu",
 ) -> int:
     checkpoint = _torch_load_checkpoint(path, device)
@@ -431,6 +435,8 @@ def load_checkpoint(
     unwrap_model(model).load_state_dict(state)
     if optimizer is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
+    if lr_scheduler is not None and "lr_scheduler" in checkpoint:
+        lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
     return int(checkpoint.get("epoch", 0))
 
 

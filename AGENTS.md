@@ -12,8 +12,9 @@
   accuracy by 2.9439 percentage points; on saturated FabWave min10 it tied Mean, so this is the
   project-wide experiment default rather than a claim of universal superiority.
 
-## Downstream segmentation budget
+## Downstream fine-tuning budget
 
-- Use `train.epochs: 200` by default for all new or repeated downstream segmentation experiments.
+- Use `train.epochs: 200` by default for all new or repeated downstream classification and
+  segmentation experiments.
 - Keep another epoch budget only when the user explicitly requests a training-budget ablation or
   when reproducing/evaluating an older run with its original protocol.

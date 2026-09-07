@@ -1,282 +1,208 @@
-# Fusion360Seg、MFCAD++、TMCAD、FabWave 论文准确率调研与 BRepPreDiff 对比
+# CAD 数据集论文准确率调研与 BRepPreDiff inductive9 对比
 
-> 检索截止：2026-07-23  
-> BRepPreDiff 实验结果更新：2026-08-11
-> 排序指标：Accuracy（Acc，%），同一论文的多个版本优先采用正式发表版或最新版。  
-> `NR` 表示论文明确使用了该数据集，但可访问正文、主表或摘要没有披露可核验的该数据集 Accuracy。
+> 检索截止：2026-09-02
+>
+> BRepPreDiff 结果来源：`inductive9_lr1e4_pre100_full_mlp_diffloss200_seed42_20260901.md`
+>
+> 排序指标：Accuracy（Acc，%）；`NR` 表示无法从可访问原文核验该项。
 
 ## 结论摘要
 
-- **MFCAD++ 数值上位列第 8/21，但不是严格的测试隔离对比。** 最新最佳结果来自 **Edge Update Attention + MLP 微调头**：Acc **99.3632%**、Macro-F1 **98.9913%**、Macro-IoU **98.0172%**。它比 Hierarchical CADNet 高 **1.99 pp**，比 BrepMFR 低 **0.40 pp**。
-- **TMCAD 只能在注明版本与预训练协议后比较。** 最新 Edge Update Attention + Mean+Max pooling + MLP 结果为 Acc **86.1086%**、Macro-F1 **85.7531%**、Macro-IoU **75.6592%**，在本表中数值上列第 **3/5**；比 Brep2Shape 的 84.72% 高 **1.39 pp**、比 BRT 的 83.45% 高 **2.66 pp**。有效样本、划分和预训练协议不同，不能把差值解释为纯模型收益。
-- **Fusion360Seg 现在有两套不同任务结果。** 标准 8 类任务上的最新最佳结果来自 **Edge Update Attention + MLP 微调头**：Acc **93.0596%**、Macro-F1 **87.3927%**、Macro-IoU **78.6993%**，数值上排第 **9/15**；本地 3 类 `NonTransition / VBF / EBF` 任务仍须与标准 8 类榜单分开报告。
-- **FabWave 没有统一的官方划分或稳定的标签版本。** 清洗后 40 类上，最新 **Edge Update Attention + Mean+Max pooling + MLP** 与 baseline encoder + Mean+Max 及先前分类实验得到相同测试结果：Acc **97.9540%**、Macro-F1 **99.4929%**、Macro-IoU **99.0794%**。该版本删除了 Rotary Shaft、302 个 Washers/O-Rings 重叠模型及有效样本少于 10 的类别；论文主榜通常采用 45 类且划分不同，因此只作数值参考。
-- 本次共整理：Fusion360Seg **14** 篇论文结果加 **1** 条 BRepPreDiff 标准 8 类结果、MFCAD++ **20** 篇论文结果加 **1** 条 BRepPreDiff 本地结果、TMCAD **4** 篇论文结果加 **1** 条 BRepPreDiff 本地结果；FabWave 包含 **5** 条 45 类论文主榜结果、**1** 条 BRepPreDiff 40 类结果、**6** 条派生/特殊协议结果和 **1** 条仅报告 F1/mAP 的结果。
+- 本报告中的 BRepPreDiff 数字已全部统一为指定实验：四层 Edge Update Attention encoder 在九来源的 **train geometry** 上无标签预训练 100 epochs（lr=`1e-4`），下游以 seed 42 微调 200 epochs，按 validation Acc 选 `best.pt`；分类统一用 Mean+Max pooling。
+- 这是 **inductive** 协议：所有下游 validation/test geometry 均未参与预训练。预训练共 488,099 个图，checkpoint SHA-256 为 `c4c838c54199f592847a66456dc38e44194e44198092556a469a7ad2b6782a0e`。
+- Fusion360Seg：MLP 与 DiffLoss Acc 同为 **95.9258%**；MLP 的 Macro-F1/mIoU 更高，为 **89.5940% / 82.7926%**，数值列第 **6/15**。
+- MFCAD++：MLP 为 **99.4122% Acc / 99.0716% Macro-F1 / 98.1722% mIoU**，数值列第 **7/21**；比 Hierarchical CADNet 高 2.04 pp，比 BrepMFR 低 0.35 pp。
+- TMCAD：DiffLoss 为 **84.9126% / 84.3891% / 73.7466%**，数值列第 **3/5**；比 Brep2Shape 高 0.19 pp、比 BRT 高 1.46 pp，但数据清洗和划分不同。
+- CADSynth：DiffLoss 为 **99.5973% / 99.3385% / 98.6904%**，数值列第 **6/7**；比 Hierarchical CADNet 高 0.07 pp，比 BrepMFR 低 0.36 pp。
+- MFInstSeg：MLP 为 **99.2767% / 98.7694% / 97.5963%**，在可核验语义结果中数值列第 **6/9**。本地是 80/10/10，而主要论文采用约 70/15/15，只作有限比较。
+- 指定实验明确排除 FabWave，因此本版只保留其论文调研，不再混入旧的 transductive 本地结果。
 
-最新分割与分类结果来自 **333,476** 个可解析 STEP 的七来源联合无标签预训练，使用
-**Edge Update Attention** encoder 预训练 150 epochs（micro-batch 32、梯度累积 8、有效 batch 256）；
-TMCAD/FabWave 分类采用 **Mean+Max pooling** 和 MLP 分类头。预训练 checkpoint SHA-256 为
-`647be213de85ea393e94ec96e6fb33f4b4c87ed2e6709f8f8d041d7ba64c89ae`。预训练来源包括
-BRepPreDiff、TMCAD、Fusion360Seg s2.0.1、MFCAD++、Fusion360Rec、Fusion360Ass 和
-FabWave（清洗后 40 类版本）。各下游数据集的 train、validation、test 几何均参与无标签预训练，但微调、
-模型选择和最终评估仍分别只使用 train、validation 和 test 标签。因此，这些结果属于
-**transductive self-supervised pretraining**，下表中的排名和差值
-只表示数值位置，不能解释为与测试几何完全隔离方法之间的纯模型收益。
+## 1. BRepPreDiff 统一实验结果
 
-### 最新 BRepPreDiff 主结果汇总
+粗体为同任务 Accuracy 更高的头；Fusion360Seg Acc 相同，按 Macro-F1/mIoU 选择 MLP 为正文主结果。
 
-| 下游任务 | 任务 / 微调头 | Best epoch | Test Acc | Macro-F1 | Macro-IoU |
-|---|---|---:|---:|---:|---:|
-| BRepPreDiff | Seg / MLP | 18 | 98.1210% | 96.2606% | 92.8949% |
-| Fusion360Seg | Seg / MLP | 97 | 93.0596% | 87.3927% | 78.6993% |
-| MFCAD++ | Seg / MLP | 88 | 99.3632% | 98.9913% | 98.0172% |
-| TMCAD | Cls / Edge Update + Mean+Max + MLP | 141 | 86.1086% | 85.7531% | 75.6592% |
-| FabWave 40 类清洗版 | Cls / Edge Update + Mean+Max + MLP | 29 | 97.9540% | 99.4929% | 99.0794% |
+| Task | Head | Best epoch | Test samples | Acc | Macro-F1 | Weighted-F1 | mIoU |
+|---|---|---:|---:|---:|---:|---:|---:|
+| BRepPreDiff | MLP | 154 | 1,787 | 98.7939% | **96.9602%** | 98.7902% | **94.1623%** |
+| BRepPreDiff | **DiffLoss** | 109 | 1,787 | **98.8027%** | 96.8796% | **98.7978%** | 94.0120% |
+| Fusion360Seg | **MLP** | 143 | 5,366 | **95.9258%** | **89.5940%** | 95.8991% | **82.7926%** |
+| Fusion360Seg | DiffLoss | 194 | 5,366 | **95.9258%** | 88.5822% | **95.8994%** | 81.8155% |
+| MFCAD++ | **MLP** | 185 | 8,949 | **99.4122%** | **99.0716%** | **99.4120%** | **98.1722%** |
+| MFCAD++ | DiffLoss | 197 | 8,949 | 99.3784% | 99.0143% | 99.3781% | 98.0617% |
+| TMCAD | MLP | 103 | 1,087 | 83.8086% | 83.2922% | 83.6475% | 72.2066% |
+| TMCAD | **DiffLoss** | 136 | 1,087 | **84.9126%** | **84.3891%** | **84.7557%** | **73.7466%** |
+| SolidLetters | **MLP** | 170 | 19,392 | **97.4629%** | **97.5259%** | **97.4565%** | **95.3956%** |
+| SolidLetters | DiffLoss | 139 | 19,392 | 97.3907% | 97.4568% | 97.3840% | 95.2732% |
+| CADSynth | MLP | 62 | 9,993 | 99.5730% | 99.2922% | 99.5726% | 98.5993% |
+| CADSynth | **DiffLoss** | 78 | 9,993 | **99.5973%** | **99.3385%** | **99.5968%** | **98.6904%** |
+| MFInstSeg | **MLP** | 194 | 6,250 | **99.2767%** | **98.7694%** | **99.2758%** | **97.5963%** |
+| MFInstSeg | DiffLoss | 186 | 6,250 | 99.2392% | 98.7303% | 99.2384% | 97.5235% |
 
-## 1. 口径与可比性
+| Task | ΔAcc | ΔMacro-F1 | ΔWeighted-F1 | ΔmIoU | Acc winner |
+|---|---:|---:|---:|---:|---|
+| BRepPreDiff | +0.0087 | −0.0806 | +0.0076 | −0.1503 | DiffLoss |
+| Fusion360Seg | +0.0000 | −1.0119 | +0.0004 | −0.9771 | Tie |
+| MFCAD++ | −0.0338 | −0.0573 | −0.0338 | −0.1105 | MLP |
+| TMCAD | +1.1040 | +1.0969 | +1.1082 | +1.5400 | DiffLoss |
+| SolidLetters | −0.0722 | −0.0690 | −0.0725 | −0.1224 | MLP |
+| CADSynth | +0.0243 | +0.0463 | +0.0242 | +0.0912 | DiffLoss |
+| MFInstSeg | −0.0375 | −0.0391 | −0.0373 | −0.0728 | MLP |
 
-### 1.1 数据集版本
+> 项目对新下游实验默认 100 epochs；上表保留 200 epochs，是因为本报告按指定的既有实验原协议汇总。
 
-| 数据集 | 标准/常见版本 | BRepPreDiff 本地版本 | 是否可直接排序 |
+## 2. 数据与证据口径
+
+| 数据集 | 论文常见版本 | 本地版本 | 可比性 |
 |---|---|---|---|
-| Fusion360Seg | 35,858 个模型，8 类 operation face labels | 标准 8 类 cache 为 35,680 个模型，24,964/5,350/5,366；另有 7,659 个模型的本地 3 类 transition task | **有限可比**：8 类任务标签一致，但无标签 test 几何参与预训练；3 类任务不可混排 |
-| MFCAD++ | 59,665 个有效模型，24 类加工特征 + Stock；官方 41,766/8,950/8,949 划分 | 同 59,665 个模型、同官方划分、完整 268,982 个测试面 | **有限可比**：标签与监督划分一致，但无标签 test 几何参与预训练 |
-| TMCAD / MechCAD | 原始 10 类、约 10,897 个模型；不同论文清洗结果不一致 | 10,897 个源模型、10,886 个有效模型；8,709/1,090/1,087 | **有限可比**：必须同时看有效样本、标签、划分与预训练几何 |
-| [FabWave / FabSearch](https://doi.org/10.1115/1.4043211) | 原始仓库超过 10 万个模型；常见有 45 类约 4.5k、UV-Net Standard 52 类及多个派生子集；无官方划分 | 清洗后 40 类、3,989 个有效模型；3,191/407/391；删除 Rotary Shaft、302 个 Washers/O-Rings 重叠模型及 3 个低于 10 条有效数据的类别；完整几何参与无标签预训练 | **不可直接混排**：BRepPreDiff 类别数、模型数、去重、划分和预训练重叠均与 45 类论文主榜不同 |
+| Fusion360Seg | 35,858、8 类 operation face labels | 35,680；24,964/5,350/5,366 | 较强：标签一致，模型数略少，test geometry 未预训练 |
+| MFCAD++ | 59,665、24 类 + Stock；41,766/8,950/8,949 | 同官方划分 | 较强：监督划分一致，test geometry 未预训练 |
+| TMCAD | 原始 10 类、约 10,897；清洗差异明显 | 10,886；8,709/1,090/1,087 | 有限：须核对有效样本和划分 |
+| [CADSynth](https://doi.org/10.57760/sciencedb.17011) | 100,000、24 类 + Stock；80/10/10 | OCC-clean 79,941/9,994/9,993 | 有限：沿用官方 train/test，但过滤 72 个异常模型 |
+| [MFInstSeg](https://doi.org/10.1016/j.rcim.2023.102661) | 62,495、24 类 + Stock；常见 70/15/15；三种任务标签 | 49,996/6,249/6,250，seed 42；仅语义标签 | 有限：任务一致但划分不同 |
+| FabWave | 45 类约 4.5k，另有多种派生版 | 指定实验排除 | 不比较本地结果 |
 
-### 1.2 证据等级
+证据等级：`A` 为原论文可核验且协议基本一致；`A−` 为同一数据集但有小幅版本差异；`B` 为自定义划分、预训练或后续论文复现表；`C` 为派生标签/少样本/显著不同任务。排名只是已报告数值位置。
 
-| 等级 | 含义 |
-|---|---|
-| A | 同一公开数据集，Accuracy 来自原论文正文、主表或正式摘要，协议基本可核对 |
-| A− | 同一数据集家族，但存在小幅版本、复现或训练设置差异 |
-| B | 自定义划分、额外监督、预训练重叠，或数值需由后续论文同协议对比表核验 |
-| C | 派生标签体系、显著不同的数据量/任务，或包含人工复核；仅供参考 |
+## 3. Fusion360Seg 标准 8 类
 
-> Accuracy 排序只回答“论文报告了多高的数值”，不自动代表公平的模型优劣排序。跨版本、跨划分和跨标签体系的结果必须结合“等级/口径”列阅读。
+| 排名 | 方法 | 年份 | Acc | mIoU | 等级 |
+|---:|---|---:|---:|---:|:---:|
+| 1 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | 97.21 | 87.57 | B |
+| 2 | [Masked HGT](https://arxiv.org/abs/2603.14927) | 2026 | 97.02 | 86.75 | B |
+| 3 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | 96.88 | 83.77 | B |
+| 4 | [BRep-BERT*](https://doi.org/10.1145/3583780.3615237) | 2023 | 96.02 | 85.54 | B |
+| 5 | [SSL4CAD](https://openaccess.thecvf.com/content/CVPR2023/html/Jones_Self-Supervised_Representation_Learning_for_CAD_CVPR_2023_paper.html) | 2023 | 96.00 | — | B |
+| **6** | **BRepPreDiff inductive9 + MLP** | 2026 | **95.9258** | **82.7926** | A− |
+| 7 | [CADOps-Net](https://arxiv.org/abs/2208.10555) | 2022 | 95.90 | 84.20 | A |
+| 8 | [Two-level feature reconstruction](https://www.sciencedirect.com/science/article/pii/S095219762601050X) | 2026 | 94.51 | 78.13 | B |
+| 9 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | 94.48 | 79.23 | A |
+| 10 | [BRepNet](https://openaccess.thecvf.com/content/CVPR2021/html/Lambourne_BRepNet_A_Topological_Message_Passing_System_for_Solid_Models_CVPR_2021_paper.html) | 2021 | 92.52 | 77.10 | A |
+| 11 | [UV-Net](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | 92.30 | 72.40 | A− |
+| 12 | [FoV-Net](https://arxiv.org/abs/2602.24084) | 2026 | 91.72 | 73.81 | A |
+| 13 | [Uncertainty review](https://doi.org/10.1007/978-3-031-96196-0_4) | 2025 | ≈84.00 | — | C |
+| 14 | [Modified PointNet++](https://doi.org/10.1016/j.cad.2023.103629) | 2024 | 80.46 | — | A |
+| 15 | [BRepGAT](https://doi.org/10.1093/jcde/qwad100) | 2023 | 80.32 | — | A |
 
-## 2. Fusion360Seg
+两个头 Acc 相同；MLP 的 Macro-F1 和 mIoU 分别高 1.0119/0.9771 pp。其 Acc 比 CADOps-Net 高 0.0258 pp、比 SSL4CAD 低 0.0742 pp。
 
-### 2.1 标准 8 类任务可核验结果（Acc 降序）
+## 4. MFCAD++
 
-| 排名 | 论文 / 方法 | 年份 | Acc | mIoU | 等级 | 实验口径 |
+`Δ = 论文 Acc − 99.4122`。
+
+| 排名 | 方法 | 年份 | Acc | mIoU | Δ | 等级 |
+|---:|---|---:|---:|---:|---:|:---:|
+| 1 | [BrepMFR](https://doi.org/10.1016/j.cagd.2024.102318) | 2024 | 99.76 | 99.30 | +0.35 | A |
+| 2 | [Topo-Geom DualGNN](https://doi.org/10.3390/machines14040362) | 2026 | 99.66 | 99.32 | +0.25 | B |
+| 3 | [EMD-GNN](https://doi.org/10.1016/j.aei.2026.104609) | 2026 | 99.62 | 98.79 | +0.21 | A |
+| 4 | [Masked HGT](https://arxiv.org/abs/2603.14927) | 2026 | 99.61 | 99.03 | +0.20 | B |
+| 5 | [BRepMAE / MFCAD2](https://arxiv.org/abs/2602.22701) | 2026 | 99.59 | 98.82 | +0.18 | B |
+| 6 | [SCUT B-Rep GNN](https://zrb.bjb.scut.edu.cn/EN/10.12141/j.issn.1000-565X.230497) | 2025 | 99.53 | 99.15 | +0.12 | A |
+| **7** | **BRepPreDiff inductive9 + MLP** | 2026 | **99.4122** | **98.1722** | 基准 | A |
+| 8 | [MMNet](https://doi.org/10.32604/cmes.2026.078073) | 2026 | 99.38 | 98.86 | −0.03 | A |
+| 9 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | 99.35 | 98.02 | −0.06 | B |
+| 10 | [FoV-Net](https://arxiv.org/abs/2602.24084) | 2026 | 99.33 | 97.81 | −0.08 | A |
+| 11 | [TEGNet](https://www.researchgate.net/publication/401656636) | 2026 | 99.31 | 98.71 | −0.10 | A |
+| 12 | [MFTReNet](https://doi.org/10.1016/j.aei.2024.102721) | 2024 | 99.30 | 98.63 | −0.11 | A |
+| 13 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | 99.27 | 97.98 | −0.14 | A |
+| 14 | [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 2024 | 99.26 | 98.66 | −0.15 | A− |
+| 15 | [MSFRNet](https://doi.org/10.1016/j.aei.2026.104365) | 2026 | 99.19 | — | −0.22 | B |
+| 16 | [BRepGAT / MFCAD18++](https://doi.org/10.1093/jcde/qwad100) | 2023 | 99.10 | — | −0.31 | C |
+| 17 | [Sheet-metalNet](https://doi.org/10.1038/s41598-024-61443-2) | 2024 | 98.86 | — | −0.55 | A− |
+| 18 | [Hierarchical CADNet](https://doi.org/10.1016/j.cad.2022.103226) | 2022 | 97.37 | — | −2.04 | A |
+| 19 | [Uncertainty review](https://doi.org/10.1007/978-3-031-96196-0_4) | 2025 | ≈96.20 | — | −3.21 | C |
+| 20 | [Modified PointNet++](https://doi.org/10.1016/j.cad.2023.103629) | 2024 | 95.85 | — | −3.56 | A |
+| 21 | [Shaft process-planning model](https://doi.org/10.3390/app16020828) | 2026 | 90.87 | — | −8.54 | C |
+
+MLP 相对 DiffLoss 高 0.0338 pp Acc、0.0573 pp Macro-F1 和 0.1105 pp mIoU。官方监督划分和 test-isolated 预训练使本版比旧 transductive 结果更适合论文比较。
+
+## 5. TMCAD / MechCAD
+
+| 排名 | 方法 | 年份 | Acc | Δ | 等级 | 协议 |
 |---:|---|---:|---:|---:|:---:|---|
-| 1 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | **97.21** | 87.57 | B | SSRN 预印本；公开摘要给出 Fusion360 逐面 Acc/mIoU，完整划分细节未披露 |
-| 2 | [Masked BRep Autoencoder via Hierarchical Graph Transformer](https://arxiv.org/abs/2603.14927) | 2026 | **97.02** | 86.75 | B | 35,858；70/15/15；训练划分参与自监督预训练，测试集隔离 |
-| 3 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **96.88** | 83.77 | B | 35,858、8 类；预训练语料包含 Fusion360Seg；取主表最佳模型规模 |
-| 4 | [BRep-BERT*](https://doi.org/10.1145/3583780.3615237) | 2023 | **96.02** | 85.54 | B | `*` 版本额外使用 temporal supervision；无该监督版本为 95.14/82.88 |
-| 5 | [Self-Supervised Representation Learning for CAD / SSL4CAD](https://openaccess.thecvf.com/content/CVPR2023/html/Jones_Self-Supervised_Representation_Learning_for_CAD_CVPR_2023_paper.html) | 2023 | **96.00** | — | B | Construction-based segmentation；训练集约 23,266 个模型 |
-| 6 | [CADOps-Net](https://arxiv.org/abs/2208.10555) | 2022 | **95.90** | 84.20 | A | Fusion360 8 类；联合学习 operation type 与 operation step；主表 `w/ JL+` |
-| 7 | [Two-level feature reconstruction network](https://www.sciencedirect.com/science/article/pii/S095219762601050X) | 2026 | **94.51** | 78.13 | B | 35,680 个模型并增加 85,511 个实例标注；取 face classifier 结果 |
-| 8 | [Bringing Attention to CAD / BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **94.48** | 79.23 | A | 期刊最终版/v2；35,858、8 类；arXiv v1 曾报告 90.47 |
-| **9** | **BRepPreDiff（Edge Update Attention + MLP；全量联合预训练）** | 2026 | **93.0596** | **78.6993** | B | 8 类；35,680 个有效 cache 模型；24,964/5,350/5,366；77,070 个测试面；无标签 test 几何参与七来源联合预训练；100 epochs；按 validation Acc 选择 epoch 97 `best.pt` |
-| 10 | [BRepNet](https://openaccess.thecvf.com/content/CVPR2021/html/Lambourne_BRepNet_A_Topological_Message_Passing_System_for_Solid_Models_CVPR_2021_paper.html) | 2021 | **92.52** | 77.10 | A | 数据集原始论文；官方划分；10 次运行均值 |
-| 11 | [UV-Net](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | **92.30** | 72.40 | A− | 8 类；数值由 CADOps-Net 的同协议对比主表核验 |
-| 12 | [FoV-Net](https://arxiv.org/abs/2602.24084) | 2026 | **91.72** | 73.81 | A | 原始与随机旋转测试结果一致；5 次运行均值 |
-| 13 | [Uncertainty estimation review](https://doi.org/10.1007/978-3-031-96196-0_4) | 2025 | **≈84.00** | — | C | 由约 16% error 折算；人工复核 10% 后有效 Acc 约 89%，不属于纯模型结果 |
-| 14 | [Modified PointNet++](https://doi.org/10.1016/j.cad.2023.103629) | 2024 | **80.46** | — | A | 分层采样 + B-rep face loss + 额外点属性的最终配置 |
-| 15 | [BRepGAT](https://doi.org/10.1093/jcde/qwad100) | 2023 | **80.32** | — | A | 标准 8 类；2-layer 主结果；5-layer 为 80.29 |
+| 1 | [KDH-CAD](https://arxiv.org/abs/2606.01702) | 2026 | 95.82 | +10.91 | C | 9,799、重标注、少样本 |
+| 2 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | 88.50 | +3.59 | B | 完整划分未披露 |
+| **3** | **BRepPreDiff inductive9 + Mean+Max + DiffLoss** | 2026 | **84.9126** | 基准 | A− | 10,886；8,709/1,090/1,087 |
+| 4 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | 84.72 | −0.19 | B | 仅 7,599 个有效文件 |
+| 5 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | 83.45 | −1.46 | A− | 原始 10 类；70/15/15 |
 
-BRepPreDiff 在该标准 8 类任务上的最佳完整聚合指标来自
-**Edge Update Attention + MLP 微调头**：**93.0596% Acc / 87.3927% Macro-F1 /
-78.6993% Macro-IoU**。相比先前联合预训练的 baseline encoder + MLP，分别提高
-**0.0844 / 1.8658 / 2.2407 pp**。
+DiffLoss 相对 MLP 提高 1.1040 pp Acc、1.0969 pp Macro-F1 和 1.5400 pp mIoU。与 BRT 的 +1.46 pp 只作定位，不是严格同协议收益。
 
-### 2.2 BRepPreDiff 本地三分类结果
+## 6. CADSynth
 
-| 方法 | 类别数 | 模型数 | Test Acc | Macro-F1 | mIoU |
-|---|---:|---:|---:|---:|---:|
-| BRepPreDiff `baseline_default` | 3 | 7,659 | 97.8509% | 95.4612% | 91.4494% |
-| BRepPreDiff `ablation_head_mlp_full`（最佳 F1/mIoU） | 3 | 7,659 | 98.1234% | **96.4880%** | **93.3230%** |
-| BRepPreDiff `ablation_mlp_encoder_partial` | 3 | 7,659 | 98.1283% | 96.4395% | 93.2313% |
-| **BRepPreDiff `joint_all_splits`（先前最高 Acc）** | 3 | 7,659 | **98.1403%** | 96.3957% | 93.1435% |
-| BRepPreDiff Edge Update Attention + MLP（新联合预训练） | 3 | 7,659 | 98.1210% | 96.2606% | 92.8949% |
+CADSynth 由 BrepMFR 工作提出，含 100,000 个合成 B-rep、24 种加工特征及 Stock，原论文为 80/10/10。下表统一采用逐面**总体 Accuracy**。
 
-**比较结论：不可直接排位。** BRepPreDiff 的 `NonTransition / VBF / EBF` 与标准数据集的 ExtrudeSide、CutEnd、Fillet 等 8 类操作标签没有一一对应关系，而且本地训练规模仅约为标准数据集的 21%。新 Edge Update 结果为 **98.1210% Acc / 96.2606% Macro-F1 / 92.8949% Macro-IoU**；当前该任务最高 Acc 仍是 `joint_all_splits` 的 **98.1403%**。建议将该实验命名为 **“Fusion-derived 3-class transition task”**，与第 2.1 节的标准 Fusion360Seg 8 类结果分开报告。
+| 排名 | 方法 | 年份 | Acc | mIoU | Δ | 等级 |
+|---:|---|---:|---:|---:|---:|:---:|
+| 1 | [BrepMFR](https://doi.org/10.1016/j.cagd.2024.102318) | 2024 | **99.96** | 99.83 | +0.36 | A |
+| 2 | [Topo-Geom DualGNN](https://doi.org/10.3390/machines14040362) | 2026 | 99.91±0.01 | 99.83±0.01 | +0.31 | B |
+| 3 | AAGNet（[BrepMFR Table 2](https://doi.org/10.1016/j.cagd.2024.102318) 复现） | 2024 | 99.80 | 99.25 | +0.20 | B |
+| 4 | UV-Net（BrepMFR Table 2 复现） | 2024 | 99.74 | 99.02 | +0.14 | B |
+| 5 | BRepNet（BrepMFR Table 2 复现） | 2024 | 99.67 | 98.77 | +0.07 | B |
+| **6** | **BRepPreDiff inductive9 + DiffLoss** | 2026 | **99.5973** | **98.6904** | 基准 | A− |
+| 7 | Hierarchical CADNet（BrepMFR Table 2 复现） | 2024 | 99.53 | 97.96 | −0.07 | B |
 
-### 2.3 使用了 Fusion 数据但未进入 Accuracy 排名
+**表头错位核验：** 2026 Topo-Geom DualGNN 的对比表把 BrepMFR 写成 99.92% Acc；BrepMFR 原论文 Table 2 显示 99.96% 才是总体 Acc，99.92% 是 per-class accuracy，本表采用原始来源。Topo-Geom 的 99.91±0.01 来自清洗后 5-fold validation；本地是官方 test 的 OCC-clean 子集，故不作严格排名。DiffLoss 相对 MLP 提高 0.0243/0.0463/0.0912 pp（Acc/Macro-F1/mIoU）。
 
-| 论文 | 年份 | 原因 |
-|---|---:|---|
-| [Segmentation of CAD models using hybrid representation](https://doi.org/10.1016/j.vrih.2025.01.001) | 2025 | 明确使用 Fusion 360 Gallery；可访问摘要未公开数值表。SSRN 题名与期刊版按作者、内容和 DOI 去重为一篇 |
-| [BRepMAE](https://arxiv.org/abs/2602.22701) | 2026 | Fusion 360 Gallery 仅用于自监督预训练，未报告 Fusion360Seg 独立测试 Accuracy |
+[SFRGNN-DA](https://doi.org/10.1016/j.jmsy.2025.05.005) 和 [BrepHGNet](https://www.sciencedirect.com/science/article/pii/S073658452600030X) 明确使用 CADSynth，但当前可访问摘要未披露可核验的数据集特定 Accuracy，因此记为 `NR`，不进入排序。
 
-## 3. MFCAD++
+## 7. MFInstSeg
 
-### 3.1 全部可核验结果（Acc 降序）
+MFInstSeg 由 AAGNet 发布，通常称含 62,495 个 B-rep、24 种加工特征及 Stock，并提供语义分割、实例分组、底面识别三套标签。本地只评估逐面语义分割。
 
-以最新 BRepPreDiff **Edge Update Attention + MLP** 的 **99.3632%** 为本地基准；`Δ` 为“论文 Acc − BRepPreDiff Acc”，单位为百分点（pp）。
+### 7.1 语义分割 Accuracy
 
-| 排名 | 论文 / 方法 | 年份 | Acc | mIoU / Macro-IoU | Δ vs BRepPreDiff | 等级 | 实验口径 |
-|---:|---|---:|---:|---:|---:|:---:|---|
-| 1 | [BrepMFR](https://doi.org/10.1016/j.cagd.2024.102318) | 2024 | **99.76** | 99.30 | +0.40 | A | MFCAD++ target-domain supervised test；另报跨域 DA 90.32，不作为主榜 |
-| 2 | [Topo-Geom DualGNN](https://doi.org/10.3390/machines14040362) | 2026 | **99.66** | 99.32 | +0.30 | B | 清洗后数据；5-fold CV；论文称 validation sets |
-| 3 | [EMD-GNN](https://doi.org/10.1016/j.aei.2026.104609) | 2026 | **99.62** | 98.79 | +0.26 | A | 官方 70/15/15 测试；多次运行均值 |
-| 4 | [Masked HGT](https://arxiv.org/abs/2603.14927) | 2026 | **99.61** | 99.03 | +0.25 | B | 59,665；自定义 80/10/10；测试隔离 |
-| 5 | [BRepMAE / MFCAD2](https://arxiv.org/abs/2602.22701) | 2026 | **99.59** | 98.82 | +0.23 | B | MFCAD2 清洗别名/派生版，59,450 个有效模型；80/10/10 |
-| 6 | [SCUT B-Rep GNN](https://zrb.bjb.scut.edu.cn/EN/10.12141/j.issn.1000-565X.230497) | 2025 | **99.53** | 99.15 | +0.17 | A | 期刊摘要直接给出 MFCAD++ Acc/mIoU |
-| 7 | [MMNet](https://doi.org/10.32604/cmes.2026.078073) | 2026 | **99.38** | 98.86 | +0.02 | A | 59,655；70/15/15；测试集逐面语义分割 |
-| **8** | **BRepPreDiff（Edge Update Attention + MLP；全量联合预训练）** | 2026 | **99.3632** | **98.0172** | **基准** | B | 59,665；官方 41,766/8,950/8,949；完整 268,982 个测试面；无标签 test 几何参与七来源联合预训练；100 epochs；按 validation Acc 选择 epoch 88 `best.pt` |
-| 9 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **99.35** | 98.02 | −0.01 | B | 预训练语料包含 MFCAD++；取主表最佳模型规模 |
-| 10 | [FoV-Net](https://arxiv.org/abs/2602.24084) | 2026 | **99.33** | 97.81 | −0.03 | A | 原始与旋转测试一致；5 次运行均值 |
-| 11 | [TEGNet](https://www.researchgate.net/publication/401656636) | 2026 | **99.31** | 98.71 | −0.05 | A | 59,655；70/15/15；0.49M 参数 |
-| 12 | [MFTReNet](https://doi.org/10.1016/j.aei.2024.102721) | 2024 | **99.30** | 98.63 | −0.06 | A | 同时执行实例识别与拓扑关系任务；结果由后续同协议主表交叉核对 |
-| 13 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **99.27** | 97.98 | −0.09 | A | 期刊最终版/v2；70/15/15；v1 为 99.26/97.94 |
-| 14 | [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 2024 | **99.26** | 98.66 | −0.10 | A− | 不同论文复现约 99.24–99.33；此处采用多篇主表一致值 |
-| 15 | [MSFRNet](https://doi.org/10.1016/j.aei.2026.104365) | 2026 | **99.19** | — | −0.17 | B | 数据集特定 Acc 由 Topo-Geom DualGNN 对比表核验；不把摘要的跨数据集最大值反推给 MFCAD++ |
-| 16 | [BRepGAT / MFCAD18++](https://doi.org/10.1093/jcde/qwad100) | 2023 | **99.10** | — | −0.26 | C | 作者重标注的 MFCAD18++ 派生版；不是原始 MFCAD++ 标签体系 |
-| 17 | [Sheet-metalNet](https://doi.org/10.1038/s41598-024-61443-2) | 2024 | **98.86** | — | −0.50 | A− | 480 epoch 的性能上限；标准 100-epoch 主表为 98.43 Acc / 97.44 F1 |
-| 18 | [Hierarchical CADNet](https://doi.org/10.1016/j.cad.2022.103226) | 2022 | **97.37** | — | −1.99 | A | MFCAD++ 数据集原始论文；Edge 版本逐面准确率 |
-| 19 | [Uncertainty estimation review](https://doi.org/10.1007/978-3-031-96196-0_4) | 2025 | **≈96.20** | — | −3.16 | C | 由约 3.8% error 折算；人工复核 10% 后有效 Acc 约 99.3%，不是纯模型结果 |
-| 20 | [Modified PointNet++](https://doi.org/10.1016/j.cad.2023.103629) | 2024 | **95.85** | — | −3.51 | A | 最终 PointNet++ 配置；同文 Point Transformer 最终同为 95.85 |
-| 21 | [Shaft process-planning model](https://doi.org/10.3390/app16020828) | 2026 | **90.87** | — | −8.49 | C | 轴类工艺规划应用中的迁移/外部验证；F1=89.85 |
+| 排名 | 方法 | 年份 | Acc | mIoU | Δ | 等级 |
+|---:|---|---:|---:|---:|---:|:---:|
+| 1 | [BRepFormer](https://arxiv.org/abs/2504.07378) | 2025 | 99.62±0.03 | 98.74±0.09 | +0.34 | A− |
+| 2 | [EMD-GNN](https://doi.org/10.1016/j.aei.2026.104609) | 2026 | 99.58±0.01 | 98.60±0.02 | +0.30 | A |
+| 3 | [MFTReNet](https://doi.org/10.1016/j.aei.2024.102721) | 2024 | 99.56±0.02 | 98.43±0.03 | +0.28 | A |
+| 4 | [Topo-Geom DualGNN](https://doi.org/10.3390/machines14040362) | 2026 | 99.54±0.04 | 99.14±0.06 | +0.26 | B |
+| 5 | [Masked HGT](https://arxiv.org/abs/2603.14927) | 2026 | 99.53 | NR | +0.25 | B |
+| **6** | **BRepPreDiff inductive9 + MLP** | 2026 | **99.2767** | **97.5963** | 基准 | B |
+| 7 | [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 2024 | 99.15±0.03 | 98.45±0.04 | −0.13 | A |
+| 8 | DeeperGCN（AAGNet 主表） | 2024 | 99.03±0.02 | 98.31±0.01 | −0.25 | B |
+| 9 | [MSFRNet](https://doi.org/10.1016/j.aei.2026.104365) | 2026 | 98.95 | 98.23 | −0.33 | B |
 
-### 3.2 BRepPreDiff 本地结果对照
+本地 MLP 相对 DiffLoss 高 0.0375 pp Acc、0.0391 pp Macro-F1 和 0.0728 pp mIoU。本地 Acc 高于 AAGNet，但 mIoU 低 0.8537 pp，且 80/10/10 与论文约 70/15/15 不同，不能宣称整体优于 AAGNet。
 
-| 方法 | Test Acc | Macro-F1 | Macro-IoU |
-|---|---:|---:|---:|
-| BRepPreDiff DiffLoss（全量联合预训练，200 epochs） | 99.1248% | 98.6323% | 97.3280% |
-| BRepPreDiff baseline encoder + MLP（全量联合预训练，200 epochs） | 99.1557% | 98.6718% | 97.4071% |
-| **BRepPreDiff Edge Update Attention + MLP（新联合预训练，100 epochs）** | **99.3632%** | **98.9913%** | **98.0172%** |
+### 7.2 不与语义 Accuracy 混排
 
-新 Edge Update Attention 结果相对先前 baseline encoder + MLP 提高
-**0.2075 pp Acc**、**0.3195 pp Macro-F1** 和 **0.6101 pp Macro-IoU**。两次实验的
-预训练 encoder 和联合语料版本同时变化，因此该差值不是单一架构消融结论。
+| 方法 | 任务/协议 | 主要结果 | 原因 |
+|---|---|---|---|
+| [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 实例 / 底面 | Instance Acc 99.94、F1 98.84；Bottom Acc 99.75、mIoU 98.47 | 不同任务 |
+| [EMD-GNN](https://doi.org/10.1016/j.aei.2026.104609) | 实例 / 底面 | Instance Acc 99.90、F1 98.55；Bottom Acc 99.83、mIoU 99.37 | 不同任务 |
+| [Topo-Geom DualGNN](https://doi.org/10.3390/machines14040362) | 实例 / 底面 | Instance Acc 99.90、F1 99.54；Bottom Acc 99.92、mIoU 99.51 | 不同任务且为 5-fold validation |
+| [EAGIS](https://assets-eu.researchsquare.com/files/rs-4908235/v1_covered_753b1394-2eae-4437-98ae-dbfc4da2214f.pdf) | 仅实例分组 | Instance Acc 99.57、F1 98.04 | 不预测语义；预印本 |
+| [BRepMAE](https://arxiv.org/abs/2602.22701) | 0.1% 标注语义 | Acc 81.49、mIoU 63.27 | 极低标签协议 |
+| [Masked HGT](https://arxiv.org/abs/2603.14927) | 0.1% 标注语义 | Acc 88.75、mIoU 66.38 | 极低标签协议 |
 
-### 3.3 使用了 MFCAD++ 但未进入 Accuracy 排名
+[FeatureFox](https://arxiv.org/abs/2604.26770) 在 MFInstSeg 上采用联合衡量实例分离与语义正确性的 Panoptic Quality；[AAGATNet](https://doi.org/10.1016/j.cad.2026.104041) 的新增主基准是 MFInstSeg++。二者不与上面的原始 MFInstSeg 逐面语义 Accuracy 主表混排。
 
-| 论文 | 年份 | 原因 |
-|---|---:|---|
-| [SFRGNN-DA](https://doi.org/10.1016/j.jmsy.2025.05.005) | 2025 | 明确在 MFCAD++ 上做语义分割，但可访问摘要/索引页未披露数据集特定 Accuracy |
-| [Semantic Direct Modeling](https://www.researchgate.net/publication/390989999_Semantic_Direct_Modeling) | 2025 | 清洗后 57,992 个模型；报告生成模块 IoU=98.50%、ME=96.73%，未报告传统逐面 Accuracy |
-| [AgentsCAD](https://arxiv.org/abs/2607.02448) | 2026 | GraphSAGE 在 MFCAD++ 上训练并作为可选语义模块，但没有独立 MFCAD++ test Accuracy |
+## 8. FabWave（指定实验无本地结果）
 
-## 4. TMCAD / MechCAD
+| 方法 | 年份 | 版本 | Acc / 主要结果 |
+|---|---:|---|---:|
+| [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | 4,572、45 类 | 99.99%；三种子 99.74±0.43 |
+| [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | 45 类 | 98.95% |
+| [VGNet](https://doi.org/10.1109/TMM.2024.3521706) | 2025 | 4,475、45 类 | 98.00% |
+| AAGNet（Brep2Shape 复现） | 2026 | 45 类 | 96.33% |
+| UV-Net（Brep2Shape 复现） | 2026 | 45 类 | 92.68% |
+| [UV-Net 原论文](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | 52 类 | 94.51±0.10% |
+| [CADGCL](https://doi.org/10.1007/s00371-025-03949-y) | 2025 | 4,475、45 类 | F1 98.84%；未报 Acc |
 
-### 4.1 全部可核验结果（Acc 降序）
+指定九来源实验排除 FabWave，本节仅保留文献背景，旧版 40 类 transductive BRepPreDiff 数字已移除。
 
-以最新 BRepPreDiff **Edge Update Attention + Mean+Max pooling + MLP** 的 **86.1086%** 为本地基准。由于各论文的数据清洗、标签、划分与预训练协议差异明显，以下 `Δ` 只作数值参考。
+## 9. 建议表述
 
-| 排名 | 论文 / 方法 | 年份 | Acc | Δ vs BRepPreDiff | 等级 | 数据版本与协议 |
-|---:|---|---:|---:|---:|:---:|---|
-| 1 | [KDH-CAD](https://arxiv.org/abs/2606.01702) | 2026 | **95.82** | +9.71 | C | 清洗重标注 9,799；Bolt/Screw 合并并增加 Spring；仅 1,000 train shots，固定 500 val/500 test；Macro-F1=94.47 |
-| 2 | [TopoGNN](https://doi.org/10.2139/ssrn.6604901) | 2026 | **88.50** | +2.39 | B | SSRN 预印本；摘要报告 TMCAD shape-level Acc，具体有效样本与划分未完整披露 |
-| **3** | **BRepPreDiff（Edge Update Attention + Mean+Max pooling + MLP；七来源联合预训练）** | 2026 | **86.1086** | **基准** | B | 原始 MechCAD 10 类；10,897 个源模型、10,886 个有效模型；8,709/1,090/1,087；无标签 test 几何参与七来源联合预训练；200 epochs；按 validation Acc 选择 epoch 141 `best.pt` |
-| 4 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **84.72** | −1.39 | B | 仅保留 7,599 个有效文件；取最佳模型规模；默认 100 epoch 为 82.64，350 epoch 为 84.03 |
-| 5 | [BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **83.45** | −2.66 | A− | 原始 TMCAD 家族、10 类、70/15/15；期刊最终版；v1/MechCAD 曾报告 82.01 |
+> Using a four-layer Edge Update Attention encoder pretrained for 100 epochs on an inductive nine-source corpus, BRepPreDiff achieved 95.93% accuracy and 82.79% mIoU on Fusion360Seg, 99.41% and 98.17% on the official MFCAD++ split, and 84.91% and 73.75% on TMCAD. All validation and test geometries were held out from self-supervised pretraining.
 
-### 4.2 BRepPreDiff 本地结果对照
+> On the OCC-cleaned official CADSynth test subset, BRepPreDiff achieved 99.60% face accuracy, 99.34% macro-F1, and 98.69% mIoU with DiffLoss. On a deterministic seed-42 80/10/10 MFInstSeg split, the MLP head achieved 99.28% semantic face accuracy, 98.77% macro-F1, and 97.60% mIoU. MFInstSeg literature commonly uses a different split and also evaluates instance and bottom-face tasks, so only numerical references are claimed.
 
-| 方法 | Test Acc | Macro-F1 | Macro-IoU |
-|---|---:|---:|---:|
-| **BRepPreDiff Edge Update Attention + Mean+Max pooling + MLP（最新实验，200 epochs）** | **86.1086%** | **85.7531%** | **75.6592%** |
-| BRepPreDiff baseline encoder + Mean+Max pooling + MLP（pooling v3，200 epochs） | 85.5566% | 85.2855% | 75.0315% |
-| BRepPreDiff baseline encoder + Mean pooling + MLP（同组受控基线，200 epochs） | 82.6127% | 82.1251% | 70.4983% |
-| BRepPreDiff baseline encoder + DiffLoss（先前联合预训练，200 epochs） | 84.2686% | 83.9380% | 73.2085% |
-| BRepPreDiff MLP（全量联合预训练，200 epochs） | 81.8767% | 81.3106% | 69.4729% |
-| BRepPreDiff Edge Update Attention + DiffLoss（先前最新结果，200 epochs） | 83.9926% | 83.4995% | 72.3311% |
+## 10. 检索边界与本地证据
 
-在保持 encoder、预训练 checkpoint、MLP 头、数据划分和训练超参数一致时，baseline encoder 上的 Mean+Max 相对 Mean 提升
-**2.9439 pp Acc**、**3.1604 pp Macro-F1** 和 **4.5331 pp Macro-IoU**，参数量增加 **6.00%**。
-进一步换用 Edge Update Attention 及其架构匹配预训练 checkpoint 后，相对 baseline encoder + Mean+Max
-提高 **0.5520 pp Acc**、**0.4676 pp Macro-F1** 和 **0.6277 pp Macro-IoU**，但参数量增加
-**112.40%**。两种 encoder 对应的预训练语料分别为 333,476/334,036 图，因此该差值不是严格的单变量 encoder 消融；
-结果也只来自单随机种子，仍需多种子实验确认稳定性。
-
-**最接近的数据版本参照是 BRT。** 它仍使用原始 TMCAD 10 类家族，但采用 70/15/15 划分，而 BRepPreDiff 约为 80/10/10；此外 BRepPreDiff 的无标签 test 几何参与了联合预训练。BRepPreDiff 数值高 **2.66 pp**；该差距可用于定位，但不应写成严格同协议优越性。
-
-## 5. FabWave
-
-### 5.1 常见约 45 类全量监督口径（Acc 降序）
-
-FabWave 没有官方 train/test split，公开论文对损坏文件、稀有类别和重复模型的
-过滤也不一致。下表以 **45 类、约 4.5k 个模型**的全量监督分类结果为主，并加入
-BRepPreDiff 的清洗后 40 类本地结果作为数值参考；排名表示已报告数值的位置，不代表严格同协议比较。
-
-| 排名 | 论文 / 方法 | 年份 | Acc | 等级 | 数据版本与协议 |
-|---:|---|---:|---:|:---:|---|
-| 1 | [Brep2Shape](https://arxiv.org/abs/2602.07429) | 2026 | **99.99** | B | 4,572 个模型、45 类；6-layer 模型在 Brep2Shape-250k 上预训练后微调 100 epochs；预训练语料本身含 3,270 个 FabWave 模型；99.99 为主表/最佳种子值，附录三种子均值为 99.74±0.43 |
-| 2 | [Bringing Attention to CAD / BRT](https://doi.org/10.1016/j.cad.2025.103940) | 2025 | **98.95** | A− | 45 类 FabWave；期刊最终版/v2；数据集无官方划分，具体有效文件与随机划分需随实现记录 |
-| 3 | [VGNet](https://doi.org/10.1109/TMM.2024.3521706) | 2025 | **98.00** | A− | 4,475 个模型、45 类；融合多视图与 B-rep attributed graph；同文 retrieval mAP=92.90 |
-| **4** | **BRepPreDiff（Edge Update Attention + Mean+Max pooling + MLP；七来源联合预训练）** | 2026 | **97.9540** | C | 清洗后 40 类、3,989 个有效模型；3,191/407/391；按最高 validation Acc 选择 epoch 29 `best.pt`；无标签 test 几何参与七来源联合预训练；200 epochs；类别与划分不同，仅作数值参考 |
-| 5 | [AAGNet](https://doi.org/10.1016/j.rcim.2023.102661) | 2024 | **96.33** | B | AAGNet 原本面向分割；此处采用 Brep2Shape 按分类任务适配并训练 350 epochs 的同表基线，不是 AAGNet 原论文主任务结果 |
-| 6 | [UV-Net](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | **92.68** | B | 采用 Brep2Shape 的 45 类同表复现值；UV-Net 原论文的 52 类 Standard 子集结果为 94.51%，见第 5.2 节 |
-
-BRepPreDiff 最新 **Edge Update Attention + Mean+Max pooling + MLP** 与 baseline encoder + Mean+Max、baseline pooling 消融及先前分类实验得到完全相同的测试结果：**97.9540% Acc /
-99.4929% Macro-F1 / 99.0794% Macro-IoU / 97.9461% Weighted-F1**，391 个 test
-样本中正确 383 个。Edge Update + Mean+Max checkpoint 位于 epoch 29，validation Acc 为
-**97.0516%**。本地数据处理依次删除
-250 个 `Rotary_Shaft`、302 个与 O-Rings 重叠的 Washers，以及有效样本少于 10 的
-`Webbing Guide`（0）、`Miter Gears`（1）和 `Sleeve Washers`（7）；最终保留 40 类。
-由于论文主榜通常采用 45 类，不能将表中第 4 的数值位置解释为严格方法排名。
-
-### 5.2 派生标签、少样本与零样本协议
-
-| 论文 / 方法 | 年份 | FabWave 版本 | Acc / 主要结果 | 等级 | 为什么不进入 45 类主榜 |
-|---|---:|---|---:|:---:|---|
-| [Self-Supervised Representation Learning for CAD / SSL4CAD](https://openaccess.thecvf.com/content/CVPR2023/html/Jones_Self-Supervised_Representation_Learning_for_CAD_CVPR_2023_paper.html) | 2023 | 26 类、最高 3,125 个训练样本 | **100.00%**（四舍五入） | C | 只保留至少有 3 个兼容样本的类别，并移除 2 个仅朝向不同的类别；完整监督点为 10 次运行均值，表中只保留两位小数；face codes 在 Fusion360 Gallery 上预训练 |
-| [KDH-CAD](https://arxiv.org/abs/2606.01702) | 2026 | 7 类、2,662 个模型 | **99.84%** | C | 从 45 类中只选样本数不少于 200 的类别，并将重复率约 83% 的 Rotary Shaft/Keyway Shaft 合并；KDH-CAD 仅用 350 个训练样本，另使用工程知识和冻结的 Qwen3-VL；同划分 BRT 为 99.68% |
-| [MVCNN++](https://doi.org/10.1115/1.4047486) | 2021 | FW10C、10 类 | **95.45±1.00%** | C | 10 类多视图派生集，ImageNet 预训练并融合尺寸元数据；5-fold validation，不是 45 类 B-rep 分类协议 |
-| [PP-Brep](https://openaccess.thecvf.com/content/CVPR2026/html/Hao_PP-Brep_Few-Shot_B-rep_Classification_with_Hybrid_Graph_Representation_CVPR_2026_paper.html) | 2026 | FabWave-31、2,775 个模型 | **72.98±3.84%**（1-shot）；**87.55%**（5-shot） | C | 31 类派生集；在 DeepCAD 上预训练后做 1/3/5-shot graph prompt，不能与全量监督混排 |
-| [BRepCLIP](https://arxiv.org/abs/2606.05515) | 2026 | 清洗后 4,378 个模型、39 类 | **38.62% Top-1** | C | 在 ABC 上训练，FabWave 完全不微调；按类别文本描述做严格 zero-shot，另报 Top-5=70.28、Top-10=86.71 |
-| [UV-Net（原论文）](https://openaccess.thecvf.com/content/CVPR2021/html/Jayaraman_UV-Net_Learning_From_Boundary_Representations_CVPR_2021_paper.html) | 2021 | Standard 子集、52 类 | **94.51±0.10%** | C | 从原数据提供的 56 类中移除极少或无有效模型的 4 类，并按类随机 80/20；类别数不同于当前常见 45 类版本 |
-
-### 5.3 使用了 FabWave 但未进入 Accuracy 排名
-
-| 论文 | 年份 | 原因 |
-|---|---:|---|
-| [CADGCL](https://doi.org/10.1007/s00371-025-03949-y) | 2025 | 4,475 个模型、45 类、80/20；报告 F1=98.84%、retrieval mAP@50=89.35%、mAP@10=98.58%，但未给出 Accuracy，故不由 F1 反推 Acc |
-
-### 5.4 FabWave 比较结论
-
-- **最接近当前 45 类全量基准的是 BRT、VGNet 与 Brep2Shape 主表。** 即使类别数相同，4,475、4,504、4,572 等有效模型统计和随机划分仍不一致。
-- **Brep2Shape 的 99.99% 不能直接视为严格 test-isolated SOTA。** 其 250k 预训练集包含 3,270 个 FabWave 模型；论文未证明这些模型与下游 test split 完全去重隔离。更稳妥的复现实验参照是附录三种子均值 **99.74±0.43%**。
-- **BRepPreDiff Edge Update Attention + Mean+Max、baseline encoder + Mean+Max 及先前分类实验在清洗后 40 类协议上均为 97.9540% Acc。** 更大的 encoder 未在该任务上带来可见 test 收益；数值上比 Brep2Shape/BRT 的 45 类结果低 2.04/1.00 pp，比 VGNet 低 0.05 pp，且类别、有效模型和划分不同，差值只作定位。
-- **FabWave 很容易受近重复、参数变体和类别过滤影响。** 后续实验应固定文件 manifest、哈希去重、类别表和随机种子，并同时报告 Macro-F1。
-
-## 6. 建议用于论文/报告的表述
-
-### Fusion360Seg 与 Fusion-derived 三分类任务
-
-> With seven-source transductive self-supervised pretraining, an Edge Update Attention encoder, and an MLP fine-tuning head, BRepPreDiff achieved 93.06% face-level accuracy, 87.39% macro-F1, and 78.70% macro-IoU on the eight-class Fusion360Seg task. Because unlabeled test geometry was included during pretraining, this result is reported separately from test-isolated inductive comparisons. On the local three-class transition task, the same encoder achieved 98.12% accuracy and 92.89% macro-IoU.
-
-### MFCAD++
-
-> On the official MFCAD++ split, BRepPreDiff with an Edge Update Attention encoder and an MLP fine-tuning head achieved 99.36% face-level accuracy, 98.99% macro-F1, and 98.02% macro-IoU. Numerically, its accuracy is 1.99 percentage points above the original Hierarchical CADNet result and 0.40 percentage points below the highest verified result identified in this survey. Because unlabeled test geometry was included during transductive self-supervised pretraining, these differences should not be interpreted as gains under a strictly test-isolated protocol.
-
-### TMCAD
-
-> On the original ten-class TMCAD/MechCAD taxonomy, BRepPreDiff with a four-layer Edge Update Attention encoder, Mean+Max graph pooling, and an MLP fine-tuning head achieved 86.11% accuracy, 85.75% macro-F1, and 75.66% macro-IoU. This is 0.55 percentage points above the corresponding baseline-encoder Mean+Max experiment, although the architecture-matched pretraining checkpoints used slightly different seven-source corpora. BRT reports 83.45% on the original dataset family and Brep2Shape reports 84.72% on a more heavily filtered version; the data splits and pretraining protocols differ.
-
-### FabWave
-
-> FabWave results are reported separately by label taxonomy and supervision protocol because the dataset has no official split and published variants contain different numbers of categories and valid models. After removing Rotary Shaft, 302 overlapping Washer/O-Ring models, and classes with fewer than ten valid samples, BRepPreDiff with a four-layer Edge Update Attention encoder, Mean+Max graph pooling, and an MLP head achieved 97.95% accuracy, 99.49% macro-F1, and 99.08% macro-IoU on a local 40-class split containing 3,989 valid models. It tied the baseline-encoder Mean+Max experiment on all test metrics. On commonly used 45-class variants, Brep2Shape reports 99.99% accuracy (99.74% mean over three seeds) and BRT reports 98.95%; no strict direct comparison is claimed.
-
-## 7. 检索边界与注意事项
-
-- 检索截止 2026-07-23；之后发表或更新的论文不在本表内。
-- 本表优先使用论文原文、正式出版页面、arXiv/SSRN 原稿和可核验的同协议主表；无法核验的搜索摘要数字不录入。
-- BRT 的 arXiv v1 与期刊最终版数值不同，统一采用期刊最终版/v2。
-- AAGNet 等方法在不同论文复现中有约 0.01–0.07 pp 波动，表中采用原论文或多篇主表一致值。
-- FabWave 没有官方划分，且公开版本至少包含 52/45/39/31/26/10/7 类口径；同名数据集结果必须连同类别数、有效模型数、划分和监督协议一起引用。
-- Brep2Shape 主表的 FabWave 99.99% 为最佳种子/主结果，附录三种子均值为 99.74±0.43%；其预训练语料包含 3,270 个 FabWave 模型，因此标为 B 级而非严格隔离的 A 级证据。
-- 不同论文对 `mIoU`、`IoU`、`Macro-IoU` 的平均方式可能不同，不能仅凭名称相同就视为严格同定义。
-- “所有论文”按公开可检索、明确说明使用目标数据集且能去重识别的论文理解；受限全文或仅在正文中隐含数据集名称的工作可能仍有漏检。
-
-## 8. 本地证据文件
-
-- `finetune_baseline_ablation_results.md`：Fusion-derived 三分类任务与消融结果
-- `mfcad_finetune_results.md`：MFCAD++ 官方划分与完整测试集结果
-- `tmcad_finetune_results.md`：TMCAD/MechCAD 原始 10 类结果
-- `joint_all_splits_report.md`：2026-07-24 更新的联合预训练、四项微调与完整测试结果
-- `joint_fusion_gallery_all_unlabeled_mlp_diffloss_2026-08-05.md`：334,036 个 STEP 的七来源联合预训练与 DiffLoss 四项测试结果
-- `joint_fusion_gallery_mlp_head_benchmarks_2026-08-05.md`：同一预训练 checkpoint 下的 MLP 四项测试结果及与 DiffLoss 的受控对比
-- `fabwave_min10_diffloss_acc_results_2026-08-06.md`：FabWave 40 类清洗口径、按最高 validation Acc 选取的 DiffLoss checkpoint、完整测试指标与错误构成
-- `fabwave_min10_misclassified_ids_2026-08-06.txt`：FabWave 最新 test split 的 8 个误分类样本 ID
-- `max_acc_best_checkpoint_retest_2026-08-06.md`：三项主数据集在 max-accuracy `best.pt` 策略下的 DiffLoss 重训与测试结果
-- `mlp_vs_diffloss_max_acc_results_2026-08-07.md`：四项任务共 4 组 MLP 与 4 组 DiffLoss 的统一 max-accuracy 对比、run 路径和 checkpoint 哈希
-- `runs/edge_update_new_joint/`：333,476 图七来源 Edge Update Attention 预训练 checkpoint，以及 BRepPreDiff/Fusion360Seg/MFCAD++ MLP 和 TMCAD/FabWave DiffLoss 的完整测试指标
-- `cls_pooling_ablation_2026-08-11.md`：TMCAD 与 FabWave 的 Mean、Mean+Max、Mean+Std、Residual Attention 受控消融、完整测试指标、run 路径和 checkpoint 哈希
-- `runs/cls_pooling_ablation/finetune/`：baseline encoder 的 Mean+Max 与其他 pooling v3 消融训练配置、日志、`best.pt` 与测试产物
-- `edge_update_meanmax_cls_2026-08-11.md`：Edge Update Attention + Mean+Max 在 TMCAD/FabWave 上的正式结果、与 baseline encoder 的对比及 checkpoint 哈希
-- `runs/edge_update_meanmax_cls/`：物理 GPU 1/2 的完整训练配置、日志、checkpoint 与测试指标
+- 优先使用原论文、正式出版页、arXiv 原稿和作者公开 PDF；无法核验的摘要数字不进入主表。
+- CADSynth 的历史方法采用 BrepMFR 原论文 Table 2；Topo-Geom 采用其清洗后 5-fold validation 结果。
+- MFInstSeg 的语义、实例、底面任务严格分表；同名 F1/Accuracy 只有任务定义一致时才比较。
+- BRT 统一采用期刊最终版/v2。不同论文的 mIoU 平均方式仍可能不同。
+- 本地 run、checkpoint 哈希详见 `reports/inductive9_lr1e4_pre100_full_mlp_diffloss200_seed42_20260901.md`。
+- 九来源为 BRepPreDiff、TMCAD、Fusion360Seg、MFCAD++、Fusion360Rec、Fusion360Ass、SolidLetters、CADSynth、MFInstSeg；均只取 train split，排除 FabWave。配置见 `data/pretrain_joint_inductive.yaml`。

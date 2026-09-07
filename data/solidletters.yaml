@@ -1,0 +1,32 @@
+task: cls
+
+data:
+  steps_dir: /home/nvme03/hhfeng/SolidLetters/step
+  labels_dir: data/labels/solidletters
+  cache_dir: cache/features/solidletters
+  prepare_on_start: false
+  # Clean splits exclude the 64 source STEP files rejected by OCC.
+  train_split: data/splits/solidletters_train_clean.txt
+  val_split: data/splits/solidletters_val_clean.txt
+  test_split: data/splits/solidletters_test_clean.txt
+  step_extensions: [".step", ".stp", ".STEP", ".STP"]
+  labels_required: true
+  strict_label_count: true
+  overwrite_cache: false
+  cache_num_workers: 16
+  invalid_log: cache/features/solidletters_invalid.jsonl
+
+brep:
+  uv_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  encoding: one_hot
+  num_classes: 26
+  ignore_index: -100
+  include_transition_binary: false
+  names: [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z]

@@ -103,3 +103,38 @@ def test_load_checkpoint_migrates_legacy_classification_head(tmp_path):
 
     assert epoch == 7
     assert torch.equal(restored.cls_head.net[0].weight, source.cls_head.net[0].weight)
+
+
+def test_checkpoint_round_trip_restores_lr_scheduler(tmp_path):
+    import torch
+
+    from brepprediff.training.common import load_checkpoint, save_checkpoint
+
+    source = torch.nn.Linear(2, 1)
+    optimizer = torch.optim.AdamW(source.parameters(), lr=1.0e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+    optimizer.step()
+    scheduler.step()
+    checkpoint = tmp_path / "scheduler.pt"
+    save_checkpoint(
+        checkpoint,
+        model=source,
+        optimizer=optimizer,
+        lr_scheduler=scheduler,
+        epoch=1,
+        config={},
+    )
+
+    restored = torch.nn.Linear(2, 1)
+    restored_optimizer = torch.optim.AdamW(restored.parameters(), lr=1.0e-4)
+    restored_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(restored_optimizer, T_max=10)
+    epoch = load_checkpoint(
+        checkpoint,
+        model=restored,
+        optimizer=restored_optimizer,
+        lr_scheduler=restored_scheduler,
+    )
+
+    assert epoch == 1
+    assert restored_scheduler.state_dict() == scheduler.state_dict()
+    assert restored_optimizer.param_groups[0]["lr"] == optimizer.param_groups[0]["lr"]

@@ -1,0 +1,60 @@
+data:
+  # Inductive self-supervised protocol: only each source's training geometry is
+  # used without labels. All downstream validation and test splits stay held out.
+  # FabWave is intentionally excluded from the experiment corpus.
+  prepare_on_start: false
+  strip_labels: true
+  sources:
+    - name: brepprediff
+      data_config: pretrain.yaml
+      splits:
+        train: [train]
+    - name: tmcad
+      data_config: tmcad.yaml
+      splits:
+        train: [train]
+    - name: fusion360seg_s2_0_1
+      data_config: fusion360seg_s2_0_1_pretrain.yaml
+      splits:
+        train: [train]
+    - name: mfcadpp
+      data_config: mfcad.yaml
+      splits:
+        train: [train]
+    - name: fusion360rec_r1_0_1
+      data_config: fusion360rec_r1_0_1_pretrain.yaml
+      splits:
+        train: [train]
+    - name: fusion360ass_j1_0_0
+      data_config: fusion360ass_j1_0_0_pretrain.yaml
+      splits:
+        train: [train]
+    - name: solidletters
+      data_config: solidletters.yaml
+      splits:
+        train: [train]
+    - name: cadsynth
+      data_config: cadsynth.yaml
+      splits:
+        train: [train]
+      data:
+        # Use the OCC-cleaned train list; val/test remain unmapped.
+        train_split: data/splits/cadsynth_train_clean.txt
+    - name: mfinstseg
+      data_config: mfinstseg.yaml
+      splits:
+        train: [train]
+
+brep:
+  # OCC-grid-v2: 11 + 10*10*7 = 711 face channels and
+  # 3 + 10*6 = 63 edge channels.
+  uv_grid_size: 10
+  edge_u_grid_size: 10
+  occ_precision: 1.0e-6
+  smooth_angle_degrees: 5.0
+  surface_type_vocab: 32
+  edge_type_vocab: 32
+  relation_type_vocab: 4
+
+labels:
+  ignore_index: -100

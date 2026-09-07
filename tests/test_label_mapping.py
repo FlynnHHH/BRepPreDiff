@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import numpy as np
 
 from brepprediff.brep.occ_extractor import _parse_label_map, _remap_labels
@@ -43,3 +45,44 @@ def test_filletrec_json_labels_are_read_without_seg_conversion(tmp_path):
     labels = extractor._read_labels(label_path, 4, True, True)
 
     np.testing.assert_array_equal(labels, np.array([0, 1, 1, 0], dtype=np.int64))
+
+
+def _label_reader() -> OccBRepExtractor:
+    extractor = OccBRepExtractor.__new__(OccBRepExtractor)
+    extractor.label_offset = 0
+    extractor.label_map = None
+    extractor.label_default_class = None
+    extractor.ignore_index = -100
+    return extractor
+
+
+def test_cadsynth_json_object_labels_follow_occ_face_order(tmp_path):
+    label_path = tmp_path / "part.json"
+    label_path.write_text(json.dumps({"file_name": "part", "labels": [3, 1, 4]}))
+
+    labels = _label_reader()._read_labels(label_path, 3, True, True)
+
+    np.testing.assert_array_equal(labels, np.array([3, 1, 4], dtype=np.int64))
+
+
+def test_mfinstseg_json_seg_mapping_follows_numeric_face_order(tmp_path):
+    label_path = tmp_path / "part.json"
+    label_path.write_text(
+        json.dumps([["part", {"seg": {"2": 4, "0": 3, "1": 1}, "inst": []}]])
+    )
+
+    labels = _label_reader()._read_labels(label_path, 3, True, True)
+
+    np.testing.assert_array_equal(labels, np.array([3, 1, 4], dtype=np.int64))
+
+
+def test_mfinstseg_json_seg_mapping_rejects_missing_face_index(tmp_path):
+    label_path = tmp_path / "part.json"
+    label_path.write_text(json.dumps([["part", {"seg": {"0": 3, "2": 4}}]]))
+
+    try:
+        _label_reader()._read_labels(label_path, 2, True, True)
+    except ValueError as exc:
+        assert "contiguous" in str(exc)
+    else:
+        raise AssertionError("Expected a non-contiguous seg mapping to raise ValueError")

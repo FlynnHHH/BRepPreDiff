@@ -1,7 +1,7 @@
 data:
   steps_dir: data/raw/steps
   segs_dir: data/raw/segs
-  cache_dir: /data/hhfeng/brepprediff/cache/features
+  cache_dir: cache/features
   prepare_on_start: false
   train_split: data/splits/train.txt
   val_split: data/splits/val.txt

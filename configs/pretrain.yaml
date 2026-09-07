@@ -1,7 +1,8 @@
 seed: 42
-# Default encoder pretraining uses the seven-source transductive corpus and
+# Default encoder pretraining uses the nine-source inductive corpus (train
+# splits only, including SolidLetters/CADSynth/MFInstSeg and excluding FabWave) and
 # the OCC-grid-v2 schema (711 face features / 63 edge features).
-data_config: ../data/pretrain_joint_fusion_gallery_filtered_fabwave_all_splits.yaml
+data_config: ../data/pretrain_joint_inductive.yaml
 
 run:
   name: pretrain
@@ -32,12 +33,13 @@ diffusion:
 
 train:
   device: cuda
+  require_cuda: true
   epochs: 150
   # Per-rank batch size for the default four-GPU launch (global batch 256).
   batch_size: 64
   num_workers: 16
   normalize_per_graph: true
-  lr: 1.0e-3
+  lr: 1.0e-4
   weight_decay: 1.0e-4
   grad_clip_norm: 1.0
   distributed_timeout_seconds: 120

@@ -23,6 +23,9 @@ htmlcov/
 !/data/splits/
 /data/splits/*
 !/data/splits/tmcad_*.txt
+!/data/splits/mfcad_*.txt
+!/data/splits/cadsynth_*.txt
+!/data/splits/mfinstseg_*.txt
 /dist/
 /runs/
 /tools/visualize/results/
