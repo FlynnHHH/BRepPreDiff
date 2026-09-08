@@ -252,3 +252,71 @@ faces across 5,366 CADs), exceeding the requested 97% target. Weighted F1 is
 fine-tuning epochs. Their manifests share identical disjoint split hashes and
 record GPU 4. `validation_search_v4/summary.json` now records the selected test
 artifact and `test_accessed: true`; no further experiments were started.
+
+## Code changes and gains over baseline
+
+The implementation work was concentrated in the following modules:
+
+- `models/encoder.py`: added optional face/edge grid encoders and learned
+  multi-scale context pooling. The latter mixes the input and intermediate GNN
+  layers, then broadcasts per-CAD mean/max context back to each face.
+- `models/diffusion.py`: added consistent categorical attribute masking during
+  pretraining, including shared masks for reverse/parallel edge records and loss
+  computation only at masked positions.
+- `models/segmentation.py` and `models/downstream.py`: added boundary auxiliary
+  supervision, boundary-gated refinement, operation-family auxiliary supervision,
+  and structured graph-label diffusion support. Ordinary inference continues to
+  emit the original eight Fusion360Seg classes.
+- `data/graph.py` and `data/dataset.py`: added physical/isotropic geometry
+  normalization, rigid SO(3) rotation, UV-grid symmetries, deterministic evaluation
+  rotations, and a configurable rotation probability. The winning mixed policy
+  retains the canonical frame for 50% of training CADs and rotates the other 50%.
+- `brep/occ_extractor.py`: added optional local shared-edge normals derived from
+  original STEP pcurves, stored in a separate cache without overwriting baseline
+  features.
+- `training/finetune.py` and `training/pretrain.py`: added scheduler support,
+  auxiliary-loss handling, and progress-output control while preserving the exact
+  50/100 epoch protocol.
+- `training/evaluate.py`: added deterministic rotation TTA, compatible multi-model
+  probability ensembling, and confidence-gated topology smoothing. Evaluation JSON
+  records member checkpoints, epochs, transforms, and postprocessing parameters.
+- `scripts/fusion97_*.py`: added split auditing, source snapshots/hashes, strict
+  GPU-4 experiment launching, local-edge cache preparation, status reporting, and
+  fixed validation-only candidate searches. Regression coverage was expanded in
+  `tests/test_fusion97_variants.py` and `tests/test_evaluate.py`; the final suite
+  passes 144 tests.
+
+All comparisons below use the same 79,920-face validation split. The baseline is
+**96.1974%**, so “gain” is an absolute percentage-point difference, not a relative
+percentage. Every trained row completed 50 Fusion360Seg-only pretraining epochs
+(or reused the stated frozen 50-epoch encoder) and 100 Fusion360Seg-only fine-tuning
+epochs.
+
+| Variant | Main code/experiment change | Validation accuracy (%) | Gain vs baseline (pp) |
+|---|---|---:|---:|
+| baseline | 128-dim, four-layer edge-update attention | 96.1974 | +0.0000 |
+| masked | 50% categorical masking in pretraining | 96.0786 | -0.1189 |
+| wide | Hidden dimension 128 → 256 | 96.2588 | +0.0613 |
+| grid | Dedicated face/edge grid encoders | 96.0861 | -0.1114 |
+| context | Learned multi-layer + graph mean/max context | 96.3889 | +0.1914 |
+| boundary | Boundary auxiliary loss | 96.2112 | +0.0138 |
+| boundary_refine | Boundary loss plus gated neighbor refinement | 96.1324 | -0.0651 |
+| geometric | Isotropic physical normalization | 95.6619 | -0.5355 |
+| geometric_grid | Physical normalization plus grid encoders | 95.9735 | -0.2240 |
+| localedge | STEP-pcurve local shared-edge normals | 96.1699 | -0.0275 |
+| context_cosine | Context plus cosine LR decay | 96.2400 | +0.0425 |
+| context_operation | Context plus operation-family auxiliary loss | 96.2988 | +0.1014 |
+| context_rotation | Context plus 100% random rotation | 96.9057 | +0.7082 |
+| context_rotation_seed43 | Independent seed-43 rotation run | 96.8143 | +0.6169 |
+| context_rotation_operation | Rotation plus operation auxiliary loss | 96.9082 | +0.7107 |
+| context_rotation_mix | 50% canonical / 50% random rotation | 97.2410 | +1.0435 |
+| final ensemble | Rotation + mixed rotation + rotation/operation | **97.4087** | **+1.2112** |
+
+The largest single-model gain came from mixed rotation, not additional capacity or
+geometry normalization. Relative to always rotating every training CAD, retaining
+50% canonical samples added another **0.3353 pp**. Equal-probability ensembling of
+three validation-selected models added **0.1677 pp** over the best single model.
+The final official-test accuracy is **97.0974%**. A baseline test evaluation was
+intentionally never run, so the report does not claim a test-set gain versus
+baseline; doing so would require an additional baseline test access not used in
+the validation-driven protocol.
