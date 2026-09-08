@@ -370,10 +370,10 @@ class StepSegDataset(Dataset):
             configured_mode
             or ("per_graph" if train_cfg.get("normalize_per_graph", True) else "none")
         )
-        if self.feature_preprocessing_mode not in {"per_graph", "none", "typewise_global"}:
+        if self.feature_preprocessing_mode not in {"per_graph", "none", "typewise_global", "geometric"}:
             raise ValueError(
                 "train.feature_preprocessing.mode must be one of: "
-                "per_graph, none, typewise_global."
+                "per_graph, none, typewise_global, geometric."
             )
         self.global_feature_stats = None
         if self.feature_preprocessing_mode == "typewise_global":
@@ -505,6 +505,33 @@ class StepSegDataset(Dataset):
     def _preprocess_graph(self, graph: BRepGraph) -> BRepGraph:
         feature_schema = str(self.config["brep"].get("feature_schema", "occ_grid_v2"))
         uv_grid_size = int(self.config["brep"]["uv_grid_size"])
+        train_cfg = self.config.get('train', {})
+        evaluation_rotation = train_cfg.get('evaluation_rotation_matrix')
+        if self.split != 'train' and evaluation_rotation is not None:
+            from brepprediff.data.graph import augment_graph_geometry
+            if feature_schema == 'legacy':
+                raise ValueError('Evaluation rotation requires OCC-grid-v2.')
+            graph = augment_graph_geometry(
+                graph, uv_grid_size=uv_grid_size,
+                edge_u_grid_size=int(self.config['brep'].get('edge_u_grid_size', uv_grid_size)),
+                rotation_matrix=torch.tensor(evaluation_rotation),
+            )
+        if self.split == 'train' and train_cfg.get('stage') == 'finetune' and (
+            train_cfg.get('rotation_augmentation', False) or train_cfg.get('uv_augmentation', False)
+        ):
+            from brepprediff.data.graph import augment_graph_geometry
+            if feature_schema == 'legacy':
+                raise ValueError('Geometry augmentation requires OCC-grid-v2.')
+            rotation_enabled = bool(train_cfg.get('rotation_augmentation', False))
+            rotation_probability = float(train_cfg.get('rotation_augmentation_probability', 1.0))
+            if not 0.0 <= rotation_probability <= 1.0:
+                raise ValueError('rotation_augmentation_probability must be in [0, 1].')
+            graph = augment_graph_geometry(
+                graph, uv_grid_size=uv_grid_size,
+                edge_u_grid_size=int(self.config['brep'].get('edge_u_grid_size', uv_grid_size)),
+                rotate=rotation_enabled and torch.rand(()) < rotation_probability,
+                reparameterize=bool(train_cfg.get('uv_augmentation', False)),
+            )
         if feature_schema == "legacy":
             edge_grid_size = int(self.config["brep"].get("edge_u_grid_size", uv_grid_size))
             v2_dims = (11 + uv_grid_size**2 * 7, 3 + edge_grid_size * 6)
@@ -518,6 +545,14 @@ class StepSegDataset(Dataset):
                 f"Cached graph {graph.sample_id!r} uses face/edge dimensions {actual_dims}, "
                 f"but the configured OCC feature schema expects "
                 f"({expected_face_dim}, {expected_edge_dim}). Rebuild the feature cache."
+            )
+        if self.feature_preprocessing_mode == "geometric":
+            from brepprediff.data.graph import geometric_normalize_graph_features
+            if feature_schema == "legacy":
+                raise ValueError("Geometric normalization requires OCC-grid-v2.")
+            return geometric_normalize_graph_features(
+                graph, uv_grid_size=uv_grid_size,
+                edge_u_grid_size=int(self.config['brep'].get('edge_u_grid_size', uv_grid_size)),
             )
         if feature_schema == "legacy":
             if self.feature_preprocessing_mode == "per_graph":

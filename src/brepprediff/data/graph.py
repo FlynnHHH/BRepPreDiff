@@ -114,6 +114,76 @@ class GlobalFeatureStats:
     uv_grid_size: int
 
 
+def geometric_normalize_graph_features(graph: BRepGraph, *, uv_grid_size: int,
+                                      edge_u_grid_size: int, eps: float = 1e-6) -> BRepGraph:
+    """Use one isotropic CAD frame while preserving unit directions and masks.
+
+    Geometry-only statistics are computed independently for each CAD. No fitted
+    dataset statistics or labels are involved. Cache arrays are never mutated.
+    """
+    from dataclasses import replace
+    face, edge = graph.face_cont.clone(), graph.edge_cont.clone()
+    grid = face[:, 11:].reshape(-1, uv_grid_size**2, 7)
+    valid_points = grid[:, :, :3][grid[:, :, 6] > 0.5]
+    points = torch.cat((face[:, 1:4], valid_points), dim=0)
+    # A centroid and enclosing-sphere diameter commute with rigid rotations;
+    # an axis-aligned bounding-box extent would change with orientation.
+    center = points.mean(0)
+    scale = (2 * (points - center).norm(dim=-1).amax()).clamp_min(eps)
+    face[:, 1:4] = (face[:, 1:4] - center) / scale
+    grid[:, :, :3] = ((grid[:, :, :3] - center) / scale).clamp(-4, 4)
+    face[:, 4:7] = torch.nn.functional.normalize(face[:, 4:7], dim=-1, eps=eps)
+    grid[:, :, 3:6] = torch.nn.functional.normalize(grid[:, :, 3:6], dim=-1, eps=eps)
+    face[:, 0] = torch.log1p(torch.expm1(face[:, 0]).clamp_min(0) / scale.square())
+    curvature = face[:, 7:11] * torch.stack((scale, scale, scale, scale.square()))
+    face[:, 7:11] = curvature.sign() * torch.log1p(curvature.abs())
+    if edge.shape[0]:
+        edge[:, 0] = torch.log1p(torch.expm1(edge[:, 0]).clamp_min(0) / scale)
+        eg = edge[:, 3:].reshape(-1, edge_u_grid_size, 6)
+        eg[:, :, :3] = ((eg[:, :, :3] - center) / scale).clamp(-4, 4)
+        eg[:, :, 3:6] = torch.nn.functional.normalize(eg[:, :, 3:6], dim=-1, eps=eps)
+    return replace(graph, face_cont=face, edge_cont=edge)
+
+
+def augment_graph_geometry(graph: BRepGraph, *, uv_grid_size: int, edge_u_grid_size: int,
+                           rotate: bool = False, reparameterize: bool = False,
+                           rotation_matrix: torch.Tensor | None = None) -> BRepGraph:
+    """Label-preserving rigid rotation and UV grid symmetries on raw features."""
+    from dataclasses import replace
+    face, edge = graph.face_cont.clone(), graph.edge_cont.clone()
+    grid = face[:, 11:].reshape(-1, uv_grid_size, uv_grid_size, 7)
+    if rotate or rotation_matrix is not None:
+        if rotation_matrix is None:
+            q = torch.nn.functional.normalize(torch.randn(4), dim=0)
+            w, x, y, z = q.unbind()
+            rotation = torch.stack((
+                1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w),
+                2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w),
+                2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y),
+            )).reshape(3, 3).to(face)
+        else:
+            rotation = torch.as_tensor(rotation_matrix, dtype=face.dtype, device=face.device)
+            if rotation.shape != (3, 3):
+                raise ValueError(f'rotation_matrix must be 3x3, got {tuple(rotation.shape)}')
+        face[:, 1:4] = face[:, 1:4] @ rotation.T
+        face[:, 4:7] = face[:, 4:7] @ rotation.T
+        grid[:, :, :, :3] = grid[:, :, :, :3] @ rotation.T
+        grid[:, :, :, 3:6] = grid[:, :, :, 3:6] @ rotation.T
+        if edge.shape[0]:
+            eg = edge[:, 3:].reshape(-1, edge_u_grid_size, 6)
+            eg[:, :, :3] = eg[:, :, :3] @ rotation.T
+            eg[:, :, 3:6] = eg[:, :, 3:6] @ rotation.T
+    if reparameterize:
+        indexes = torch.arange(uv_grid_size**2, device=face.device).reshape(uv_grid_size, uv_grid_size)
+        permutations = torch.stack([torch.rot90(indexes.flip(0) if flip else indexes, k).flatten()
+                                    for flip in (False, True) for k in range(4)])
+        choice = torch.randint(8, (graph.num_faces,), device=face.device)
+        reordered = grid.reshape(graph.num_faces, -1, 7).gather(
+            1, permutations[choice, :, None].expand(-1, -1, 7))
+        face[:, 11:] = reordered.flatten(1)
+    return replace(graph, face_cont=face, edge_cont=edge)
+
+
 def load_global_feature_stats(path: str | Path) -> GlobalFeatureStats:
     stats_path = Path(path)
     with stats_path.open("r", encoding="utf-8") as stream:

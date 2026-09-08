@@ -60,7 +60,9 @@ def run_epoch(
 ) -> dict[str, float]:
     model.train(train)
     meter = MetricAverager()
-    show_progress = distributed is None or distributed.is_main_process
+    show_progress = (distributed is None or distributed.is_main_process) and bool(
+        config.get("run", {}).get("show_progress", True)
+    )
     iterator = tqdm(
         dataloader,
         desc="train" if train else "val",

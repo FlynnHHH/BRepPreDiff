@@ -9,6 +9,31 @@ from brepprediff.training.evaluate import (
 )
 
 
+def test_evaluate_parser_collects_ensemble_checkpoints():
+    from brepprediff.training.evaluate import build_arg_parser
+    args = build_arg_parser().parse_args([
+        '--checkpoint', 'primary.pt', '--ensemble-checkpoint', 'second.pt',
+        '--ensemble-checkpoint', 'third.pt', '--rotation-tta', '4',
+        '--graph-smoothing-alpha', '0.2',
+    ])
+    assert args.checkpoint == 'primary.pt'
+    assert args.ensemble_checkpoint == ['second.pt', 'third.pt']
+    assert args.rotation_tta == 4
+    assert args.graph_smoothing_alpha == 0.2
+
+
+def test_confidence_gated_graph_smoothing_preserves_confident_and_isolated_faces():
+    import torch
+    from brepprediff.training.evaluate import confidence_gated_graph_smoothing
+    probabilities = torch.tensor([[1., 0.], [.4, .6], [0., 1.]])
+    edge_index = torch.tensor([[0, 1], [1, 0]])
+    smoothed = confidence_gated_graph_smoothing(probabilities, edge_index, 0.5)
+    assert torch.equal(smoothed[0], probabilities[0])
+    assert smoothed[1, 0] > probabilities[1, 0]
+    assert torch.equal(smoothed[2], probabilities[2])
+    assert torch.allclose(smoothed.sum(-1), torch.ones(3))
+
+
 def test_classification_metrics_include_per_class_iou_and_transition_binary() -> None:
     confusion = torch.tensor(
         [

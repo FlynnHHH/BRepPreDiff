@@ -205,6 +205,8 @@ class BRepGraphEncoder(nn.Module):
         relation_type_vocab: int,
         encoder_type: str = "message_passing",
         num_heads: int = 4,
+        grid_encoder: bool = False,
+        multiscale_context: bool = False,
     ) -> None:
         super().__init__()
         encoder_type = self.ENCODER_TYPE_ALIASES.get(encoder_type, encoder_type)
@@ -240,6 +242,24 @@ class BRepGraphEncoder(nn.Module):
                 for _ in range(num_layers)
             ]
         )
+        self.grid_encoder = grid_encoder
+        self.multiscale_context = multiscale_context
+        if grid_encoder:
+            self.grid_size = math.isqrt((face_cont_dim - 11) // 7)
+            if face_cont_dim != 11 + self.grid_size**2 * 7 or (edge_cont_dim - 3) % 6:
+                raise ValueError("Grid encoder requires OCC-grid-v2 features.")
+            self.face_grid_net = nn.Sequential(
+                nn.Conv2d(7, 32, 3, padding=1), nn.SiLU(),
+                nn.Conv2d(32, 64, 3, padding=1), nn.SiLU(),
+                nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(64, hidden_dim),
+            )
+            self.edge_grid_net = nn.Sequential(
+                nn.Conv1d(6, 32, 3, padding=1), nn.SiLU(),
+                nn.AdaptiveAvgPool1d(1), nn.Flatten(), nn.Linear(32, hidden_dim),
+            )
+        if multiscale_context:
+            self.scale_logits = nn.Parameter(torch.zeros(num_layers + 1))
+            self.context_projection = MLP(hidden_dim * 3, hidden_dim, hidden_dim, dropout)
 
     @classmethod
     def from_config(
@@ -261,6 +281,8 @@ class BRepGraphEncoder(nn.Module):
             relation_type_vocab=int(brep_cfg["relation_type_vocab"]),
             encoder_type=str(model_cfg.get("encoder_type", "message_passing")),
             num_heads=int(model_cfg.get("num_heads", 4)),
+            grid_encoder=bool(model_cfg.get("grid_encoder", False)),
+            multiscale_context=bool(model_cfg.get("multiscale_context", False)),
         )
 
     def embed_edges(
@@ -289,13 +311,42 @@ class BRepGraphEncoder(nn.Module):
         *,
         time_h: torch.Tensor | None = None,
         graph_ptr: torch.Tensor | None = None,
+        face_type_mask: torch.Tensor | None = None,
+        edge_type_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         face_surface_type = face_surface_type.clamp(0, self.surface_type_vocab - 1)
         node_h = self.face_cont_proj(face_cont) + self.surface_emb(face_surface_type)
+        if face_type_mask is not None:
+            node_h = node_h - self.surface_emb(face_surface_type) * face_type_mask.unsqueeze(-1)
+        if self.grid_encoder:
+            grids = face_cont[:, 11:].reshape(-1, self.grid_size, self.grid_size, 7)
+            node_h = node_h + self.face_grid_net(grids.permute(0, 3, 1, 2))
         if time_h is not None:
             node_h = node_h + time_h
         node_h = self.input_norm(node_h)
         edge_h = self.embed_edges(edge_cont, edge_type, edge_relation)
+        if edge_type_mask is not None:
+            # Replace both categorical contributions before LayerNorm.
+            edge_input = self.edge_cont_proj(edge_cont)
+            categorical = self.edge_type_emb(edge_type) + self.edge_relation_emb(edge_relation)
+            edge_h = self.edge_norm(edge_input + categorical * (~edge_type_mask).unsqueeze(-1))
+        if self.grid_encoder and edge_cont.shape[0]:
+            edge_h = edge_h + self.edge_grid_net(edge_cont[:, 3:].reshape(edge_cont.shape[0], -1, 6).transpose(1, 2))
+        scales = [node_h] if self.multiscale_context else None
         for layer in self.layers:
             node_h, edge_h = layer(node_h, edge_h, edge_index)
+            if scales is not None:
+                scales.append(node_h)
+        if scales is not None:
+            node_h = (torch.stack(scales) * self.scale_logits.softmax(0)[:, None, None]).sum(0)
+            if graph_ptr is None:
+                raise ValueError("Multiscale context requires graph_ptr.")
+            counts = graph_ptr[1:] - graph_ptr[:-1]
+            indexes = torch.repeat_interleave(torch.arange(counts.numel(), device=node_h.device), counts)
+            mean = node_h.new_zeros((counts.numel(), node_h.shape[-1]))
+            mean.index_add_(0, indexes, node_h)
+            mean = mean / counts[:, None].clamp_min(1)
+            maximum = torch.full_like(mean, -torch.inf)
+            maximum.scatter_reduce_(0, indexes[:, None].expand_as(node_h), node_h, reduce="amax", include_self=True)
+            node_h = node_h + self.context_projection(torch.cat((node_h, mean[indexes], maximum[indexes]), -1))
         return node_h, edge_h
