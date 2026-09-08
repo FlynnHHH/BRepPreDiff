@@ -197,9 +197,6 @@ class OccBRepExtractor:
             raise ValueError("brep.uv_grid_size and brep.edge_u_grid_size must be positive.")
         self.precision = float(brep_cfg.get("occ_precision", 1.0e-6))
         self.smooth_angle = math.radians(float(brep_cfg.get("smooth_angle_degrees", 5.0)))
-        self.local_edge_normals = bool(brep_cfg.get("local_edge_normals", False))
-        self.local_edge_success = 0
-        self.local_edge_fallback = 0
         self.surface_vocab = int(brep_cfg.get("surface_type_vocab", 32))
         self.edge_vocab = int(brep_cfg.get("edge_type_vocab", 32))
         self.ignore_index = int(config.get("labels", {}).get("ignore_index", -100))
@@ -394,16 +391,6 @@ class OccBRepExtractor:
                 n_i = face_normals[i]
                 n_j = face_normals[j]
                 dot = float(np.clip(np.dot(n_i, n_j), -1.0, 1.0))
-                if getattr(self, 'local_edge_normals', False):
-                    local_dot = self._shared_edge_normal_dot(
-                        edge, self.occ.topods.Face(face_map.FindKey(i + 1)),
-                        self.occ.topods.Face(face_map.FindKey(j + 1)),
-                    )
-                    if local_dot is not None:
-                        dot = local_dot
-                        self.local_edge_success += 1
-                    else:
-                        self.local_edge_fallback += 1
                 angle = float(math.acos(dot))
                 relation = 1 if angle <= self.smooth_angle else 2
                 attrs = [math.log1p(max(length, 0.0)), angle / math.pi, dot, *edge_grid]
@@ -426,38 +413,6 @@ class OccBRepExtractor:
             "edge_type": np.asarray(edge_type, dtype=np.int64),
             "edge_relation": np.asarray(edge_relation, dtype=np.int64),
         }
-
-    def _shared_edge_normal_dot(self, edge, face_a, face_b) -> float | None:
-        """Average oriented normal dot products at matched shared-edge points.
-
-        Uses pcurves on both faces and verifies their 3D positions coincide.
-        Undefined normals or inconsistent parameterizations use the legacy fallback.
-        """
-        from OCC.Core.BRepAdaptor import BRepAdaptor_Curve2d
-        try:
-            curves = [BRepAdaptor_Curve2d(edge, face) for face in (face_a, face_b)]
-            surfaces = [self.occ.BRepAdaptor_Surface(face, True) for face in (face_a, face_b)]
-            first = max(float(curve.FirstParameter()) for curve in curves)
-            last = min(float(curve.LastParameter()) for curve in curves)
-            if not math.isfinite(first) or not math.isfinite(last) or last <= first:
-                return None
-            dots = []
-            for fraction in (0.2, 0.5, 0.8):
-                parameter = first + fraction * (last - first)
-                samples = []
-                for curve, surface, face in zip(curves, surfaces, (face_a, face_b)):
-                    uv = curve.Value(parameter)
-                    samples.append(self._sample_surface(surface, face, uv.X(), uv.Y()))
-                p_a, n_a, _ = samples[0]
-                p_b, n_b, _ = samples[1]
-                if np.linalg.norm(p_a - p_b) > max(1e-5, self.precision * 100):
-                    continue
-                if np.linalg.norm(n_a) < 0.5 or np.linalg.norm(n_b) < 0.5:
-                    continue
-                dots.append(float(np.clip(np.dot(n_a, n_b), -1, 1)))
-            return float(np.mean(dots)) if dots else None
-        except Exception:
-            return None
 
     def _edge_length(self, edge) -> float:
         props = self.occ.GProp_GProps()

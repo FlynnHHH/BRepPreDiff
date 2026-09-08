@@ -313,9 +313,6 @@ class DiffusionPretrainModel(nn.Module):
         hidden_dim = int(model_cfg["hidden_dim"])
         time_dim = int(model_cfg.get("time_dim", hidden_dim))
         self.time_dim = time_dim
-        self.attribute_mask_ratio = float(config["diffusion"].get("attribute_mask_ratio", 0.0))
-        if not 0.0 <= self.attribute_mask_ratio <= 1.0:
-            raise ValueError("attribute_mask_ratio must be between zero and one.")
 
         self.time_mlp = nn.Sequential(
             nn.Linear(time_dim, hidden_dim),
@@ -342,15 +339,6 @@ class DiffusionPretrainModel(nn.Module):
         face_timesteps: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
         time_h = self.time_mlp(sinusoidal_timestep_embedding(face_timesteps, self.time_dim))
-        face_mask = edge_mask = None
-        if self.attribute_mask_ratio:
-            face_mask = torch.rand(batch.face_cont.shape[0], device=face_cont_noisy.device) < self.attribute_mask_ratio
-            src, dst = batch.edge_index
-            # All parallel and reverse edges sharing endpoints are masked together.
-            pairs = torch.minimum(src, dst) * batch.face_cont.shape[0] + torch.maximum(src, dst)
-            unique_pairs, inverse = torch.unique(pairs, return_inverse=True)
-            pair_mask = torch.rand(unique_pairs.numel(), device=face_cont_noisy.device) < self.attribute_mask_ratio
-            edge_mask = pair_mask[inverse]
         node_h, edge_h = self.encoder(
             face_cont_noisy,
             batch.face_surface_type,
@@ -360,17 +348,12 @@ class DiffusionPretrainModel(nn.Module):
             batch.edge_relation,
             time_h=time_h,
             graph_ptr=batch.graph_ptr,
-            face_type_mask=face_mask,
-            edge_type_mask=edge_mask,
         )
         outputs = {
             "face_noise": self.face_noise_head(node_h),
             "face_recon": self.face_recon_head(node_h),
             "surface_logits": self.surface_head(node_h),
         }
-        if face_mask is not None:
-            outputs["face_type_mask"] = face_mask
-            outputs["edge_type_mask"] = edge_mask
 
         if batch.edge_index.numel() == 0:
             outputs.update(
@@ -409,19 +392,13 @@ def compute_pretrain_loss(
 
     losses["face_noise"] = F.mse_loss(outputs["face_noise"], face_noise)
     losses["face_recon"] = F.l1_loss(outputs["face_recon"], batch.face_cont)
-    def attribute_ce(logits, targets, mask):
-        if mask is None:
-            return F.cross_entropy(logits, targets)
-        per_item = F.cross_entropy(logits, targets, reduction="none")
-        return (per_item * mask).sum() / mask.sum().clamp_min(1)
-
-    losses["surface"] = attribute_ce(outputs["surface_logits"], batch.face_surface_type, outputs.get("face_type_mask"))
+    losses["surface"] = F.cross_entropy(outputs["surface_logits"], batch.face_surface_type)
 
     if batch.edge_cont.numel() > 0:
         losses["edge_noise"] = F.mse_loss(outputs["edge_noise"], edge_noise)
         losses["edge_recon"] = F.l1_loss(outputs["edge_recon"], batch.edge_cont)
-        losses["edge_type"] = attribute_ce(outputs["edge_type_logits"], batch.edge_type, outputs.get("edge_type_mask"))
-        losses["relation"] = attribute_ce(outputs["relation_logits"], batch.edge_relation, outputs.get("edge_type_mask"))
+        losses["edge_type"] = F.cross_entropy(outputs["edge_type_logits"], batch.edge_type)
+        losses["relation"] = F.cross_entropy(outputs["relation_logits"], batch.edge_relation)
     else:
         zero = batch.face_cont.new_tensor(0.0)
         losses["edge_noise"] = zero

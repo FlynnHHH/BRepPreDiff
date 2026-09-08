@@ -47,7 +47,6 @@ from brepprediff.training.common import (
     unwrap_model,
 )
 from brepprediff.training.tracking import WandbTracker
-from brepprediff.training.pretrain import build_lr_scheduler
 from brepprediff.task import task_label, task_type
 
 
@@ -114,13 +113,8 @@ def run_epoch(
                     probabilities = predict_finetune_probabilities(target_model, batch, config)
                     metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
             else:
-                if (getattr(target_model, 'boundary_head', None) is not None
-                        or getattr(target_model, 'operation_head', None) is not None):
-                    output = model(batch, return_aux=True)
-                    logits = output['logits']
-                else:
-                    output = logits = model(batch)
-                loss, metrics = compute_finetune_loss(output, batch, config, class_weights)
+                logits = model(batch)
+                loss, metrics = compute_finetune_loss(logits, batch, config, class_weights)
                 if not train:
                     probabilities = logits.softmax(dim=-1)
                     metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
@@ -270,7 +264,6 @@ def main() -> None:
         model = maybe_wrap_ddp(model, distributed)
         logger.info("model ddp_wrapped=%s", distributed.enabled)
         optimizer = build_optimizer(model, config)
-        lr_scheduler = build_lr_scheduler(optimizer, config)
         logger.info(
             "optimizer ready: AdamW lr=%s encoder_lr=%s head_lr=%s weight_decay=%s",
             config["train"]["lr"],
@@ -284,8 +277,7 @@ def main() -> None:
         start_epoch = 0
         if resume:
             logger.info("loading resume checkpoint=%s", resume)
-            start_epoch = load_checkpoint(resume, model=model, optimizer=optimizer,
-                                          lr_scheduler=lr_scheduler, device=device)
+            start_epoch = load_checkpoint(resume, model=model, optimizer=optimizer, device=device)
             logger.info("resumed checkpoint=%s epoch=%d", resume, start_epoch)
 
         best_selection_value = float("-inf")
@@ -304,7 +296,6 @@ def main() -> None:
                     epoch=start_epoch,
                     config=config,
                     metrics={},
-                    lr_scheduler=lr_scheduler,
                 )
                 log_checkpoint_saved(logger, path, start_epoch)
             return
@@ -326,8 +317,6 @@ def main() -> None:
                 distributed=distributed,
             )
             logger.info("epoch=%d split=train %s", epoch, format_metrics(train_metrics))
-            if lr_scheduler is not None:
-                lr_scheduler.step()
 
             val_metrics = None
             if val_loader is not None and epoch % int(config["train"]["validate_every_epochs"]) == 0:
@@ -364,7 +353,6 @@ def main() -> None:
                             epoch=epoch,
                             config=config,
                             metrics=val_metrics,
-                            lr_scheduler=lr_scheduler,
                         )
                         log_checkpoint_saved(logger, path, epoch)
 
@@ -380,7 +368,6 @@ def main() -> None:
                     epoch=epoch,
                     config=config,
                     metrics=metrics,
-                    lr_scheduler=lr_scheduler,
                 )
                 log_checkpoint_saved(logger, path, epoch)
 
@@ -393,7 +380,6 @@ def main() -> None:
                 epoch=epochs,
                 config=config,
                 metrics=train_metrics,
-                lr_scheduler=lr_scheduler,
             )
             log_checkpoint_saved(logger, path, epochs)
         logger.info("finished fine-tuning")

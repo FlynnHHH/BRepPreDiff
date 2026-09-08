@@ -3,6 +3,11 @@
 本轮实验始于 2026-09-07，最终在官方 Fusion360Seg 测试集上取得
 **97.0974% face accuracy**，达到预定的 97% 目标。
 
+> 当前代码状态（2026-09-08）：下文完整保留历史实验与结果，但负收益及小收益的
+> 实验性实现均已回退。生产代码现在只保留 `rotate_mix` 所需的随机 SO(3) 旋转，
+> 通过 `train.rotation_augmentation_probability: 0.5` 让一半训练 CAD 保持 canonical
+> 方向、另一半随机旋转；不再依赖 context、operation 或其他实验模块。
+
 ## 1. 实验协议与数据隔离
 
 - 仅使用 Fusion360Seg s2.0.0；原始数据位于

@@ -20,7 +20,6 @@ from brepprediff.data.classification import (
 )
 from brepprediff.data.graph import (
     BRepGraph,
-    augment_graph_geometry,
     collate_graphs,
     graph_from_arrays,
     normalize_graph_features,
@@ -87,15 +86,6 @@ class StepSegDataset(Dataset):
         graph = graph_from_arrays(arrays, sample.sample_id)
         if graph.labels is None:
             raise ValueError(f"No labels were loaded from {sample.seg_path}.")
-        evaluation_rotation = self.config.get("train", {}).get("evaluation_rotation_matrix")
-        if evaluation_rotation is not None:
-            uv_grid_size = int(self.config["brep"]["uv_grid_size"])
-            graph = augment_graph_geometry(
-                graph,
-                uv_grid_size=uv_grid_size,
-                edge_u_grid_size=int(self.config["brep"].get("edge_u_grid_size", uv_grid_size)),
-                rotation_matrix=torch.tensor(evaluation_rotation),
-            )
         if self.normalize_per_graph:
             uv_grid_size = int(self.config["brep"]["uv_grid_size"])
             graph = normalize_graph_features(
@@ -110,28 +100,6 @@ class StepSegDataset(Dataset):
 
 def _safe_ratio(numerator: float, denominator: float) -> float:
     return numerator / denominator if denominator > 0.0 else 0.0
-
-
-def confidence_gated_graph_smoothing(
-    probabilities: torch.Tensor,
-    edge_index: torch.Tensor,
-    alpha: float,
-) -> torch.Tensor:
-    """Diffuse neighbor evidence primarily into uncertain face predictions."""
-    if not 0.0 <= alpha <= 1.0:
-        raise ValueError("Graph smoothing alpha must be in [0, 1].")
-    if alpha == 0.0 or edge_index.numel() == 0:
-        return probabilities
-    source, target = edge_index
-    neighbor_sum = torch.zeros_like(probabilities)
-    neighbor_sum.index_add_(0, target, probabilities[source])
-    degree = torch.zeros(probabilities.shape[0], dtype=probabilities.dtype,
-                         device=probabilities.device)
-    degree.index_add_(0, target, torch.ones_like(target, dtype=probabilities.dtype))
-    neighbor_mean = neighbor_sum / degree.clamp_min(1)[:, None]
-    confidence = probabilities.amax(dim=-1, keepdim=True)
-    weight = alpha * (1.0 - confidence) * (degree > 0)[:, None]
-    return probabilities + weight * (neighbor_mean - probabilities)
 
 
 def classification_metrics_from_confusion(
@@ -396,12 +364,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-config", default=None)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument(
-        "--ensemble-checkpoint",
-        action="append",
-        default=[],
-        help="Additional independently trained checkpoints whose probabilities are averaged.",
-    )
-    parser.add_argument(
         "--step",
         "--step-path",
         dest="step_path",
@@ -427,10 +389,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--num-workers", type=int, default=None)
     parser.add_argument("--device", default=None)
-    parser.add_argument("--rotation-tta", type=int, default=1,
-                        help="Average predictions over identity and deterministic rigid rotations.")
-    parser.add_argument("--graph-smoothing-alpha", type=float, default=0.0,
-                        help="Confidence-gated neighboring-face probability smoothing in [0, 1].")
     parser.add_argument("--override", action="append", default=[])
     return parser
 
@@ -441,36 +399,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     if direct_mode and (args.step_path is None or args.seg_path is None):
         raise ValueError("Direct evaluation requires both --step and --seg.")
 
-    checkpoint_paths = [Path(value).expanduser().resolve()
-                        for value in [args.checkpoint, *args.ensemble_checkpoint]]
-    for checkpoint_path in checkpoint_paths:
-        if not checkpoint_path.is_file():
-            raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint_path}")
-    checkpoint_path = checkpoint_paths[0]
+    checkpoint_path = Path(args.checkpoint).expanduser().resolve()
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"Checkpoint does not exist: {checkpoint_path}")
     config = _load_evaluation_config(args, checkpoint_path)
-    if args.rotation_tta < 1:
-        raise ValueError("--rotation-tta must be at least 1.")
-    if not 0.0 <= args.graph_smoothing_alpha <= 1.0:
-        raise ValueError("--graph-smoothing-alpha must be in [0, 1].")
     configured_task = task_type(config)
 
     seed_everything(int(config.get("seed", 42)))
     device = resolve_device(config, enforce_cuda_requirement=False)
     samples: list[StepSegSample] | None = None
-    def make_dataloader() -> DataLoader:
-        nonlocal samples
-        if direct_mode:
-            assert samples is not None
-            dataset = StepSegDataset(config, samples)
-            return DataLoader(
-                dataset,
-                batch_size=int(config["train"].get("batch_size", 1)),
-                shuffle=False,
-                num_workers=int(config["train"].get("num_workers", 0)),
-                collate_fn=collate_graphs,
-            )
-        return build_dataloader(config, split=args.split, shuffle=False, distributed=False)
-
     if direct_mode:
         samples = pair_step_seg_paths(
             args.step_path,
@@ -481,67 +418,30 @@ def main(argv: Sequence[str] | None = None) -> None:
             recursive=not args.no_recursive,
             task=configured_task,
         )
-    dataloader = make_dataloader()
+        dataset = StepSegDataset(config, samples)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=int(config["train"].get("batch_size", 1)),
+            shuffle=False,
+            num_workers=int(config["train"].get("num_workers", 0)),
+            collate_fn=collate_graphs,
+        )
+    else:
+        dataloader = build_dataloader(config, split=args.split, shuffle=False, distributed=False)
     face_dim, edge_dim = feature_dims(config)
-    models = []
-    model_configs = []
-    checkpoint_epochs = []
-    for path in checkpoint_paths:
-        member_config = config if path == checkpoint_path else _load_evaluation_config(args, path)
-        if task_type(member_config) != configured_task or feature_dims(member_config) != (face_dim, edge_dim):
-            raise ValueError("Ensemble checkpoints must have the same task and input feature dimensions.")
-        if int(member_config["model"]["num_classes"]) != int(config["model"]["num_classes"]):
-            raise ValueError("Ensemble checkpoints must have the same number of classes.")
-        model = build_finetune_model(member_config, face_dim, edge_dim).to(device)
-        checkpoint_epochs.append(load_checkpoint(path, model=model, optimizer=None, device=device))
-        models.append(model.eval())
-        model_configs.append(member_config)
-    checkpoint_epoch = checkpoint_epochs[0]
+    model = build_finetune_model(config, face_dim, edge_dim).to(device)
+    checkpoint_epoch = load_checkpoint(checkpoint_path, model=model, optimizer=None, device=device)
+    model.eval()
 
     num_classes = int(config["model"]["num_classes"])
-    rotations = [None]
-    if args.rotation_tta > 1:
-        generator = torch.Generator().manual_seed(int(config.get("seed", 42)) + 9700)
-        for _ in range(args.rotation_tta - 1):
-            matrix, _ = torch.linalg.qr(torch.randn(3, 3, generator=generator))
-            if torch.linalg.det(matrix) < 0:
-                matrix[:, 0] *= -1
-            rotations.append(matrix.tolist())
-    probability_sums: list[torch.Tensor] = []
-    reference_labels: list[torch.Tensor] = []
-    with torch.no_grad():
-        for rotation_index, rotation in enumerate(rotations):
-            config["train"]["evaluation_rotation_matrix"] = rotation
-            dataloader = make_dataloader()
-            description = ("evaluate STEP/SEG" if direct_mode else f"evaluate {args.split}")
-            if len(rotations) > 1:
-                description += f" TTA {rotation_index + 1}/{len(rotations)}"
-            offset = 0
-            for batch in tqdm(dataloader, desc=description):
-                batch = batch.to(device)
-                check_finite_batch(batch)
-                probabilities = sum(
-                    predict_finetune_probabilities(model, batch, member_config)
-                    for model, member_config in zip(models, model_configs)
-                ).div_(len(models)).cpu()
-                probabilities = confidence_gated_graph_smoothing(
-                    probabilities, batch.edge_index.cpu(), args.graph_smoothing_alpha)
-                labels = batch.labels.cpu()
-                if rotation_index == 0:
-                    probability_sums.append(probabilities)
-                    reference_labels.append(labels)
-                else:
-                    assert torch.equal(labels, reference_labels[offset])
-                    probability_sums[offset].add_(probabilities)
-                offset += 1
-            assert offset == len(probability_sums)
     confusion = torch.zeros((num_classes, num_classes), dtype=torch.int64)
-    for probabilities, labels in zip(probability_sums, reference_labels):
-        averaged = probabilities / len(rotations)
-        prediction = averaged.argmax(dim=-1)
-        valid = labels != -100
-        indexes = labels[valid].to(torch.int64) * num_classes + prediction[valid].to(torch.int64)
-        confusion.add_(torch.bincount(indexes, minlength=num_classes * num_classes).reshape(num_classes, num_classes))
+    with torch.no_grad():
+        description = "evaluate STEP/SEG" if direct_mode else f"evaluate {args.split}"
+        for batch in tqdm(dataloader, desc=description):
+            batch = batch.to(device)
+            check_finite_batch(batch)
+            probabilities = predict_finetune_probabilities(model, batch, config)
+            confusion.add_(finetune_confusion_matrix(probabilities, batch, config).cpu())
 
     configured_names = config.get("labels", {}).get("names")
     metrics = classification_metrics_from_confusion(
@@ -557,8 +457,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     result = {
         "checkpoint": str(checkpoint_path),
         "checkpoint_epoch": checkpoint_epoch,
-        "ensemble_checkpoints": [str(path) for path in checkpoint_paths],
-        "ensemble_checkpoint_epochs": checkpoint_epochs,
         "config": str(args.config) if args.config else "checkpoint_embedded_config",
         "task": configured_task,
         "input_mode": (
@@ -597,9 +495,6 @@ def main(argv: Sequence[str] | None = None) -> None:
         "batch_size": int(config["train"]["batch_size"]),
         "num_workers": int(config["train"].get("num_workers", 0)),
         "device": str(device),
-        "rotation_tta": len(rotations),
-        "rotation_matrices": rotations,
-        "graph_smoothing_alpha": args.graph_smoothing_alpha,
         "metrics": metrics,
     }
     output_path = Path(args.output)

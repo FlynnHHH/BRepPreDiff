@@ -158,9 +158,6 @@ def prepare_label_diffusion_training_batch(
         )
 
     repeats = max(1, int(config["label_diffusion"].get("noise_samples_per_token", 1)))
-    structured = bool(getattr(model, 'structured_labels', False))
-    if structured and (repeats != 1 or valid_indices.numel() != token_count):
-        raise ValueError('Structured label diffusion currently requires complete labels and one noise sample per token.')
     token_indices = valid_indices.repeat(repeats)
     labels = batch.labels[token_indices]
     x_start = bipolar_one_hot(labels, model.num_classes).to(dtype=batch.face_cont.dtype)
@@ -171,9 +168,6 @@ def prepare_label_diffusion_training_batch(
         dtype=torch.long,
         device=x_start.device,
     )
-    if structured:
-        graph_t = torch.randint(0, model.schedule.timesteps, (len(batch.sample_ids),), device=x_start.device)
-        timesteps = graph_t[batch.batch_index]
     x_t, noise = model.schedule.q_sample(x_start, timesteps)
     return LabelDiffusionTrainingBatch(
         x_start=x_start,
