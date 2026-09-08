@@ -213,3 +213,42 @@ unchanged. The alpha is range-checked and recorded in evaluation JSON. This targ
 locally inconsistent uncertain predictions without indiscriminately blurring
 high-confidence operation boundaries. It is not part of the already snapshotted v3
 search and has not accessed test data. Targeted tests pass (21 tests).
+
+## Round 4 operation result
+
+`context_rotation_operation` completed all 100 fine-tuning epochs. Validation-only
+selection chose epoch 97 with **96.9082%** face accuracy over 79,920 faces. This is
+only +0.0025 percentage points over `context_rotation` (96.9057%), so the auxiliary
+operation-family task is effectively neutral for aggregate accuracy, although its
+macro F1 is 0.9223. The manifest still records `test_accessed: false`. The queued
+`context_rotation_mix` run then started automatically on GPU 4.
+
+## Round 4 mixed-rotation result
+
+`context_rotation_mix` completed all 100 fine-tuning epochs. Validation-only
+selection chose epoch 90 with **97.2410%** face accuracy over 79,920 faces and
+macro F1 0.9242. This is +0.3353 percentage points over the always-rotated model
+and is the first candidate above the 97% validation threshold. The checkpoint is
+now frozen for one independent official-test evaluation. Its result and manifest
+still record `test_accessed: false`; test evaluation is deferred until the already
+started seed-43 run releases GPU 4. The waiting validation-search job was stopped
+before GPU use so the frozen test has exclusive priority next.
+
+## Final 97% result
+
+The single mixed-rotation checkpoint scored **96.9197%** on the official test split,
+so it did not itself meet the target. After seed 43 completed, the predeclared
+validation-only search evaluated its fixed candidate list. The best candidate was
+the equal-probability ensemble of `context_rotation` epoch 92,
+`context_rotation_mix` epoch 90, and `context_rotation_operation` epoch 97, with
+**97.4087% validation accuracy**. No test predictions were used to choose its
+members or weights.
+
+That frozen ensemble was then evaluated once on the official Fusion360Seg test
+split and achieved **97.0974% face accuracy** (74,833 / 77,070 correctly labeled
+faces across 5,366 CADs), exceeding the requested 97% target. Weighted F1 is
+0.9708 and macro F1 is 0.9096. All three members reuse the same Fusion360Seg-only
+50-epoch pretraining run and each completed exactly 100 Fusion360Seg-only
+fine-tuning epochs. Their manifests share identical disjoint split hashes and
+record GPU 4. `validation_search_v4/summary.json` now records the selected test
+artifact and `test_accessed: true`; no further experiments were started.
