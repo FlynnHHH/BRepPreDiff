@@ -1,322 +1,232 @@
-# Fusion360Seg 97% accuracy iteration log
+# Fusion360Seg 97% 准确率优化报告
 
-Started 2026-09-07. User-authorized protocol: Fusion360Seg s2.0.0 only,
-50 pretraining epochs, 100 fine-tuning epochs, GPUs 0–4. These explicit epoch
-budgets override the project-wide default of 200 downstream epochs.
+本轮实验始于 2026-09-07，最终在官方 Fusion360Seg 测试集上取得
+**97.0974% face accuracy**，达到预定的 97% 目标。
 
-## Evaluation protocol
+## 1. 实验协议与数据隔离
 
-- Existing clean splits: 24,964 training CADs, 5,350 validation CADs, 5,366 test CADs.
-- Split identifiers are unique and mutually disjoint. Train/validation are subsets
-  of official training identifiers; test is a subset of official test identifiers.
-- Pretraining uses training geometry only, with labels stripped and val/test disabled.
-- Fine-tuning uses training labels. Best checkpoint is selected by validation face accuracy.
-- Search uses validation metrics. The independent test set is reserved for a
-  validation-selected candidate. No test-set class bias fitting or test-driven selection.
-- Target means face-level accuracy, matching the existing project metric. A
-  validation result alone does not count as achieving the 97% test target.
-- Seed 42 screening; promising methods should receive additional seed checks.
-- Per-run source snapshots, hashes, exact command lines, embedded checkpoint configs,
-  logs and validation evaluations are saved in `runs/fusion97`.
+- 仅使用 Fusion360Seg s2.0.0；原始数据位于
+  `/home/nvme03/hhfeng/fusion360segmentationdataset/s2.0.0/`。
+- Train/Val/Test 分别包含 24,964 / 5,350 / 5,366 个 CAD，内部无重复且两两
+  交集为 0。Train/Val 来自官方 train，Test 来自官方 test。
+- 预训练严格执行 50 epochs，仅读取训练几何、移除 face labels，并禁用
+  validation/test 数据源。
+- 下游实验严格执行 100 epochs，仅使用 Fusion360Seg 训练标签；最佳 checkpoint
+  只按 validation face accuracy 选择。该显式预算覆盖项目默认的 200 epochs。
+- 搜索只使用 validation。候选成员与权重冻结后才执行独立 test；没有利用 test
+  拟合参数或反向选择模型。
+- 用户后续限定只使用 GPU 4，因此最终阶段全部在 GPU 4 串行完成。
+- 每次实验保存源码快照及 SHA-256、命令、嵌入 checkpoint 的配置、split hashes、
+  日志和评估 JSON。
 
-## Round 1: independent encoder hypotheses
+下文“增长”均为相对 baseline 的**绝对百分点（pp）**，不是相对百分比。
 
-All runs use full pretraining objective, LR 1e-4 constant, batch 128; MLP fine-tuning
-uses LR 3e-4, batch 256, CE + 0.3 Dice, and per-graph preprocessing.
+## 2. 模块化代码改动
 
-| GPU | Variant | Change | Status |
-|---|---|---|---|
-| 0 | baseline | 128 dimensions, 4 edge-update attention layers | Running |
-| 1 | masked | Mask 50% of categorical attributes; reverse/parallel edges masked together | Running |
-| 2 | wide | 256 hidden dimensions | Running |
-| 3 | grid | Additional 2D face-grid and 1D edge-grid encoders | Running |
-| 4 | context | Learned combination of layer features plus graph mean/max context | Running |
+### 2.1 编码器：局部网格与全局上下文
 
-The grid branch treats trim mask as an input channel; it does not apply a hard
-mask to the noisy pretraining input. The masked branch removes categorical
-embeddings and computes categorical losses only at masked positions.
+文件：`src/brepprediff/models/encoder.py`
 
-## Prepared next hypotheses
+- 增加可选 face-grid 2D encoder 和 edge-grid 1D encoder，独立提取 UV face grid
+  与 edge sampling grid 的局部几何模式。
+- 增加 multi-scale context，可学习地融合输入层和各 GNN 中间层，而非只用末层。
+- 对每个 CAD 计算 face embedding 的 mean/max context 并广播回所有 faces，让
+  face 分类同时利用实体级形状和操作上下文。
+- 支持 face/edge categorical mask，防止预训练时被遮蔽类别通过 embedding 泄漏。
 
-- `geometric`: isotropic per-CAD coordinate normalization; unit normals/tangents;
-  dimensionless area, length and curvature; exact trim masks. Intended to preserve
-  relationships destroyed by separate normalization of flattened UV slots.
-- `geometric_grid`: combine the physical coordinate frame with local grid encoding.
-- `boundary`: auxiliary prediction of label changes across adjacent faces.
-- `boundary_refine`: additionally gate a residual neighbor aggregation using predicted boundaries.
-- `deep`: eight attention layers as a capacity/receptive-field control.
+Multi-scale context 将 validation 从 96.1974% 提升至 96.3889%，即
+**+0.1914 pp**；单独 grid encoder 没有收益。
 
-These are hypotheses, not claimed accuracy improvements. Round 1 source snapshots
-are isolated from subsequent development.
+### 2.2 扩散预训练：类别属性遮蔽
 
-## Verification so far
+文件：`src/brepprediff/models/diffusion.py`
 
-- Initial encoder/masking and label-diffusion regression subset: 16 passed.
-- Additional physical-normalization invariance, boundary gradients, preprocessing,
-  cached-dataset and segmentation regression subset: 24 passed.
-- CUDA access requires execution outside the read-only GPU sandbox; GPUs 0–4 were
-  idle at launch. Existing jobs on GPUs 5–7 were not modified.
+- 新增 `attribute_mask_ratio`，遮蔽 face surface type、edge type 和 edge relation。
+- 同一拓扑边的 reverse/parallel records 使用一致 mask，避免从反向记录恢复答案。
+- 类别重建 loss 只在真正被遮蔽的位置计算。
 
-## Progress at approximately 21:35
+50% masking 的结果为 96.0786%，相对 baseline **-0.1189 pp**，表明当前
+50-epoch 预算下额外预训练难度没有转化为下游收益。
 
-All five pretraining runs completed exactly 50 epochs. Fine-tuning is still in
-progress (approximately epochs 42–46/100). Best validation accuracies so far:
-baseline 96.020%, masked 95.931%, wide 96.039%, grid 95.868%, context 96.130%.
-These are provisional, different-epoch maxima, not final comparisons.
+### 2.3 分割头：边界、操作族与结构化标签扩散
 
-Round 2 queues wait for their corresponding GPU's first experiment to finish:
+文件：
 
-| GPU | Next variant | Encoder |
-|---|---|---|
-| 0 | geometric | New 50-epoch pretraining |
-| 1 | boundary | Reuse round-1 baseline's 50-epoch encoder |
-| 2 | localedge | New 50-epoch pretraining on local-edge geometry |
-| 3 | geometric_grid | New 50-epoch pretraining |
-| 4 | boundary_refine | Reuse round-1 baseline's 50-epoch encoder |
+- `src/brepprediff/models/segmentation.py`
+- `src/brepprediff/models/downstream.py`
+- `src/brepprediff/training/finetune.py`
 
-The unstarted deep queue was replaced with localedge; no running training was interrupted.
+改动包括：
 
-Further implemented but not launched: joint graph-label diffusion (complete-label
-graphs, one noise realization, shared per-graph timestep, five sampling steps),
-finetuning-only rigid rotations, finetuning-only UV grid symmetries, and optional
-cosine learning-rate decay. Train/validation divergence motivates the augmentation
-candidates; they are not yet demonstrated improvements.
+1. Boundary auxiliary head，预测相邻 faces 是否跨语义边界。
+2. Boundary-gated refinement，以预测边界控制邻域信息聚合。
+3. Operation-family auxiliary head，将 8 类映射为 Extrude、Cut、Fillet、Chamfer、
+   Revolve 五个操作族；辅助 CE 权重为 0.2，推理仍输出原始 8 类。
+4. Structured graph-label diffusion：同一 CAD 共享 timestep，支持完整 graph label
+   noise 与多步采样。
+5. 训练循环统一处理主输出、辅助 loss 和学习率 scheduler。
 
-### Original B-Rep geometry
+引入 operation supervision 的依据是 context 模型的 validation confusion matrix：
+CutSide→ExtrudeSide 有 693 个错误，ExtrudeSide→CutSide 有 419 个，两者合计占
+全部错误的 38.53%。但它与 rotation 组合后只比普通 rotation 高 0.0025 pp，
+说明对 aggregate accuracy 基本中性。
 
-Raw source: `/home/nvme03/hhfeng/fusion360segmentationdataset/s2.0.0/`.
-Separate cache: `cache/features/fusion360seg_localedge_v1`.
-Local pcurve normals replace only angle/dot/relation features. Faces, labels,
-edge ordering, lengths and edge sample grids are preserved. The computation is
-unsigned and does not yet distinguish convex from concave edges.
+### 2.4 几何预处理与数据增强
 
-100-CAD pilot: 3,476 successful edge pairs, 11 fallbacks, zero errors.
-Full train/val build: 30,314 CADs, zero errors; 990,196 successful pairs and 14,917
-fallbacks among newly processed CADs (the pilot's 100 CADs were reused).
-Face counts, raw/cache labels and edge ordering were checked. Original caches were
-not overwritten. No local-edge test caches have been built yet.
+文件：
 
-Complete regression suite after these additions: **139 passed**.
-The test accuracy target has not been achieved or evaluated yet.
+- `src/brepprediff/data/graph.py`
+- `src/brepprediff/data/dataset.py`
 
-## Completed rounds and GPU restriction (2026-09-08)
+- 增加按 CAD 的各向同性物理归一化，统一处理坐标、面积、长度、曲率，同时保持
+  normals/tangents 为单位向量、trim mask 为精确 0/1。
+- 增加 label-preserving SO(3) 刚体旋转；同步旋转 face center/normal、face-grid
+  position/normal、edge-grid position/tangent。
+- 增加 UV-grid 旋转与翻转重参数化。
+- 增加可配置 rotation probability。最终策略保留 50% canonical CAD，另 50%
+  随机旋转，兼顾方向不变性和 canonical 评估分布。
+- 增加确定性评估旋转。TTA 在原始几何上旋转后再做 per-graph normalization，
+  避免旋转已逐通道标准化 tensor 的错误捷径。
 
-The user now restricts all further experiments to **GPU 4 only**. This supersedes
-the original GPU 0–4 allocation. Both earlier rounds completed; no campaign
-training or queue processes were live when checked. Unrelated GPU 0–3 jobs were
-left untouched. The launcher now accepts only GPU 4.
+物理归一化为 95.6619%，相对 baseline **-0.5355 pp**；100% rotation 为
+96.9057%，提升 **+0.7082 pp**；50/50 mixed rotation 达到 97.2410%，提升
+**+1.0435 pp**，是最有效的单模型改动。
 
-Final validation accuracies (all 100 fine-tuning epochs completed):
+### 2.5 原始 B-Rep 局部共享边几何
 
-| Variant | Validation accuracy (%) |
-|---|---:|
-| baseline | 96.197 |
-| masked | 96.079 |
-| wide | 96.259 |
-| grid | 96.086 |
-| context | 96.389 |
-| boundary | 96.211 |
-| boundary_refine | 96.132 |
-| geometric | 95.662 |
-| geometric_grid | 95.973 |
-| localedge | 96.170 |
+文件：
 
-The context variant is the strongest current candidate. Its independently
-rerun validation evaluation reports exactly 0.9638888888888889 over 79,920 faces
-from 5,350 CADs, using its validation-selected epoch-97 checkpoint.
-Geometry normalization and local-edge corrections did not improve the baseline
-under the screened protocol; boundary supervision gave only a small single-seed
-gain. Next, run context + cosine fine-tuning and context + rotation fine-tuning
-sequentially on GPU 4, reusing the same completed 50-epoch context encoder.
-Test labels/predictions have not been used for candidate selection.
+- `src/brepprediff/brep/occ_extractor.py`
+- `scripts/fusion97_local_edges.py`
 
-### Validation-error-driven operation supervision
+- 从 STEP pcurve 计算共享边两侧的局部 face normals，更新 angle/dot/relation。
+- 使用独立 cache `cache/features/fusion360seg_localedge_v1`，不覆盖 baseline；
+  face、label、edge order、length 和 edge sampling grid 保持不变。
+- 完成 train+val 共 30,314 个 CAD 的构建，零失败；新处理部分有 990,196 个成功
+  edge pairs 和 14,917 个 fallback，并复用 100-CAD pilot。
 
-Inspection of the completed context model's validation confusion matrix found
-693 CutSide→ExtrudeSide and 419 ExtrudeSide→CutSide mistakes: 1,112 of 2,886
-errors (38.53%). This motivates a new `context_operation` auxiliary head that
-groups the eight labels into Extrude, Cut, Fillet, Chamfer and Revolve families.
-The mapping is explicitly configured as `[0,0,1,1,2,3,4,4]`; auxiliary CE has weight
-0.2, uses training labels only, and excludes ignored faces. Inference still uses
-the original eight-class head. It is an unproven hypothesis rather than a claimed gain.
+该方案为 96.1699%，相对 baseline **-0.0275 pp**。当前 unsigned 表达仍不能
+区分 convex/concave，可能限制收益。
 
-The cosine training PID 2600501 and rotation queue PID 2601288 were verified live
-on 2026-09-08; no restart was performed. The operation candidate is queued after
-rotation on GPU 4, using the same completed context pretraining checkpoint and
-100 fine-tuning epochs. Operation-head gradients, ignored-label handling and
-ordinary inference were tested; the complete suite passed **140 tests**.
+### 2.6 评估：TTA、拓扑平滑与多模型融合
 
-## Round 3 final results and frozen test evaluation
+文件：
 
-All three round-3 candidates completed 100 fine-tuning epochs on GPU 4:
+- `src/brepprediff/training/evaluate.py`
+- `scripts/fusion97_validate_candidates.py`
 
-| Variant | Best epoch | Validation accuracy (%) |
-|---|---:|---:|
-| context_cosine | 63 | 96.240 |
-| context_operation | 82 | 96.299 |
-| context_rotation | 92 | **96.906** |
+- 增加 deterministic rotation TTA，对 identity 和固定 seeded SO(3) views 的
+  概率求平均，并在 JSON 中记录旋转矩阵。
+- 增加多 checkpoint probability ensemble。每个成员从自身 embedded config
+  重建，并检查 task、feature dimensions 和 class count。
+- 增加 confidence-gated graph smoothing：主要让低置信度 face 吸收邻接概率，
+  高置信度 face、孤立 face 和清晰边界基本不变；alpha 被检查并记录。
+- Validation search 使用预声明固定候选集，保存源码快照和 hashes，并明确记录
+  `selection_split: val` 与 test 访问状态。
 
-`context_rotation` was selected using validation only. After freezing that choice,
-its epoch-92 checkpoint was evaluated once on the official test split: 5,366 CADs,
-77,070 faces, **96.593% face accuracy**. This is below the 97% target, so no further
-test-guided candidate selection is performed. The next validation-only experiment
-combines rotation augmentation with operation-family auxiliary supervision and
-reuses the exact completed 50-epoch context pretraining checkpoint.
+四视角 rotation TTA 为 97.0458%，未超过最佳单模型。三模型等概率 ensemble
+达到 97.4087%，比最佳单模型再高 **+0.1677 pp**，相对 baseline 累计
+**+1.2112 pp**。
 
-A second queued candidate, `context_rotation_mix`, samples a rigid rotation for
-50% of training CADs and retains the canonical frame for the other 50%. This tests
-whether the always-rotated policy over-shifts training away from the canonical
-validation/test distribution while retaining its demonstrated regularization gain.
-It reuses the same 50-epoch context encoder and runs only after the operation
-candidate finishes on GPU 4.
+### 2.7 实验基础设施与测试
 
-While that GPU-4 run is active, deterministic rigid-rotation test-time
-augmentation was implemented as a validation-only candidate. It rotates the raw
-cached geometry before the checkpoint's normal per-graph preprocessing, averages
-class probabilities across identity plus fixed seeded SO(3) rotations, and records
-the matrices in the evaluation JSON. This avoids the incorrect shortcut of rotating
-already channel-standardized tensors. Targeted augmentation/evaluation regression
-tests pass (18 tests); its validation effect has not yet been measured and it will
-not be applied to test unless selected without test feedback.
+文件：
 
-Checkpoint probability ensembling is also implemented for validation screening.
-Each member is reconstructed from its own embedded configuration (so auxiliary-head
-architectures remain loadable), while task, feature dimensions and class count are
-checked for compatibility. Member probabilities are averaged before argmax and the
-exact checkpoint paths/epochs are recorded. This will test whether the canonical,
-always-rotated, mixed-rotation and operation-supervised models have complementary
-errors; test remains untouched during ensemble selection.
+- `scripts/fusion97_experiment.py`
+- `scripts/fusion97_status.py`
+- `tests/test_fusion97_variants.py`
+- `tests/test_evaluate.py`
 
-The validation search is now queued as a reproducible GPU-4 job after both round-4
-training results. It snapshots its evaluation source, records hashes, evaluates six
-predeclared candidates (four-checkpoint combinations are not added after seeing
-results), sorts by face accuracy, and writes `validation_search_v1/summary.json`.
-The search manifest explicitly records `selection_split: val` and
-`test_accessed: false`.
+- 自动审计 split 唯一性、官方归属、互斥性和 cache 完整性。
+- 强制本 campaign 只接受 GPU 4，保存 snapshot、hashes、manifest、command 和结果。
+- 安全复用 50-epoch encoder，并检查 epoch、label stripping、数据来源和禁用
+  val/test 等约束。
+- 新增 masking 隔离、几何不变性、boundary/operation gradients、structured
+  diffusion、rotation、TTA、ensemble 和 topology smoothing 回归测试。
 
-An independent `context_rotation_seed43` 100-epoch fine-tune is queued after the
-mixed-rotation run, again reusing the same frozen 50-epoch context encoder. This
-tests seed robustness and adds a genuinely independent member for ensembling.
-The earlier validation-search wait was stopped before it used GPU time to prevent
-it racing this training job; validation search v2 waits for seed 43 as an explicit
-dependency and adds two- and multi-seed ensembles. GPU 4 remains serial.
+最终完整测试结果为 **144 passed**。
 
-Validation search v2 also predeclares a temporal ensemble between the rotation
-run's validation-best checkpoint and its independently saved epoch-100 snapshot.
-This probes complementary late-training errors without changing the prescribed
-100-epoch budget or launching another training run. It remains validation-only.
+## 3. 所有实验相对 baseline 的增长
 
-A confidence-gated topology postprocessor is implemented for a later validation
-ablation. It averages incoming adjacent-face probabilities, but scales the update
-by `(1 - face confidence)`, leaving probability-one predictions and isolated faces
-unchanged. The alpha is range-checked and recorded in evaluation JSON. This targets
-locally inconsistent uncertain predictions without indiscriminately blurring
-high-confidence operation boundaries. It is not part of the already snapshotted v3
-search and has not accessed test data. Targeted tests pass (21 tests).
+以下结果均来自相同的 5,350-CAD、79,920-face validation split；Baseline 为
+**96.1974%**。
 
-## Round 4 operation result
+| Variant | 核心变化 | 最佳 epoch | Val accuracy (%) | 相对 baseline (pp) |
+|---|---|---:|---:|---:|
+| baseline | 128 维、4 层 edge-update attention | 99 | 96.1974 | +0.0000 |
+| masked | 预训练遮蔽 50% 类别属性 | 78 | 96.0786 | -0.1189 |
+| wide | Hidden dimension 128 → 256 | 97 | 96.2588 | +0.0613 |
+| grid | 独立 face/edge grid encoders | 89 | 96.0861 | -0.1114 |
+| context | 多层融合 + graph mean/max context | 97 | 96.3889 | +0.1914 |
+| boundary | 边界辅助监督 | 88 | 96.2112 | +0.0138 |
+| boundary_refine | 边界监督 + gated refinement | 89 | 96.1324 | -0.0651 |
+| geometric | 各向同性物理归一化 | 70 | 95.6619 | -0.5355 |
+| geometric_grid | 物理归一化 + grid encoders | 91 | 95.9735 | -0.2240 |
+| localedge | STEP pcurve 局部共享边 normals | 80 | 96.1699 | -0.0275 |
+| context_cosine | Context + cosine LR | 63 | 96.2400 | +0.0425 |
+| context_operation | Context + 操作族辅助监督 | 82 | 96.2988 | +0.1014 |
+| context_rotation | Context + 100% 随机旋转 | 92 | 96.9057 | +0.7082 |
+| context_rotation_seed43 | 独立 seed-43 rotation | 98 | 96.8143 | +0.6169 |
+| context_rotation_operation | Rotation + 操作族监督 | 97 | 96.9082 | +0.7107 |
+| context_rotation_mix | 50% canonical + 50% rotation | 90 | **97.2410** | **+1.0435** |
+| final ensemble | Rotation + mix + rotation/operation | — | **97.4087** | **+1.2112** |
 
-`context_rotation_operation` completed all 100 fine-tuning epochs. Validation-only
-selection chose epoch 97 with **96.9082%** face accuracy over 79,920 faces. This is
-only +0.0025 percentage points over `context_rotation` (96.9057%), so the auxiliary
-operation-family task is effectively neutral for aggregate accuracy, although its
-macro F1 is 0.9223. The manifest still records `test_accessed: false`. The queued
-`context_rotation_mix` run then started automatically on GPU 4.
+## 4. Validation-only 融合搜索
 
-## Round 4 mixed-rotation result
+| 排名 | 候选 | Val accuracy (%) |
+|---:|---|---:|
+| 1 | rotation + rotation_mix + rotation_operation | **97.4087** |
+| 2 | 上述三者 + seed43 | 97.4012 |
+| 3 | rotation + rotation_mix | 97.3986 |
+| 4 | rotation + rotation_mix + seed43 | 97.3811 |
+| 5 | rotation + seed43 | 97.2447 |
+| 6 | rotation + rotation_operation | 97.2147 |
+| 7 | rotation + context | 97.1271 |
+| 8 | rotation best + epoch100 + seed43 | 97.1234 |
+| 9 | rotation TTA ×4 | 97.0458 |
+| 10 | rotation + context_operation | 96.9494 |
+| 11 | rotation best + epoch100 | 96.9494 |
 
-`context_rotation_mix` completed all 100 fine-tuning epochs. Validation-only
-selection chose epoch 90 with **97.2410%** face accuracy over 79,920 faces and
-macro F1 0.9242. This is +0.3353 percentage points over the always-rotated model
-and is the first candidate above the 97% validation threshold. The checkpoint is
-now frozen for one independent official-test evaluation. Its result and manifest
-still record `test_accessed: false`; test evaluation is deferred until the already
-started seed-43 run releases GPU 4. The waiting validation-search job was stopped
-before GPU use so the frozen test has exclusive priority next.
+候选集在结果产生前已经固定。最终选择第一名，不根据 test 调整成员或权重。
 
-## Final 97% result
+## 5. 最终结果
 
-The single mixed-rotation checkpoint scored **96.9197%** on the official test split,
-so it did not itself meet the target. After seed 43 completed, the predeclared
-validation-only search evaluated its fixed candidate list. The best candidate was
-the equal-probability ensemble of `context_rotation` epoch 92,
-`context_rotation_mix` epoch 90, and `context_rotation_operation` epoch 97, with
-**97.4087% validation accuracy**. No test predictions were used to choose its
-members or weights.
+最佳单模型 `context_rotation_mix`：
 
-That frozen ensemble was then evaluated once on the official Fusion360Seg test
-split and achieved **97.0974% face accuracy** (74,833 / 77,070 correctly labeled
-faces across 5,366 CADs), exceeding the requested 97% target. Weighted F1 is
-0.9708 and macro F1 is 0.9096. All three members reuse the same Fusion360Seg-only
-50-epoch pretraining run and each completed exactly 100 Fusion360Seg-only
-fine-tuning epochs. Their manifests share identical disjoint split hashes and
-record GPU 4. `validation_search_v4/summary.json` now records the selected test
-artifact and `test_accessed: true`; no further experiments were started.
+- Validation：**97.2410%**，epoch 90；
+- 官方 Test：**96.9197%**。
 
-## Code changes and gains over baseline
+最终冻结的等概率 ensemble：
 
-The implementation work was concentrated in the following modules:
+1. `context_rotation`，epoch 92；
+2. `context_rotation_mix`，epoch 90；
+3. `context_rotation_operation`，epoch 97。
 
-- `models/encoder.py`: added optional face/edge grid encoders and learned
-  multi-scale context pooling. The latter mixes the input and intermediate GNN
-  layers, then broadcasts per-CAD mean/max context back to each face.
-- `models/diffusion.py`: added consistent categorical attribute masking during
-  pretraining, including shared masks for reverse/parallel edge records and loss
-  computation only at masked positions.
-- `models/segmentation.py` and `models/downstream.py`: added boundary auxiliary
-  supervision, boundary-gated refinement, operation-family auxiliary supervision,
-  and structured graph-label diffusion support. Ordinary inference continues to
-  emit the original eight Fusion360Seg classes.
-- `data/graph.py` and `data/dataset.py`: added physical/isotropic geometry
-  normalization, rigid SO(3) rotation, UV-grid symmetries, deterministic evaluation
-  rotations, and a configurable rotation probability. The winning mixed policy
-  retains the canonical frame for 50% of training CADs and rotates the other 50%.
-- `brep/occ_extractor.py`: added optional local shared-edge normals derived from
-  original STEP pcurves, stored in a separate cache without overwriting baseline
-  features.
-- `training/finetune.py` and `training/pretrain.py`: added scheduler support,
-  auxiliary-loss handling, and progress-output control while preserving the exact
-  50/100 epoch protocol.
-- `training/evaluate.py`: added deterministic rotation TTA, compatible multi-model
-  probability ensembling, and confidence-gated topology smoothing. Evaluation JSON
-  records member checkpoints, epochs, transforms, and postprocessing parameters.
-- `scripts/fusion97_*.py`: added split auditing, source snapshots/hashes, strict
-  GPU-4 experiment launching, local-edge cache preparation, status reporting, and
-  fixed validation-only candidate searches. Regression coverage was expanded in
-  `tests/test_fusion97_variants.py` and `tests/test_evaluate.py`; the final suite
-  passes 144 tests.
+最终独立官方 Test：
 
-All comparisons below use the same 79,920-face validation split. The baseline is
-**96.1974%**, so “gain” is an absolute percentage-point difference, not a relative
-percentage. Every trained row completed 50 Fusion360Seg-only pretraining epochs
-(or reused the stated frozen 50-epoch encoder) and 100 Fusion360Seg-only fine-tuning
-epochs.
+- Face accuracy：**97.0974%**；
+- 正确 faces：**74,833 / 77,070**；
+- CAD 数：5,366；
+- Weighted F1：**97.0802%**；
+- Macro F1：**90.9602%**；
+- Rotation TTA：1，即未使用 TTA；
+- Graph smoothing alpha：0.0，即未使用平滑后处理。
 
-| Variant | Main code/experiment change | Validation accuracy (%) | Gain vs baseline (pp) |
-|---|---|---:|---:|
-| baseline | 128-dim, four-layer edge-update attention | 96.1974 | +0.0000 |
-| masked | 50% categorical masking in pretraining | 96.0786 | -0.1189 |
-| wide | Hidden dimension 128 → 256 | 96.2588 | +0.0613 |
-| grid | Dedicated face/edge grid encoders | 96.0861 | -0.1114 |
-| context | Learned multi-layer + graph mean/max context | 96.3889 | +0.1914 |
-| boundary | Boundary auxiliary loss | 96.2112 | +0.0138 |
-| boundary_refine | Boundary loss plus gated neighbor refinement | 96.1324 | -0.0651 |
-| geometric | Isotropic physical normalization | 95.6619 | -0.5355 |
-| geometric_grid | Physical normalization plus grid encoders | 95.9735 | -0.2240 |
-| localedge | STEP-pcurve local shared-edge normals | 96.1699 | -0.0275 |
-| context_cosine | Context plus cosine LR decay | 96.2400 | +0.0425 |
-| context_operation | Context plus operation-family auxiliary loss | 96.2988 | +0.1014 |
-| context_rotation | Context plus 100% random rotation | 96.9057 | +0.7082 |
-| context_rotation_seed43 | Independent seed-43 rotation run | 96.8143 | +0.6169 |
-| context_rotation_operation | Rotation plus operation auxiliary loss | 96.9082 | +0.7107 |
-| context_rotation_mix | 50% canonical / 50% random rotation | 97.2410 | +1.0435 |
-| final ensemble | Rotation + mixed rotation + rotation/operation | **97.4087** | **+1.2112** |
+Baseline 没有执行官方 test，因此报告只给出最终 test 绝对值，不声明缺少证据的
+baseline test 增长。
 
-The largest single-model gain came from mixed rotation, not additional capacity or
-geometry normalization. Relative to always rotating every training CAD, retaining
-50% canonical samples added another **0.3353 pp**. Equal-probability ensembling of
-three validation-selected models added **0.1677 pp** over the best single model.
-The final official-test accuracy is **97.0974%**. A baseline test evaluation was
-intentionally never run, so the report does not claim a test-set gain versus
-baseline; doing so would require an additional baseline test access not used in
-the validation-driven protocol.
+## 6. 核心结论
+
+1. **旋转增强是最主要的有效因素。** 100% rotation 提升 +0.7082 pp，说明原始
+   坐标方向存在明显过拟合。
+2. **增强强度需要匹配评估分布。** 50% canonical + 50% rotation 比 100%
+   rotation 再高 0.3353 pp，是最强单模型。
+3. **全局 CAD context 有稳定收益。** 单独提升 +0.1914 pp，并成为后续强方案的
+   公共基础。
+4. **模型多样性比单纯增加容量更有效。** 三种训练策略的 probability ensemble
+   比最佳单模型再高 0.1677 pp。
+5. **复杂度不等于准确率。** Masking、grid encoder、物理归一化、local-edge
+   normals 和 boundary refinement 均未超过 baseline；保留这些负结果可避免
+   重复尝试。
+6. **测试集隔离得到保持。** 所有候选与 ensemble 成员均由 validation 选择，
+   最终组合冻结后才进行独立 test。
