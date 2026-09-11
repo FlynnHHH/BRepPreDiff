@@ -388,17 +388,32 @@ def compute_pretrain_loss(
     config: dict[str, Any],
 ) -> tuple[torch.Tensor, dict[str, float]]:
     diff_cfg = config["diffusion"]
+    use_discrete = bool(config["model"].get("use_discrete_attributes", True))
+    if not use_discrete and (
+        float(diff_cfg["categorical_loss_weight"]) != 0.0
+        or float(diff_cfg["relation_loss_weight"]) != 0.0
+    ):
+        raise ValueError("Geometry-only inputs require zero categorical and relation loss weights.")
     losses: dict[str, torch.Tensor] = {}
 
     losses["face_noise"] = F.mse_loss(outputs["face_noise"], face_noise)
     losses["face_recon"] = F.l1_loss(outputs["face_recon"], batch.face_cont)
-    losses["surface"] = F.cross_entropy(outputs["surface_logits"], batch.face_surface_type)
+    losses["surface"] = (
+        F.cross_entropy(outputs["surface_logits"], batch.face_surface_type)
+        if use_discrete else batch.face_cont.new_tensor(0.0)
+    )
 
     if batch.edge_cont.numel() > 0:
         losses["edge_noise"] = F.mse_loss(outputs["edge_noise"], edge_noise)
         losses["edge_recon"] = F.l1_loss(outputs["edge_recon"], batch.edge_cont)
-        losses["edge_type"] = F.cross_entropy(outputs["edge_type_logits"], batch.edge_type)
-        losses["relation"] = F.cross_entropy(outputs["relation_logits"], batch.edge_relation)
+        losses["edge_type"] = (
+            F.cross_entropy(outputs["edge_type_logits"], batch.edge_type)
+            if use_discrete else batch.face_cont.new_tensor(0.0)
+        )
+        losses["relation"] = (
+            F.cross_entropy(outputs["relation_logits"], batch.edge_relation)
+            if use_discrete else batch.face_cont.new_tensor(0.0)
+        )
     else:
         zero = batch.face_cont.new_tensor(0.0)
         losses["edge_noise"] = zero

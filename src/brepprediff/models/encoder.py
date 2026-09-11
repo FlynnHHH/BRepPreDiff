@@ -205,6 +205,7 @@ class BRepGraphEncoder(nn.Module):
         relation_type_vocab: int,
         encoder_type: str = "message_passing",
         num_heads: int = 4,
+        use_discrete_attributes: bool = True,
     ) -> None:
         super().__init__()
         encoder_type = self.ENCODER_TYPE_ALIASES.get(encoder_type, encoder_type)
@@ -214,6 +215,7 @@ class BRepGraphEncoder(nn.Module):
                 f"expected one of {sorted(self.SUPPORTED_TYPES)}."
             )
         self.hidden_dim = hidden_dim
+        self.use_discrete_attributes = use_discrete_attributes
         self.encoder_type = encoder_type
         self.surface_type_vocab = surface_type_vocab
         self.edge_type_vocab = edge_type_vocab
@@ -261,6 +263,7 @@ class BRepGraphEncoder(nn.Module):
             relation_type_vocab=int(brep_cfg["relation_type_vocab"]),
             encoder_type=str(model_cfg.get("encoder_type", "message_passing")),
             num_heads=int(model_cfg.get("num_heads", 4)),
+            use_discrete_attributes=bool(model_cfg.get("use_discrete_attributes", True)),
         )
 
     def embed_edges(
@@ -269,6 +272,8 @@ class BRepGraphEncoder(nn.Module):
         edge_type: torch.Tensor,
         edge_relation: torch.Tensor,
     ) -> torch.Tensor:
+        if not self.use_discrete_attributes:
+            return self.edge_norm(self.edge_cont_proj(edge_cont))
         edge_type = edge_type.clamp(0, self.edge_type_vocab - 1)
         edge_relation = edge_relation.clamp(0, self.relation_type_vocab - 1)
         edge_h = (
@@ -290,8 +295,10 @@ class BRepGraphEncoder(nn.Module):
         time_h: torch.Tensor | None = None,
         graph_ptr: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        face_surface_type = face_surface_type.clamp(0, self.surface_type_vocab - 1)
-        node_h = self.face_cont_proj(face_cont) + self.surface_emb(face_surface_type)
+        node_h = self.face_cont_proj(face_cont)
+        if self.use_discrete_attributes:
+            face_surface_type = face_surface_type.clamp(0, self.surface_type_vocab - 1)
+            node_h = node_h + self.surface_emb(face_surface_type)
         if time_h is not None:
             node_h = node_h + time_h
         node_h = self.input_norm(node_h)
