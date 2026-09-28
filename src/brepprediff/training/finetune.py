@@ -10,15 +10,11 @@ from brepprediff.config import feature_dims
 from brepprediff.data import build_dataloader
 from brepprediff.data.load_data import split_has_items
 from brepprediff.models import (
-    LabelDiffusionModel,
     build_finetune_model,
-    compute_finetune_label_diffusion_loss,
     compute_finetune_loss,
     finetune_confusion_matrix,
     finetune_metrics_from_confusion_matrix,
     finetune_metrics_from_probabilities,
-    predict_finetune_probabilities,
-    prepare_label_diffusion_training_batch,
 )
 from brepprediff.training.common import (
     MetricAverager,
@@ -93,31 +89,11 @@ def run_epoch(
         batch = batch.to(device)
         check_finite_batch(batch)
         with torch.set_grad_enabled(train):
-            target_model = unwrap_model(model)
-            if isinstance(target_model, LabelDiffusionModel):
-                prepared = prepare_label_diffusion_training_batch(target_model, batch, config)
-                prediction = model(
-                    batch,
-                    prepared.x_t,
-                    prepared.timesteps,
-                    prepared.token_indices,
-                )
-                loss, metrics = compute_finetune_label_diffusion_loss(
-                    prediction,
-                    prepared,
-                    target_model,
-                    config,
-                    class_weights,
-                )
-                if not train:
-                    probabilities = predict_finetune_probabilities(target_model, batch, config)
-                    metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
-            else:
-                logits = model(batch)
-                loss, metrics = compute_finetune_loss(logits, batch, config, class_weights)
-                if not train:
-                    probabilities = logits.softmax(dim=-1)
-                    metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
+            logits = model(batch)
+            loss, metrics = compute_finetune_loss(logits, batch, config, class_weights)
+            if not train:
+                probabilities = logits.softmax(dim=-1)
+                metrics.update(finetune_metrics_from_probabilities(probabilities, batch, config))
             if validation_confusion is not None:
                 validation_confusion.add_(finetune_confusion_matrix(probabilities, batch, config))
             check_finite_loss(loss, metrics, batch.sample_ids)
@@ -188,7 +164,10 @@ def build_optimizer(model, config) -> torch.optim.AdamW:
 
 
 def main() -> None:
-    args = parse_train_args("Fine-tune the B-Rep encoder for segmentation or classification.")
+    args = parse_train_args(
+        "Fine-tune the B-Rep encoder for segmentation or classification.",
+        default_config="configs/finetune.yaml",
+    )
     config = load_train_config(args, stage="finetune")
     distributed = setup_distributed(config)
     logger = None

@@ -64,8 +64,8 @@ def prepare_mfinstseg(root: Path, output: Path, seed: int) -> dict[str, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cadsynth-root", type=Path, default=Path("/home/nvme03/hhfeng/CADSynth"))
-    parser.add_argument("--mfinstseg-root", type=Path, default=Path("/home/nvme03/hhfeng/MFInstSeg"))
+    parser.add_argument("--cadsynth-root", type=Path, default=Path("data/raw/cadsynth"))
+    parser.add_argument("--mfinstseg-root", type=Path, default=Path("data/raw/mfinstseg"))
     parser.add_argument("--output-dir", type=Path, default=Path("data/splits"))
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

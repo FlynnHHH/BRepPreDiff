@@ -897,7 +897,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seg-list", action="append", default=[], help="Text file with one SEG path per line.")
     parser.add_argument("--seg-root", default=None, help="Base directory for relative --seg-list or --seg paths.")
     parser.add_argument("--cache-dir", default=None, help="Optional feature cache directory. Direct STEP mode only writes cache when this is set.")
-    parser.add_argument("--output-dir", default="tools/visualize/results")
+    parser.add_argument("--output-dir", default="outputs/visualization")
     parser.add_argument(
         "--seg-output-dir",
         default=None,

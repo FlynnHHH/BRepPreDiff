@@ -194,7 +194,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate one-hot CLS labels and BRepPreDiff splits for SolidLetters."
     )
-    parser.add_argument("--dataset-root", default="/home/nvme03/hhfeng/SolidLetters")
+    parser.add_argument("--dataset-root", default="data/raw/solidletters")
     parser.add_argument("--labels-root", default="data/labels/solidletters")
     parser.add_argument("--splits-dir", default="data/splits")
     parser.add_argument("--validation-ratio", type=float, default=0.1)

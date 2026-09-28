@@ -11,14 +11,11 @@ from brepprediff.models.classification import (
     classification_confusion_matrix,
     classification_metrics_from_confusion_matrix,
     classification_metrics_from_probabilities,
-    compute_classification_label_diffusion_loss,
     compute_classification_loss,
     predict_classification_probabilities,
 )
-from brepprediff.models.downstream import LabelDiffusionModel, LabelDiffusionTrainingBatch
 from brepprediff.models.segmentation import (
     build_segmentation_model,
-    compute_label_diffusion_loss,
     compute_segmentation_loss,
     predict_segmentation_probabilities,
     segmentation_confusion_matrix,
@@ -47,23 +44,6 @@ def compute_finetune_loss(
     if task_type(config) == CLASSIFICATION:
         return compute_classification_loss(logits, batch, config, class_weights)
     return compute_segmentation_loss(logits, batch, config, class_weights)
-
-
-def compute_finetune_label_diffusion_loss(
-    prediction: torch.Tensor,
-    prepared: LabelDiffusionTrainingBatch,
-    model: LabelDiffusionModel,
-    config: dict[str, Any],
-    class_weights: torch.Tensor | None = None,
-) -> tuple[torch.Tensor, dict[str, float]]:
-    if task_type(config) == CLASSIFICATION:
-        return compute_classification_label_diffusion_loss(
-            prediction,
-            prepared,
-            model,
-            class_weights,
-        )
-    return compute_label_diffusion_loss(prediction, prepared, model, class_weights)
 
 
 def predict_finetune_probabilities(
@@ -107,7 +87,6 @@ def finetune_metrics_from_confusion_matrix(
 
 __all__ = [
     "build_finetune_model",
-    "compute_finetune_label_diffusion_loss",
     "compute_finetune_loss",
     "finetune_confusion_matrix",
     "finetune_metrics_from_confusion_matrix",

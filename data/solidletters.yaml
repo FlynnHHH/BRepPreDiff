@@ -1,7 +1,7 @@
 task: cls
 
 data:
-  steps_dir: /home/nvme03/hhfeng/SolidLetters/step
+  steps_dir: data/raw/solidletters/step
   labels_dir: data/labels/solidletters
   cache_dir: cache/features/solidletters
   prepare_on_start: false

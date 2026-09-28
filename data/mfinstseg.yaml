@@ -1,8 +1,8 @@
 task: seg
 
 data:
-  steps_dir: /home/nvme03/hhfeng/MFInstSeg/steps
-  labels_dir: /home/nvme03/hhfeng/MFInstSeg/labels
+  steps_dir: data/raw/mfinstseg/steps
+  labels_dir: data/raw/mfinstseg/labels
   cache_dir: cache/features/mfinstseg
   prepare_on_start: false
   train_split: data/splits/mfinstseg_train.txt

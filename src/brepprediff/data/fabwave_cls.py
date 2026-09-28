@@ -162,7 +162,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate one-hot CLS labels and stratified splits for FabWave."
     )
-    parser.add_argument("--dataset-root", default="/data/hhfeng/FabWave")
+    parser.add_argument("--dataset-root", default="data/raw/fabwave")
     parser.add_argument("--labels-root", default="data/labels/fabwave")
     parser.add_argument("--splits-dir", default="data/splits")
     parser.add_argument("--ratios", nargs=3, type=float, default=(0.8, 0.1, 0.1))

@@ -86,9 +86,9 @@ class MetricAverager:
         return {key: value / self.count for key, value in self.totals.items()}
 
 
-def parse_train_args(description: str) -> argparse.Namespace:
+def parse_train_args(description: str, *, default_config: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--config", default="configs/default.yaml")
+    parser.add_argument("--config", default=default_config)
     parser.add_argument(
         "--data-config",
         default=None,
@@ -607,7 +607,6 @@ def log_config_summary(logger: Any, config: dict[str, Any]) -> None:
     data_cfg = config["data"]
     train_cfg = config["train"]
     model_cfg = config["model"]
-    label_diffusion_cfg = config.get("label_diffusion", {})
     logger.info(
         "config data.cache_dir=%s data.cache_dirs=%s "
         "data.train_split=%s data.val_split=%s data.test_split=%s "
@@ -634,11 +633,10 @@ def log_config_summary(logger: Any, config: dict[str, Any]) -> None:
         train_cfg.get("distributed_timeout_seconds", DEFAULT_DISTRIBUTED_TIMEOUT_SECONDS),
     )
     logger.info(
-        "config model.finetune_head=%s label_diffusion.prediction_type=%s "
+        "config model.finetune_head=%s "
         "train.encoder_freeze_mode=%s "
         "train.encoder_frozen_layers=%s",
         model_cfg.get("finetune_head", "n/a"),
-        label_diffusion_cfg.get("prediction_type", "n/a"),
         train_cfg.get("encoder_freeze_mode", "none"),
         train_cfg.get("encoder_frozen_layers", 0),
     )

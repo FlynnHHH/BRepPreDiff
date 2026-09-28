@@ -4,11 +4,7 @@ __pycache__/
 *.egg-info/
 .venv/
 
-# Test, lint and coverage caches
-.coverage
-.coverage.*
-htmlcov/
-.pytest_cache/
+# Lint caches
 .mypy_cache/
 .ruff_cache/
 
@@ -31,8 +27,6 @@ htmlcov/
 !/data/splits/mfinstseg_*.txt
 /dist/
 /runs/
-/tools/visualize/results/
-/tools/visualize/*.log
 *.ckpt
 *.pt
 *.pth

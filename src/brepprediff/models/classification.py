@@ -7,14 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from brepprediff.data.graph import GraphBatch
-from brepprediff.models.downstream import (
-    DownstreamEncoder,
-    LabelDiffusionModel,
-    LabelDiffusionTrainingBatch,
-    label_diffusion_objective,
-    predict_label_diffusion_probabilities,
-    prepare_label_diffusion_training_batch,
-)
+from brepprediff.models.downstream import DownstreamEncoder
 from brepprediff.models.encoder import MLP
 from brepprediff.models.metrics import (
     confusion_matrix_from_probabilities,
@@ -186,21 +179,6 @@ class ClassificationModel(DownstreamEncoder):
         return self.cls_head(self.graph_pool(self.encode_faces(batch), batch))
 
 
-class DiffusionClassificationModel(LabelDiffusionModel):
-    task = CLASSIFICATION
-
-    def __init__(self, config: dict[str, Any], face_cont_dim: int, edge_cont_dim: int) -> None:
-        _require_classification(config)
-        super().__init__(config, face_cont_dim, edge_cont_dim)
-        self.graph_pool = build_graph_pool(config["model"])
-
-    def encode_tokens(self, batch: GraphBatch) -> torch.Tensor:
-        return self.graph_pool(self.encode_faces(batch), batch)
-
-    def token_counts(self, batch: GraphBatch) -> list[int]:
-        return [1] * len(batch.sample_ids)
-
-
 class LinearClassificationModel(DownstreamEncoder):
     """Linear readout of fixed graph statistics, without a learned pooling MLP."""
 
@@ -228,31 +206,14 @@ def build_classification_model(
     config: dict[str, Any],
     face_cont_dim: int,
     edge_cont_dim: int,
-) -> ClassificationModel | LinearClassificationModel | DiffusionClassificationModel:
+) -> ClassificationModel | LinearClassificationModel:
     _require_classification(config)
     head_type = str(config.get("model", {}).get("finetune_head", "mlp")).lower()
     if head_type == "mlp":
         return ClassificationModel(config, face_cont_dim, edge_cont_dim)
     if head_type == "linear":
         return LinearClassificationModel(config, face_cont_dim, edge_cont_dim)
-    if head_type == "diffusion":
-        return DiffusionClassificationModel(config, face_cont_dim, edge_cont_dim)
     raise ValueError(f"Unsupported model.finetune_head: {head_type!r}")
-
-
-def compute_classification_label_diffusion_loss(
-    prediction: torch.Tensor,
-    prepared: LabelDiffusionTrainingBatch,
-    model: DiffusionClassificationModel,
-    class_weights: torch.Tensor | None = None,
-) -> tuple[torch.Tensor, dict[str, float]]:
-    loss, metrics, _ = label_diffusion_objective(
-        prediction,
-        prepared,
-        model,
-        class_weights,
-    )
-    return loss, metrics
 
 
 def predict_classification_probabilities(
@@ -263,8 +224,6 @@ def predict_classification_probabilities(
     target_model = model.module if hasattr(model, "module") else model
     if isinstance(target_model, (ClassificationModel, LinearClassificationModel)):
         return F.softmax(target_model(batch), dim=-1)
-    if isinstance(target_model, DiffusionClassificationModel):
-        return predict_label_diffusion_probabilities(target_model, batch, config)
     raise TypeError(f"Unsupported classification model type: {type(target_model).__name__}")
 
 
@@ -337,7 +296,6 @@ def compute_classification_loss(
 
 __all__ = [
     "ClassificationModel",
-    "DiffusionClassificationModel",
     "MeanGraphPool",
     "MeanStatisticGraphPool",
     "ResidualAttentionGraphPool",
@@ -346,9 +304,7 @@ __all__ = [
     "classification_confusion_matrix",
     "classification_metrics_from_confusion_matrix",
     "classification_metrics_from_probabilities",
-    "compute_classification_label_diffusion_loss",
     "compute_classification_loss",
     "mean_graph_pool",
     "predict_classification_probabilities",
-    "prepare_label_diffusion_training_batch",
 ]

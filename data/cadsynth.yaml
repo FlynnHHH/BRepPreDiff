@@ -1,8 +1,8 @@
 task: seg
 
 data:
-  steps_dir: /home/nvme03/hhfeng/CADSynth/step
-  labels_dir: /home/nvme03/hhfeng/CADSynth/label
+  steps_dir: data/raw/cadsynth/step
+  labels_dir: data/raw/cadsynth/label
   cache_dir: cache/features/cadsynth
   prepare_on_start: false
   train_split: data/splits/cadsynth_train.txt

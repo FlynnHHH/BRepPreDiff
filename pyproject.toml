@@ -23,11 +23,6 @@ dependencies = [
     "wandb==0.22.3",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-]
-
 [project.scripts]
 brepprediff-cache = "brepprediff.data.load_data:cache_main"
 brepprediff-prepare-data = "brepprediff.data.load_data:main"
@@ -41,7 +36,6 @@ brepprediff-infer-seg = "brepprediff.inference.step_to_seg:main"
 brepprediff-pretrain = "brepprediff.training.pretrain:main"
 brepprediff-finetune = "brepprediff.training.finetune:main"
 brepprediff-evaluate = "brepprediff.training.evaluate:main"
-brepprediff-smoke = "brepprediff.training.smoke:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -49,7 +43,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/brepprediff"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]

@@ -154,7 +154,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate one-hot CLS labels and stratified BRepPreDiff splits for TMCAD."
     )
-    parser.add_argument("--dataset-root", default="/data/hhfeng/TMCAD")
+    parser.add_argument("--dataset-root", default="data/raw/tmcad")
     parser.add_argument(
         "--labels-root",
         default=None,

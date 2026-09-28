@@ -7,14 +7,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from brepprediff.data.graph import GraphBatch
-from brepprediff.models.downstream import (
-    DownstreamEncoder,
-    LabelDiffusionModel,
-    LabelDiffusionTrainingBatch,
-    label_diffusion_objective,
-    predict_label_diffusion_probabilities,
-    prepare_label_diffusion_training_batch,
-)
+from brepprediff.models.downstream import DownstreamEncoder
 from brepprediff.models.encoder import MLP
 from brepprediff.models.metrics import (
     confusion_matrix_from_probabilities,
@@ -51,39 +44,15 @@ class SegmentationModel(DownstreamEncoder):
         return self.seg_head(self.encode_faces(batch))
 
 
-class DiffusionSegmentationModel(LabelDiffusionModel):
-    task = SEGMENTATION
-
-    def __init__(self, config: dict[str, Any], face_cont_dim: int, edge_cont_dim: int) -> None:
-        _require_segmentation(config)
-        super().__init__(config, face_cont_dim, edge_cont_dim)
-
-    def encode_tokens(self, batch: GraphBatch) -> torch.Tensor:
-        return self.encode_faces(batch)
-
-    def token_counts(self, batch: GraphBatch) -> list[int]:
-        graph_ptr = batch.graph_ptr.detach().cpu().tolist()
-        return [
-            int(graph_ptr[index + 1] - graph_ptr[index])
-            for index in range(len(batch.sample_ids))
-        ]
-
-    def encode(self, batch: GraphBatch) -> torch.Tensor:
-        """Compatibility alias for the original DiffusionSegmentationModel API."""
-        return self.encode_tokens(batch)
-
-
 def build_segmentation_model(
     config: dict[str, Any],
     face_cont_dim: int,
     edge_cont_dim: int,
-) -> SegmentationModel | DiffusionSegmentationModel:
+) -> SegmentationModel:
     _require_segmentation(config)
     head_type = str(config.get("model", {}).get("finetune_head", "mlp")).lower()
     if head_type in {"mlp", "linear"}:
         return SegmentationModel(config, face_cont_dim, edge_cont_dim)
-    if head_type == "diffusion":
-        return DiffusionSegmentationModel(config, face_cont_dim, edge_cont_dim)
     raise ValueError(f"Unsupported model.finetune_head: {head_type!r}")
 
 
@@ -109,29 +78,6 @@ def dice_loss(
     return 1.0 - dice.mean()
 
 
-def compute_label_diffusion_loss(
-    prediction: torch.Tensor,
-    prepared: LabelDiffusionTrainingBatch,
-    model: DiffusionSegmentationModel,
-    class_weights: torch.Tensor | None = None,
-) -> tuple[torch.Tensor, dict[str, float]]:
-    loss, metrics, x_start_prediction = label_diffusion_objective(
-        prediction,
-        prepared,
-        model,
-        class_weights,
-    )
-    with torch.no_grad():
-        dsc = dice_loss(
-            x_start_prediction,
-            prepared.labels,
-            model.num_classes,
-            ignore_index=-100,
-        )
-    metrics["dice"] = float(dsc.detach().cpu())
-    return loss, metrics
-
-
 def predict_segmentation_probabilities(
     model: nn.Module,
     batch: GraphBatch,
@@ -140,8 +86,6 @@ def predict_segmentation_probabilities(
     target_model = model.module if hasattr(model, "module") else model
     if isinstance(target_model, SegmentationModel):
         return F.softmax(target_model(batch), dim=-1)
-    if isinstance(target_model, DiffusionSegmentationModel):
-        return predict_label_diffusion_probabilities(target_model, batch, config)
     raise TypeError(f"Unsupported segmentation model type: {type(target_model).__name__}")
 
 
@@ -232,15 +176,11 @@ def compute_segmentation_loss(
 
 
 __all__ = [
-    "DiffusionSegmentationModel",
-    "LabelDiffusionTrainingBatch",
     "SegmentationModel",
     "build_segmentation_model",
-    "compute_label_diffusion_loss",
     "compute_segmentation_loss",
     "dice_loss",
     "predict_segmentation_probabilities",
-    "prepare_label_diffusion_training_batch",
     "segmentation_confusion_matrix",
     "segmentation_metrics_from_confusion_matrix",
     "segmentation_metrics_from_probabilities",

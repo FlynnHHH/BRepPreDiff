@@ -12,6 +12,8 @@ model:
   hidden_dim: 128
   num_layers: 4
   dropout: 0.1
+  encoder_type: edge_update_attention
+  num_heads: 4
   num_classes: 10
   finetune_head: mlp
   graph_pooling: mean_max
@@ -19,7 +21,7 @@ model:
 train:
   device: cuda
   require_cuda: true
-  epochs: 100
+  epochs: 200
   batch_size: 256
   num_workers: 8
   normalize_per_graph: true

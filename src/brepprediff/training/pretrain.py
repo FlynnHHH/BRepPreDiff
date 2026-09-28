@@ -107,7 +107,10 @@ def run_epoch(
 
 
 def main() -> None:
-    args = parse_train_args("Diffusion pretraining for B-Rep graph encoder.")
+    args = parse_train_args(
+        "Diffusion pretraining for B-Rep graph encoder.",
+        default_config="configs/pretrain.yaml",
+    )
     config = load_train_config(args, stage="pretrain")
     distributed = setup_distributed(config)
     logger = None
