@@ -34,17 +34,6 @@ conda activate brepprediff
 python -m pip install --no-deps -e .
 ```
 
-To update an existing `brepprediff` environment after changes to `environment.yml`:
-
-```bash
-conda env update -n brepprediff -f environment.yml
-conda activate brepprediff
-python -m pip install --no-deps -e .
-```
-
-The editable install uses `--no-deps` to keep the dependency versions managed by the
-environment file.
-
 ## Configuration
 
 - `data/*.yaml` defines dataset paths, splits, feature extraction, and label mappings.
@@ -86,9 +75,9 @@ and checks that every configured split is complete. Training reuses the cache wi
 settings. For the default multi-source pretraining corpus, prepare each source using its
 individual data YAML before starting training.
 
-Segmentation accepts per-face SEG or supported JSON labels. The default transition-face
+Segmentation accepts per-face SEG or supported JSON labels. The default blend-face
 mapping is raw label `4` → EBF/class `2`, raw label `6` → VBF/class `1`, and all other values
-→ non-transition/class `0`. For datasets that already use class IDs, configure
+→ non-blend/class `0`. For datasets that already use class IDs, configure
 `labels.raw_to_class_map: null` and `labels.default_class: null`.
 
 Classification uses `task: cls` and one one-hot `.cls` label per model. Label preparation
@@ -174,7 +163,7 @@ The launcher defaults to `configs/finetune.yaml`. Select another dataset with `-
 
 | Dataset / task | Training configuration |
 | --- | --- |
-| Transition-face segmentation | [configs/finetune.yaml](configs/finetune.yaml) |
+| Blend-face segmentation | [configs/finetune.yaml](configs/finetune.yaml) |
 | Fusion360Seg segmentation | [configs/finetune_fusion360seg_mlp.yaml](configs/finetune_fusion360seg_mlp.yaml) |
 | MFCAD++ segmentation | [configs/finetune_mfcad_mlp.yaml](configs/finetune_mfcad_mlp.yaml) |
 | CADSynth segmentation | [configs/finetune_cadsynth.yaml](configs/finetune_cadsynth.yaml) |
@@ -209,32 +198,7 @@ for local logging, or add `--override wandb.enabled=false` to disable tracking.
 ## Evaluation and inference
 
 Seven downstream checkpoints are bundled in `ckpt/`, each selected by the highest saved
-validation accuracy among the locally available runs for that dataset. All use seed 42,
-100 epochs of pretraining, and a 200-epoch fine-tuning budget. The selected epoch and
-pretraining variant differ by dataset. Test metrics below are the recorded evaluations of
-the selected checkpoints; checkpoint selection uses validation accuracy.
-
-| Dataset | Selected configuration | Epoch | Validation accuracy | Recorded test accuracy | Checkpoint |
-| --- | --- | ---: | ---: | ---: | --- |
-| Blend | Rotate-mix, discrete losses off, MLP | 135 | 98.8433% | 98.9144% | [Weights](ckpt/blend_best.pt) |
-| Fusion360Seg | Rotate-mix, MLP | 188 | 97.3524% | 96.9275% | [Weights](ckpt/fusion360seg_best.pt) |
-| MFCAD++ | Rotate-mix, geometry-only inputs, MLP | 192 | 99.6169% | 99.5944% | [Weights](ckpt/mfcadpp_best.pt) |
-| TMCAD | Pretraining with TMCAD excluded, MLP | 64 | 87.9817% | 85.9246% | [Weights](ckpt/tmcad_best.pt) |
-| SolidLetters | Rotate-mix, MLP | 165 | 97.9855% | 97.4629% | [Weights](ckpt/solidletters_best.pt) |
-| CADSynth | Rotate-mix, one-step label diffusion | 157 | 99.6805% | 99.6617% | [Weights](ckpt/cadsynth_best.pt) |
-| MFInstSeg | Rotate-mix, discrete losses off, MLP | 200 | 99.3744% | 99.4721% | [Weights](ckpt/mfinstseg_best.pt) |
-
-Each file retains the original encoder and task-head weights, configuration, epoch, and
-validation metrics; optimizer state is omitted.
-
-CADSynth includes inference support for its archived `x_start` label-diffusion head with
-one DDIM step. Use its embedded configuration for evaluation; new training runs continue
-to use the MLP configurations above. Original dataset paths are preserved in all checkpoints;
-use `--override data.steps_dir=...` and the corresponding cache/split overrides when needed.
-
-Full test evaluation reproduces the recorded metrics for all six MLP checkpoints. CADSynth
-scores 99.6624% on CPU and exactly matches the archived inference code on the same CPU test;
-the table retains its original CUDA result of 99.6617%.
+validation accuracy among the locally available runs for that dataset. 
 
 Evaluate the bundled checkpoint on the prepared Blend test split, or substitute your own
 downstream checkpoint:
@@ -249,7 +213,7 @@ Evaluation uses the configuration saved in the checkpoint and reports accuracy, 
 per-class metrics, and the confusion matrix. Use `--config` to supply a configuration when
 it is not embedded in the checkpoint.
 
-For transition-face segmentation, convert STEP files into SEG predictions:
+For blend-face segmentation, convert STEP files into SEG predictions:
 
 ```bash
 brepprediff-infer-seg data/raw/example.step \
@@ -257,7 +221,7 @@ brepprediff-infer-seg data/raw/example.step \
   --output-dir outputs/predictions
 ```
 
-The output maps non-transition, EBF, and VBF predictions to SEG values `0`, `4`, and `6`.
+The output maps non-blend, EBF, and VBF predictions to SEG values `0`, `4`, and `6`.
 For colored PLY exports from segmentation checkpoints:
 
 ```bash
