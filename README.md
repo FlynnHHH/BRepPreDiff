@@ -9,8 +9,22 @@ keeps topology fixed, denoises continuous features, and reconstructs discrete at
 
 ## Installation
 
-Requirements: Python 3.9–3.12, PyTorch 1.12 or newer, and `pythonocc-core` for STEP extraction
-and mesh export. The Conda environment includes these dependencies.
+The supplied [environment.yml](environment.yml) defines a Linux CUDA environment for
+NVIDIA A800 (`sm_80`) with these pinned runtime dependencies:
+
+| Dependency | Version / build |
+| --- | --- |
+| Python | 3.10.20 |
+| PyTorch | 2.5.1, CUDA 12.4 build |
+| CUDA runtime (`pytorch-cuda`) | 12.4 |
+| torchvision / torchaudio | 0.20.1 / 2.5.1, `cu124` builds |
+| NumPy | 1.24.0 |
+| MKL | 2022.1.0 |
+| pythonocc-core | 7.8.1, `novtk` build |
+
+`pythonocc-core` provides STEP extraction and PLY export. The environment file explicitly
+selects CUDA builds of PyTorch, torchvision, and torchaudio and pins the compatible MKL
+runtime. It also installs PyYAML, tqdm, and Weights & Biases.
 
 Run commands from the repository root:
 
@@ -19,6 +33,17 @@ conda env create -f environment.yml
 conda activate brepprediff
 python -m pip install --no-deps -e .
 ```
+
+To update an existing `brepprediff` environment after changes to `environment.yml`:
+
+```bash
+conda env update -n brepprediff -f environment.yml
+conda activate brepprediff
+python -m pip install --no-deps -e .
+```
+
+The editable install uses `--no-deps` to keep the dependency versions managed by the
+environment file.
 
 ## Configuration
 
