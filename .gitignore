@@ -31,5 +31,6 @@ __pycache__/
 *.pt
 *.pth
 
-# Bundled pretrained encoder
+# Bundled model checkpoints
 !/ckpt/encoder_pretrain.pt
+!/ckpt/blend_best.pt

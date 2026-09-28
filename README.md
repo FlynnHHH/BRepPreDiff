@@ -186,11 +186,24 @@ for local logging, or add `--override wandb.enabled=false` to disable tracking.
 
 ## Evaluation and inference
 
-Evaluate a downstream checkpoint on a configured split:
+The bundled [Blend checkpoint](ckpt/blend_best.pt) contains the fine-tuned encoder and MLP
+segmentation head from epoch 135 of a 200-epoch run (seed 42). It has the highest saved
+validation accuracy among 109 locally available Blend checkpoints: **98.8433%**. Its encoder
+was initialized from the 100-epoch Inductive9 rotate-mix run with discrete reconstruction
+losses disabled. Test accuracy is **98.9144%**, macro F1 is **97.1606%**, and mean IoU is
+**94.5318%** on 1,787 models (102,980 faces).
+
+The file retains the original model weights, configuration, epoch, and validation metrics;
+optimizer state is omitted. It loads directly for evaluation and inference. See
+[checkpoint metadata](ckpt/blend_best.json) for provenance, full metrics, and split checksums.
+Verify the download with `sha256sum -c ckpt/blend_best.pt.sha256`.
+
+Evaluate the bundled checkpoint on the prepared Blend test split, or substitute your own
+downstream checkpoint:
 
 ```bash
 brepprediff-evaluate \
-  --checkpoint runs/finetune/RUN_NAME/checkpoints/best.pt \
+  --checkpoint ckpt/blend_best.pt \
   --split test --output outputs/metrics.json
 ```
 
@@ -202,7 +215,7 @@ For transition-face segmentation, convert STEP files into SEG predictions:
 
 ```bash
 brepprediff-infer-seg data/raw/example.step \
-  --checkpoint runs/finetune/RUN_NAME/checkpoints/best.pt \
+  --checkpoint ckpt/blend_best.pt \
   --output-dir outputs/predictions
 ```
 
@@ -211,8 +224,7 @@ For colored PLY exports from segmentation checkpoints:
 
 ```bash
 brepprediff-infer-visual \
-  --config configs/finetune.yaml \
-  --checkpoint runs/finetune/RUN_NAME/checkpoints/best.pt \
+  --checkpoint ckpt/blend_best.pt \
   --step data/raw/example.step \
   --output-dir outputs/visualization
 ```
@@ -221,7 +233,7 @@ brepprediff-infer-visual \
 
 ```text
 configs/                 default pretraining and dataset-specific MLP configurations
-ckpt/                    bundled pretrained encoder and SHA-256 checksum
+ckpt/                    bundled encoder and Blend segmentation weights, checksums, and metadata
 data/                    data configurations and dataset split lists
 scripts/                 default launchers and data preparation utilities
 src/brepprediff/
@@ -234,4 +246,4 @@ src/brepprediff/
 
 Runs are written to `runs/<stage>/<timestamp_name>/` with a resolved `config.yaml`, logs,
 and checkpoints. Generated caches, run outputs, checkpoints, and packaged artifacts are ignored
-by Git; `ckpt/encoder_pretrain.pt` is explicitly included.
+by Git; `ckpt/encoder_pretrain.pt` and `ckpt/blend_best.pt` are explicitly included.
