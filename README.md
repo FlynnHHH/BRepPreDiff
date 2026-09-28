@@ -161,17 +161,6 @@ bash scripts/finetune_mlp.sh \
 
 The launcher defaults to `configs/finetune.yaml`. Select another dataset with `--config`:
 
-| Dataset / task | Training configuration |
-| --- | --- |
-| Blend-face segmentation | [configs/finetune.yaml](configs/finetune.yaml) |
-| Fusion360Seg segmentation | [configs/finetune_fusion360seg_mlp.yaml](configs/finetune_fusion360seg_mlp.yaml) |
-| MFCAD++ segmentation | [configs/finetune_mfcad_mlp.yaml](configs/finetune_mfcad_mlp.yaml) |
-| CADSynth segmentation | [configs/finetune_cadsynth.yaml](configs/finetune_cadsynth.yaml) |
-| MFInstSeg segmentation | [configs/finetune_mfinstseg.yaml](configs/finetune_mfinstseg.yaml) |
-| TMCAD classification | [configs/finetune_tmcad_mlp.yaml](configs/finetune_tmcad_mlp.yaml) |
-| FabWave classification | [configs/finetune_fabwave_mlp.yaml](configs/finetune_fabwave_mlp.yaml) |
-| SolidLetters classification | [configs/finetune_solidletters_mlp.yaml](configs/finetune_solidletters_mlp.yaml) |
-
 For example, fine-tune TMCAD on four GPUs:
 
 ```bash
