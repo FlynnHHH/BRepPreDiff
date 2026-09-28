@@ -34,3 +34,9 @@ __pycache__/
 # Bundled model checkpoints
 !/ckpt/encoder_pretrain.pt
 !/ckpt/blend_best.pt
+!/ckpt/fusion360seg_best.pt
+!/ckpt/mfcadpp_best.pt
+!/ckpt/tmcad_best.pt
+!/ckpt/solidletters_best.pt
+!/ckpt/cadsynth_best.pt
+!/ckpt/mfinstseg_best.pt

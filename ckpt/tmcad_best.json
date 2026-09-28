@@ -1,0 +1,330 @@
+{
+  "checkpoint": "ckpt/tmcad_best.pt",
+  "sha256": "c4ea4ba69967033ba2c9990988fa2eaebd87e529fd68f5b0ae87001c7bfc6e2d",
+  "size_bytes": 7627907,
+  "dataset": "TMCAD",
+  "task": "classification",
+  "source_checkpoint": "runs/lodo_transfer_pre100_ft200_seed42_20260918/finetune/20260919-042127_tmcad_finetune/checkpoints/best.pt",
+  "source_sha256": "d1f41adb0570c766f45e085d256bab034d2aafe86de6d6dd6a3c524c63b053e4",
+  "selection": {
+    "split": "val",
+    "metric": "acc",
+    "mode": "max",
+    "value": 0.8798165137614679,
+    "scope": "Highest saved validation accuracy among locally available TMCAD best.pt checkpoints.",
+    "candidates_compared": 110
+  },
+  "epoch": 64,
+  "training_epochs": 200,
+  "seed": 42,
+  "pretraining": {
+    "source_checkpoint": "runs/lodo_transfer_pre100_ft200_seed42_20260918/pretrain/20260918-215452_tmcad_pretrain/checkpoints/last.pt",
+    "epochs": 100,
+    "model": {
+      "hidden_dim": 128,
+      "num_layers": 4,
+      "dropout": 0.1,
+      "encoder_type": "edge_update_attention",
+      "num_heads": 4,
+      "time_dim": 128
+    },
+    "diffusion": {
+      "timesteps": 1000,
+      "beta_start": 0.0001,
+      "beta_end": 0.02,
+      "noise_loss_weight": 1.0,
+      "recon_loss_weight": 0.5,
+      "categorical_loss_weight": 0.5,
+      "relation_loss_weight": 0.3
+    }
+  },
+  "model": {
+    "hidden_dim": 128,
+    "num_layers": 4,
+    "dropout": 0.1,
+    "num_classes": 10,
+    "finetune_head": "mlp",
+    "graph_pooling": "mean_max",
+    "encoder_type": "edge_update_attention",
+    "num_heads": 4
+  },
+  "feature_dimensions": {
+    "face": 711,
+    "edge": 63
+  },
+  "parameters": 1894554,
+  "state_dict_tensors": 133,
+  "export": {
+    "retained_keys": [
+      "epoch",
+      "model",
+      "config",
+      "metrics"
+    ],
+    "omitted_keys": [
+      "optimizer"
+    ],
+    "weights_and_config_unchanged": true,
+    "optimizer_resume_supported": false
+  },
+  "validation_metrics": {
+    "ce": 0.5229945282141367,
+    "acc": 0.8798165137614679,
+    "total": 0.5229945282141367,
+    "f1": 0.87596749768838,
+    "weighted_f1": 0.8795629484510525
+  },
+  "test_evaluation": {
+    "source": "runs/lodo_transfer_pre100_ft200_seed42_20260918/results/tmcad_finetune.json",
+    "split": "test",
+    "split_file": "data/splits/tmcad_test.txt",
+    "samples": 1087,
+    "metrics": {
+      "accuracy": 0.859245630174793,
+      "macro_precision": 0.8551059001345737,
+      "macro_recall": 0.8570228438257107,
+      "macro_f1": 0.8546203217186881,
+      "macro_iou": 0.7524339034906016,
+      "weighted_f1": 0.8584951565450293,
+      "weighted_iou": 0.7585854197586138,
+      "confusion_matrix": [
+        [
+          96,
+          0,
+          3,
+          3,
+          3,
+          0,
+          1,
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          139,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          8,
+          2
+        ],
+        [
+          2,
+          0,
+          99,
+          1,
+          2,
+          3,
+          3,
+          2,
+          0,
+          0
+        ],
+        [
+          2,
+          1,
+          3,
+          78,
+          4,
+          2,
+          1,
+          6,
+          0,
+          10
+        ],
+        [
+          2,
+          0,
+          1,
+          3,
+          92,
+          1,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          0,
+          92,
+          0,
+          2,
+          0,
+          6
+        ],
+        [
+          1,
+          0,
+          0,
+          2,
+          0,
+          2,
+          95,
+          0,
+          1,
+          0
+        ],
+        [
+          8,
+          0,
+          5,
+          5,
+          1,
+          7,
+          1,
+          71,
+          0,
+          3
+        ],
+        [
+          0,
+          2,
+          0,
+          1,
+          0,
+          1,
+          1,
+          1,
+          93,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          6,
+          0,
+          13,
+          0,
+          1,
+          5,
+          79
+        ]
+      ],
+      "per_class": [
+        {
+          "class_id": 0,
+          "class_name": "bearing",
+          "support": 110,
+          "predicted": 111,
+          "precision": 0.8648648648648649,
+          "recall": 0.8727272727272727,
+          "f1": 0.8687782805429864,
+          "iou": 0.768
+        },
+        {
+          "class_id": 1,
+          "class_name": "bolt",
+          "support": 151,
+          "predicted": 142,
+          "precision": 0.9788732394366197,
+          "recall": 0.9205298013245033,
+          "f1": 0.9488054607508534,
+          "iou": 0.9025974025974026
+        },
+        {
+          "class_id": 2,
+          "class_name": "bracket",
+          "support": 112,
+          "predicted": 112,
+          "precision": 0.8839285714285714,
+          "recall": 0.8839285714285714,
+          "f1": 0.8839285714285714,
+          "iou": 0.792
+        },
+        {
+          "class_id": 3,
+          "class_name": "coupling",
+          "support": 107,
+          "predicted": 99,
+          "precision": 0.7878787878787878,
+          "recall": 0.7289719626168224,
+          "f1": 0.7572815533980582,
+          "iou": 0.609375
+        },
+        {
+          "class_id": 4,
+          "class_name": "flange",
+          "support": 100,
+          "predicted": 102,
+          "precision": 0.9019607843137255,
+          "recall": 0.92,
+          "f1": 0.9108910891089109,
+          "iou": 0.8363636363636363
+        },
+        {
+          "class_id": 5,
+          "class_name": "gear",
+          "support": 101,
+          "predicted": 121,
+          "precision": 0.7603305785123967,
+          "recall": 0.9108910891089109,
+          "f1": 0.8288288288288289,
+          "iou": 0.7076923076923077
+        },
+        {
+          "class_id": 6,
+          "class_name": "nut",
+          "support": 101,
+          "predicted": 104,
+          "precision": 0.9134615384615384,
+          "recall": 0.9405940594059405,
+          "f1": 0.926829268292683,
+          "iou": 0.8636363636363636
+        },
+        {
+          "class_id": 7,
+          "class_name": "pulley",
+          "support": 101,
+          "predicted": 87,
+          "precision": 0.8160919540229885,
+          "recall": 0.7029702970297029,
+          "f1": 0.7553191489361702,
+          "iou": 0.6068376068376068
+        },
+        {
+          "class_id": 8,
+          "class_name": "screw",
+          "support": 100,
+          "predicted": 107,
+          "precision": 0.8691588785046729,
+          "recall": 0.93,
+          "f1": 0.8985507246376813,
+          "iou": 0.8157894736842105
+        },
+        {
+          "class_id": 9,
+          "class_name": "shaft",
+          "support": 104,
+          "predicted": 102,
+          "precision": 0.7745098039215687,
+          "recall": 0.7596153846153846,
+          "f1": 0.766990291262136,
+          "iou": 0.6220472440944882
+        }
+      ],
+      "samples": 1087
+    }
+  },
+  "split_sha256": {
+    "train": "93bb3e1998b84498b8713375a520ed74cc9ea400d7b7f4f24593bc6c2e94d366",
+    "val": "c7936a4153fd5cb79b1e2d25252b05d2f25e6f070d1def61023c4da4b336da2b",
+    "test": "ee8de6bb41193067b7e8f0b7be1b4a94c53d36cc435fa738664d8f752411aa06"
+  },
+  "verification": {
+    "state_dict_equal_to_source": true,
+    "strict_model_load": true,
+    "full_test_metrics_match_recorded_evaluation": true,
+    "evaluation_device": "cpu",
+    "evaluation_batch_size": 64,
+    "evaluation_num_workers": 0
+  }
+}

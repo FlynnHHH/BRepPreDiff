@@ -9,6 +9,7 @@ from torch import nn
 from brepprediff.data.graph import GraphBatch
 from brepprediff.models.downstream import DownstreamEncoder
 from brepprediff.models.encoder import MLP
+from brepprediff.models.label_diffusion import DiffusionSegmentationModel
 from brepprediff.models.metrics import (
     confusion_matrix_from_probabilities,
     metrics_from_confusion_matrix,
@@ -48,11 +49,13 @@ def build_segmentation_model(
     config: dict[str, Any],
     face_cont_dim: int,
     edge_cont_dim: int,
-) -> SegmentationModel:
+) -> SegmentationModel | DiffusionSegmentationModel:
     _require_segmentation(config)
     head_type = str(config.get("model", {}).get("finetune_head", "mlp")).lower()
     if head_type in {"mlp", "linear"}:
         return SegmentationModel(config, face_cont_dim, edge_cont_dim)
+    if head_type == "diffusion":
+        return DiffusionSegmentationModel(config, face_cont_dim, edge_cont_dim)
     raise ValueError(f"Unsupported model.finetune_head: {head_type!r}")
 
 
@@ -86,6 +89,8 @@ def predict_segmentation_probabilities(
     target_model = model.module if hasattr(model, "module") else model
     if isinstance(target_model, SegmentationModel):
         return F.softmax(target_model(batch), dim=-1)
+    if isinstance(target_model, DiffusionSegmentationModel):
+        return target_model.predict_probabilities(batch, config)
     raise TypeError(f"Unsupported segmentation model type: {type(target_model).__name__}")
 
 
