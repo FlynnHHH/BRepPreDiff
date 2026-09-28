@@ -2,23 +2,32 @@ name: brepprediff
 
 channels:
   - pytorch
+  - nvidia
   - defaults
   - conda-forge
 
-# Reproduces the locally verified Python 3.9/PyTorch environment, including
-# pythonocc-core for STEP extraction and PLY export.
+# Linux CUDA environment for NVIDIA A800 (sm_80), including pythonocc-core
+# for STEP extraction and PLY export.
 dependencies:
-  - python=3.9.23
+  - python=3.10.20
   - pip=26.0.1
   - setuptools=80.9.0
   - wheel=0.45.1
-  - pytorch=1.12.1
-  - torchvision=0.13.1
-  - torchaudio=0.12.1
-  - cudatoolkit=10.2.89
-  - pythonocc-core=7.8.1
+  # Explicit CUDA builds prevent Conda from selecting CPU-only variants.
+  - pytorch::pytorch=2.5.1=*cuda12.4*
+  - pytorch::torchvision=0.20.1=*cu124*
+  - pytorch::torchaudio=2.5.1=*cu124*
+  - pytorch::pytorch-cuda=12.4
+  - cuda-version=12.4
+  # Required by PyTorch's Python package metadata.
+  - sympy=1.13.1
+  - fsspec
+  # Keep the MKL runtime compatible with the PyTorch Conda build.
+  - mkl=2022.1.0
+  # Let Conda resolve NumPy together with its BLAS dependencies.
+  - numpy=1.24.0
+  - pythonocc-core=7.8.1=novtk_*
   - pip:
-      - numpy==1.24.0
       - PyYAML==6.0.3
       - tqdm==4.68.4
       - wandb==0.22.3
