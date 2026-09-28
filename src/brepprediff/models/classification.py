@@ -201,15 +201,40 @@ class DiffusionClassificationModel(LabelDiffusionModel):
         return [1] * len(batch.sample_ids)
 
 
+class LinearClassificationModel(DownstreamEncoder):
+    """Linear readout of fixed graph statistics, without a learned pooling MLP."""
+
+    task = CLASSIFICATION
+
+    def __init__(self, config: dict[str, Any], face_cont_dim: int, edge_cont_dim: int) -> None:
+        _require_classification(config)
+        super().__init__(config, face_cont_dim, edge_cont_dim)
+        cfg = config["model"]
+        self.pooling = str(cfg.get("graph_pooling", "mean")).lower()
+        if self.pooling not in {"mean", "mean_max"}:
+            raise ValueError("Linear classification supports fixed mean or mean_max pooling only.")
+        width = int(cfg["hidden_dim"]) * (2 if self.pooling == "mean_max" else 1)
+        self.cls_head = nn.Linear(width, int(cfg["num_classes"]))
+
+    def forward(self, batch: GraphBatch) -> torch.Tensor:
+        faces = self.encode_faces(batch)
+        pooled = mean_graph_pool(faces, batch)
+        if self.pooling == "mean_max":
+            pooled = torch.cat((pooled, _max_graph_pool(faces, batch)), dim=-1)
+        return self.cls_head(pooled)
+
+
 def build_classification_model(
     config: dict[str, Any],
     face_cont_dim: int,
     edge_cont_dim: int,
-) -> ClassificationModel | DiffusionClassificationModel:
+) -> ClassificationModel | LinearClassificationModel | DiffusionClassificationModel:
     _require_classification(config)
     head_type = str(config.get("model", {}).get("finetune_head", "mlp")).lower()
     if head_type == "mlp":
         return ClassificationModel(config, face_cont_dim, edge_cont_dim)
+    if head_type == "linear":
+        return LinearClassificationModel(config, face_cont_dim, edge_cont_dim)
     if head_type == "diffusion":
         return DiffusionClassificationModel(config, face_cont_dim, edge_cont_dim)
     raise ValueError(f"Unsupported model.finetune_head: {head_type!r}")
@@ -236,7 +261,7 @@ def predict_classification_probabilities(
     config: dict[str, Any],
 ) -> torch.Tensor:
     target_model = model.module if hasattr(model, "module") else model
-    if isinstance(target_model, ClassificationModel):
+    if isinstance(target_model, (ClassificationModel, LinearClassificationModel)):
         return F.softmax(target_model(batch), dim=-1)
     if isinstance(target_model, DiffusionClassificationModel):
         return predict_label_diffusion_probabilities(target_model, batch, config)

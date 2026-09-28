@@ -18,6 +18,9 @@ htmlcov/
 !.env.example
 
 # Data and generated artifacts
+/artifacts/
+/cache/
+/outputs/
 /data/*
 !/data/*.yaml
 !/data/splits/

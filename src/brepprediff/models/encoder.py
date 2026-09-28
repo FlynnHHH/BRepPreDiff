@@ -120,8 +120,16 @@ class EdgeAttentionLayer(nn.Module):
         *,
         num_heads: int,
         update_edges: bool = False,
+        edge_update_mode: str = "full",
+        attention_mode: str = "softmax",
     ) -> None:
         super().__init__()
+        if edge_update_mode not in {"full", "fixed", "edge_only"}:
+            raise ValueError(f"Unknown edge_update_mode: {edge_update_mode}")
+        if attention_mode not in {"softmax", "uniform"}:
+            raise ValueError(f"Unknown attention_mode: {attention_mode}")
+        self.edge_update_mode = edge_update_mode
+        self.attention_mode = attention_mode
         if hidden_dim % num_heads:
             raise ValueError(
                 f"hidden_dim ({hidden_dim}) must be divisible by num_heads ({num_heads})."
@@ -158,18 +166,23 @@ class EdgeAttentionLayer(nn.Module):
         else:
             src, dst = edge_index[0], edge_index[1]
             normalized = self.norm_attention(node_h)
-            queries = self.query(normalized).view(
-                -1, self.num_heads, self.head_dim
-            )[dst]
-            keys = (
-                self.key(normalized)[src] + self.edge_key(edge_h)
-            ).view(-1, self.num_heads, self.head_dim)
+            if self.attention_mode == "softmax":
+                queries = self.query(normalized).view(
+                    -1, self.num_heads, self.head_dim
+                )[dst]
+                keys = (
+                    self.key(normalized)[src] + self.edge_key(edge_h)
+                ).view(-1, self.num_heads, self.head_dim)
             values = (
                 self.value(normalized)[src] + self.edge_value(edge_h)
             ).view(-1, self.num_heads, self.head_dim)
-            logits = (queries * keys).sum(dim=-1) / math.sqrt(self.head_dim)
-            logits = logits + self.edge_bias(edge_h)
-            weights = segmented_softmax(logits, dst, node_h.shape[0])
+            if self.attention_mode == "softmax":
+                logits = (queries * keys).sum(dim=-1) / math.sqrt(self.head_dim)
+                logits = logits + self.edge_bias(edge_h)
+                weights = segmented_softmax(logits, dst, node_h.shape[0])
+            else:
+                degree = torch.bincount(dst, minlength=node_h.shape[0])
+                weights = degree[dst].to(values.dtype).reciprocal().unsqueeze(-1)
             aggregated = node_h.new_zeros(
                 (node_h.shape[0], self.num_heads, self.head_dim)
             )
@@ -178,10 +191,15 @@ class EdgeAttentionLayer(nn.Module):
 
         node_h = node_h + self.dropout(attention_output)
         node_h = node_h + self.dropout(self.ffn(self.norm_ffn(node_h)))
-        if self.edge_update is not None and edge_index.numel() > 0:
+        if self.edge_update is not None and self.edge_update_mode != "fixed" and edge_index.numel() > 0:
             src, dst = edge_index[0], edge_index[1]
+            source, target = node_h[src], node_h[dst]
+            if self.edge_update_mode == "edge_only":
+                # Preserve the original MLP shape and initialization, removing
+                # endpoint information (not merely its gradients).
+                source, target = torch.zeros_like(source), torch.zeros_like(target)
             edge_delta = self.edge_update(
-                torch.cat([node_h[src], node_h[dst], edge_h], dim=-1)
+                torch.cat([source, target, edge_h], dim=-1)
             )
             assert self.edge_norm is not None
             edge_h = self.edge_norm(edge_h + self.dropout(edge_delta))
@@ -206,9 +224,14 @@ class BRepGraphEncoder(nn.Module):
         encoder_type: str = "message_passing",
         num_heads: int = 4,
         use_discrete_attributes: bool = True,
+        input_ablation: str = "none",
+        edge_update_mode: str = "full",
+        attention_mode: str = "softmax",
     ) -> None:
         super().__init__()
         encoder_type = self.ENCODER_TYPE_ALIASES.get(encoder_type, encoder_type)
+        if encoder_type != "edge_update_attention" and (edge_update_mode != "full" or attention_mode != "softmax"):
+            raise ValueError("Edge/attention ablations require edge_update_attention")
         if encoder_type not in self.SUPPORTED_TYPES:
             raise ValueError(
                 f"Unsupported encoder_type {encoder_type!r}; "
@@ -216,6 +239,9 @@ class BRepGraphEncoder(nn.Module):
             )
         self.hidden_dim = hidden_dim
         self.use_discrete_attributes = use_discrete_attributes
+        if input_ablation not in {"none", "face_geometry", "edge_geometry", "uv_grid", "face_edge_grid"}:
+            raise ValueError(f"Unknown input_ablation: {input_ablation}")
+        self.input_ablation = input_ablation
         self.encoder_type = encoder_type
         self.surface_type_vocab = surface_type_vocab
         self.edge_type_vocab = edge_type_vocab
@@ -238,6 +264,8 @@ class BRepGraphEncoder(nn.Module):
                     dropout,
                     num_heads=num_heads,
                     update_edges=True,
+                    edge_update_mode=edge_update_mode,
+                    attention_mode=attention_mode,
                 )
                 for _ in range(num_layers)
             ]
@@ -264,6 +292,9 @@ class BRepGraphEncoder(nn.Module):
             encoder_type=str(model_cfg.get("encoder_type", "message_passing")),
             num_heads=int(model_cfg.get("num_heads", 4)),
             use_discrete_attributes=bool(model_cfg.get("use_discrete_attributes", True)),
+            input_ablation=str(model_cfg.get("input_ablation", "none")),
+            edge_update_mode=str(model_cfg.get("edge_update_mode", "full")),
+            attention_mode=str(model_cfg.get("attention_mode", "softmax")),
         )
 
     def embed_edges(
@@ -272,7 +303,11 @@ class BRepGraphEncoder(nn.Module):
         edge_type: torch.Tensor,
         edge_relation: torch.Tensor,
     ) -> torch.Tensor:
-        if not self.use_discrete_attributes:
+        if self.input_ablation == "edge_geometry":
+            edge_cont = torch.zeros_like(edge_cont)
+        elif self.input_ablation == "face_edge_grid":
+            edge_cont = torch.cat((edge_cont[:, :3], torch.zeros_like(edge_cont[:, 3:])), dim=-1)
+        if not self.use_discrete_attributes or self.input_ablation == "edge_geometry":
             return self.edge_norm(self.edge_cont_proj(edge_cont))
         edge_type = edge_type.clamp(0, self.edge_type_vocab - 1)
         edge_relation = edge_relation.clamp(0, self.relation_type_vocab - 1)
@@ -295,8 +330,14 @@ class BRepGraphEncoder(nn.Module):
         time_h: torch.Tensor | None = None,
         graph_ptr: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Mask at the encoder boundary, after normalization/rotation/diffusion
+        # noise. Reconstruction targets stay intact: this is input ablation.
+        if self.input_ablation == "face_geometry":
+            face_cont = torch.cat((torch.zeros_like(face_cont[:, :11]), face_cont[:, 11:]), dim=-1)
+        elif self.input_ablation in {"uv_grid", "face_edge_grid"}:
+            face_cont = torch.cat((face_cont[:, :11], torch.zeros_like(face_cont[:, 11:])), dim=-1)
         node_h = self.face_cont_proj(face_cont)
-        if self.use_discrete_attributes:
+        if self.use_discrete_attributes and self.input_ablation != "face_geometry":
             face_surface_type = face_surface_type.clamp(0, self.surface_type_vocab - 1)
             node_h = node_h + self.surface_emb(face_surface_type)
         if time_h is not None:

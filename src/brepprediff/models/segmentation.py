@@ -40,7 +40,7 @@ class SegmentationModel(DownstreamEncoder):
         super().__init__(config, face_cont_dim, edge_cont_dim)
         model_cfg = config["model"]
         hidden_dim = int(model_cfg["hidden_dim"])
-        self.seg_head = MLP(
+        self.seg_head = nn.Linear(hidden_dim, int(model_cfg["num_classes"])) if model_cfg.get("finetune_head") == "linear" else MLP(
             hidden_dim,
             hidden_dim,
             int(model_cfg["num_classes"]),
@@ -80,7 +80,7 @@ def build_segmentation_model(
 ) -> SegmentationModel | DiffusionSegmentationModel:
     _require_segmentation(config)
     head_type = str(config.get("model", {}).get("finetune_head", "mlp")).lower()
-    if head_type == "mlp":
+    if head_type in {"mlp", "linear"}:
         return SegmentationModel(config, face_cont_dim, edge_cont_dim)
     if head_type == "diffusion":
         return DiffusionSegmentationModel(config, face_cont_dim, edge_cont_dim)
