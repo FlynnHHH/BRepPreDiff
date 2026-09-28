@@ -145,9 +145,6 @@ bash scripts/finetune_mlp.sh \
   --override "train.pretrain_checkpoint=$PRETRAIN_CHECKPOINT"
 ```
 
-Verify the bundled file from the repository root with
-`sha256sum -c ckpt/encoder_pretrain.pt.sha256`.
-
 The launcher defaults to `configs/finetune.yaml`. Select another dataset with `--config`:
 
 | Dataset / task | Training configuration |
@@ -192,20 +189,18 @@ validation accuracy among the locally available runs for that dataset. All use s
 pretraining variant differ by dataset. Test metrics below are the recorded evaluations of
 the selected checkpoints; checkpoint selection uses validation accuracy.
 
-| Dataset | Selected configuration | Epoch | Validation accuracy | Recorded test accuracy | Files |
+| Dataset | Selected configuration | Epoch | Validation accuracy | Recorded test accuracy | Checkpoint |
 | --- | --- | ---: | ---: | ---: | --- |
-| Blend | Rotate-mix, discrete losses off, MLP | 135 | 98.8433% | 98.9144% | [Weights](ckpt/blend_best.pt) · [Metadata](ckpt/blend_best.json) |
-| Fusion360Seg | Rotate-mix, MLP | 188 | 97.3524% | 96.9275% | [Weights](ckpt/fusion360seg_best.pt) · [Metadata](ckpt/fusion360seg_best.json) |
-| MFCAD++ | Rotate-mix, geometry-only inputs, MLP | 192 | 99.6169% | 99.5944% | [Weights](ckpt/mfcadpp_best.pt) · [Metadata](ckpt/mfcadpp_best.json) |
-| TMCAD | Pretraining with TMCAD excluded, MLP | 64 | 87.9817% | 85.9246% | [Weights](ckpt/tmcad_best.pt) · [Metadata](ckpt/tmcad_best.json) |
-| SolidLetters | Rotate-mix, MLP | 165 | 97.9855% | 97.4629% | [Weights](ckpt/solidletters_best.pt) · [Metadata](ckpt/solidletters_best.json) |
-| CADSynth | Rotate-mix, one-step label diffusion | 157 | 99.6805% | 99.6617% | [Weights](ckpt/cadsynth_best.pt) · [Metadata](ckpt/cadsynth_best.json) |
-| MFInstSeg | Rotate-mix, discrete losses off, MLP | 200 | 99.3744% | 99.4721% | [Weights](ckpt/mfinstseg_best.pt) · [Metadata](ckpt/mfinstseg_best.json) |
+| Blend | Rotate-mix, discrete losses off, MLP | 135 | 98.8433% | 98.9144% | [Weights](ckpt/blend_best.pt) |
+| Fusion360Seg | Rotate-mix, MLP | 188 | 97.3524% | 96.9275% | [Weights](ckpt/fusion360seg_best.pt) |
+| MFCAD++ | Rotate-mix, geometry-only inputs, MLP | 192 | 99.6169% | 99.5944% | [Weights](ckpt/mfcadpp_best.pt) |
+| TMCAD | Pretraining with TMCAD excluded, MLP | 64 | 87.9817% | 85.9246% | [Weights](ckpt/tmcad_best.pt) |
+| SolidLetters | Rotate-mix, MLP | 165 | 97.9855% | 97.4629% | [Weights](ckpt/solidletters_best.pt) |
+| CADSynth | Rotate-mix, one-step label diffusion | 157 | 99.6805% | 99.6617% | [Weights](ckpt/cadsynth_best.pt) |
+| MFInstSeg | Rotate-mix, discrete losses off, MLP | 200 | 99.3744% | 99.4721% | [Weights](ckpt/mfinstseg_best.pt) |
 
 Each file retains the original encoder and task-head weights, configuration, epoch, and
-validation metrics; optimizer state is omitted. The accompanying JSON files record
-provenance, full metrics, split checksums, and verification results. Verify all bundled
-files from the repository root with `sha256sum -c ckpt/*.pt.sha256`.
+validation metrics; optimizer state is omitted.
 
 CADSynth includes inference support for its archived `x_start` label-diffusion head with
 one DDIM step. Use its embedded configuration for evaluation; new training runs continue
@@ -214,8 +209,7 @@ use `--override data.steps_dir=...` and the corresponding cache/split overrides 
 
 Full test evaluation reproduces the recorded metrics for all six MLP checkpoints. CADSynth
 scores 99.6624% on CPU and exactly matches the archived inference code on the same CPU test;
-the table retains its original CUDA result of 99.6617%. Both results are recorded in its
-metadata.
+the table retains its original CUDA result of 99.6617%.
 
 Evaluate the bundled checkpoint on the prepared Blend test split, or substitute your own
 downstream checkpoint:
@@ -252,7 +246,7 @@ brepprediff-infer-visual \
 
 ```text
 configs/                 default pretraining and dataset-specific MLP configurations
-ckpt/                    bundled encoder and seven downstream weights, checksums, and metadata
+ckpt/                    bundled encoder and seven downstream .pt checkpoints
 data/                    data configurations and dataset split lists
 scripts/                 default launchers and data preparation utilities
 src/brepprediff/
