@@ -30,3 +30,6 @@ __pycache__/
 *.ckpt
 *.pt
 *.pth
+
+# Bundled pretrained encoder
+!/ckpt/encoder_pretrain.pt

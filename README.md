@@ -130,13 +130,23 @@ and `--override train.num_workers=8`.
 
 ## MLP fine-tuning
 
-Set the checkpoint path to a completed pretraining run:
+The bundled [encoder checkpoint](ckpt/encoder_pretrain.pt) is the Inductive9 rotate-mix
+baseline trained for 100 epochs with seed 42, learning rate `1e-4`, batch size 128, and
+50% random SO(3) rotation augmentation. It is compatible with all MLP configurations below.
+The file preserves the original pretraining checkpoint, including its training configuration;
+fine-tuning loads only the encoder weights. Its 100-epoch training budget differs from the
+150-epoch budget currently configured for new runs in `configs/pretrain.yaml`.
+
+Use the bundled checkpoint or replace this path with your own completed pretraining run:
 
 ```bash
-PRETRAIN_CHECKPOINT=runs/pretrain/RUN_NAME/checkpoints/last.pt
+PRETRAIN_CHECKPOINT=ckpt/encoder_pretrain.pt
 bash scripts/finetune_mlp.sh \
   --override "train.pretrain_checkpoint=$PRETRAIN_CHECKPOINT"
 ```
+
+Verify the bundled file from the repository root with
+`sha256sum -c ckpt/encoder_pretrain.pt.sha256`.
 
 The launcher defaults to `configs/finetune.yaml`. Select another dataset with `--config`:
 
@@ -211,6 +221,7 @@ brepprediff-infer-visual \
 
 ```text
 configs/                 default pretraining and dataset-specific MLP configurations
+ckpt/                    bundled pretrained encoder and SHA-256 checksum
 data/                    data configurations and dataset split lists
 scripts/                 default launchers and data preparation utilities
 src/brepprediff/
@@ -222,4 +233,5 @@ src/brepprediff/
 ```
 
 Runs are written to `runs/<stage>/<timestamp_name>/` with a resolved `config.yaml`, logs,
-and checkpoints. Caches, run outputs, checkpoints, and packaged artifacts are ignored by Git.
+and checkpoints. Generated caches, run outputs, checkpoints, and packaged artifacts are ignored
+by Git; `ckpt/encoder_pretrain.pt` is explicitly included.
